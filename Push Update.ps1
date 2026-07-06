@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 try {
     Set-Location "$env:USERPROFILE\Desktop\Onboarding Agent"
     git add -A
-    git commit -m "Add name/role onboarding modal + MHE/AR task filtering (closes #2, #3)"
+    git commit -m "Add name/role modal + MHE/AR task filtering + dynamic specialty tracks (closes #2, #3, #4)"
     git push
     Write-Host "`nPushed successfully." -ForegroundColor Green
 } catch {
