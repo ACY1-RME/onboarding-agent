@@ -3,3 +3,7 @@
 *.pyo
 .DS_Store
 Thumbs.db
+
+progress/
+progress_cache/
+sync_state.json

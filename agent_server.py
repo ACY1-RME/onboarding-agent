@@ -17,44 +17,84 @@ import re, time
 SHARE_PROGRESS_DIR = r"\\ant\dept-na\ACY1\Support\RME\Onboarding Agent\progress"
 LOCAL_PROGRESS_DIR = os.path.join(DEST, "progress")
 LOCAL_CACHE_DIR     = os.path.join(DEST, "progress_cache")
+SYNC_STATE_FILE     = os.path.join(DEST, "sync_state.json")
+SYNC_INTERVAL_SEC   = 30
+
+_sync_lock = threading.Lock()
+_sync_state = {"connected": False, "last_sync": None, "last_attempt": None, "syncing": False}
 
 def ensure_local_dirs():
     for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
         try: os.makedirs(d, exist_ok=True)
         except Exception: pass
 
-def run_ps(cmd, timeout=8):
+def load_sync_state():
+    global _sync_state
+    try:
+        with open(SYNC_STATE_FILE, encoding="utf-8") as f:
+            _sync_state.update(json.load(f))
+    except Exception:
+        pass
+
+def persist_sync_state():
+    try:
+        with open(SYNC_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_sync_state, f)
+    except Exception:
+        pass
+
+def run_ps(cmd, timeout=6):
     try:
         r = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", cmd],
             capture_output=True, text=True, timeout=timeout
         )
-        return r.returncode == 0
-    except Exception:
-        return False
+        return r.returncode == 0, r.stdout, r.stderr
+    except Exception as e:
+        return False, "", str(e)
 
-def push_to_share(local_file):
-    # Best-effort async copy of one progress file up to the network share.
-    # UNC paths aren't reliably reachable via plain Python os calls in this
-    # environment, but PowerShell handles them fine -- so we shell out.
-    fname = os.path.basename(local_file)
-    cmd = (
-        f"New-Item -ItemType Directory -Path '{SHARE_PROGRESS_DIR}' -Force "
-        f"-ErrorAction SilentlyContinue | Out-Null; "
-        f"Copy-Item -Path '{local_file}' -Destination '{SHARE_PROGRESS_DIR}\\{fname}' "
-        f"-Force -ErrorAction SilentlyContinue"
-    )
-    run_ps(cmd)
+def check_share_reachable():
+    # Quick, short-timeout probe -- won't hang the app if we're offline.
+    ok, out, _ = run_ps(f"if (Test-Path '{SHARE_PROGRESS_DIR}') {{'YES'}} else {{'NO'}}", timeout=5)
+    return ok and "YES" in out
 
-def pull_from_share():
-    # Best-effort mirror of everyone else's progress files from the share
-    # into a local cache dir so they can be read with normal Python file I/O.
-    cmd = (
-        f"if (Test-Path '{SHARE_PROGRESS_DIR}') {{ "
-        f"Copy-Item -Path '{SHARE_PROGRESS_DIR}\\*.json' -Destination '{LOCAL_CACHE_DIR}' "
-        f"-Force -ErrorAction SilentlyContinue }}"
-    )
-    run_ps(cmd)
+def sync_all(manual=False):
+    # Offline-first: local files are always the source of truth.
+    # This best-effort pushes everything local up to the share and pulls
+    # everything else down, updating sync state either way.
+    with _sync_lock:
+        _sync_state["syncing"] = True
+        _sync_state["last_attempt"] = time.time()
+        persist_sync_state()
+        ensure_local_dirs()
+        reachable = check_share_reachable()
+        _sync_state["connected"] = reachable
+        if reachable:
+            try:
+                run_ps(
+                    f"New-Item -ItemType Directory -Path '{SHARE_PROGRESS_DIR}' -Force "
+                    f"-ErrorAction SilentlyContinue | Out-Null; "
+                    f"Copy-Item -Path '{LOCAL_PROGRESS_DIR}\\*.json' -Destination '{SHARE_PROGRESS_DIR}' "
+                    f"-Force -ErrorAction SilentlyContinue; "
+                    f"Copy-Item -Path '{SHARE_PROGRESS_DIR}\\*.json' -Destination '{LOCAL_CACHE_DIR}' "
+                    f"-Force -ErrorAction SilentlyContinue",
+                    timeout=15
+                )
+                _sync_state["last_sync"] = time.time()
+            except Exception:
+                pass
+        _sync_state["syncing"] = False
+        persist_sync_state()
+        return dict(_sync_state)
+
+def start_background_sync():
+    def loop():
+        while True:
+            try: sync_all()
+            except Exception: pass
+            time.sleep(SYNC_INTERVAL_SEC)
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
 
 def slugify_name(s):
     s = re.sub(r"[^a-z0-9]+", "_", (s or "").lower()).strip("_")
@@ -95,6 +135,8 @@ class Handler(BaseHTTPRequestHandler):
             self._file(os.path.join(DEST,'index.html'),'text/html; charset=utf-8')
         elif p == '/api/progress':
             self._list_progress()
+        elif p == '/api/sync-status':
+            self._json(200, dict(_sync_state))
         else:
             self._json(404,{'error':'not found'})
 
@@ -104,6 +146,7 @@ class Handler(BaseHTTPRequestHandler):
         if   self.path=='/api/message':   self._msg(bd.get('message',''))
         elif self.path=='/api/command':   self._cmd(bd.get('action',''),bd.get('arg',''))
         elif self.path=='/api/progress':  self._save_progress(bd)
+        elif self.path=='/api/sync-now':  self._sync_now()
         else: self._json(404,{'error':'not found'})
 
     def _msg(self, msg):
@@ -138,12 +181,14 @@ class Handler(BaseHTTPRequestHandler):
                 json.dump(bd, f)
         except Exception as e:
             return self._json(200, {'ok': False, 'error': str(e)})
-        threading.Thread(target=push_to_share, args=(fn,), daemon=True).start()
+        threading.Thread(target=sync_all, daemon=True).start()
         self._json(200, {'ok': True})
 
     def _list_progress(self):
+        # Reads local + cached-from-share files only -- instant, never blocks
+        # on the network. Background thread + Sync Now button keep the
+        # cache fresh whenever the share is reachable.
         ensure_local_dirs()
-        pull_from_share()
         people = []
         seen = set()
         for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
@@ -157,6 +202,10 @@ class Handler(BaseHTTPRequestHandler):
                         except Exception:
                             pass
         self._json(200, {'people': people})
+
+    def _sync_now(self):
+        result = sync_all(manual=True)
+        self._json(200, result)
 
     def _file(self, path, ct):
         try:
@@ -179,6 +228,9 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
 if __name__ == '__main__':
+    ensure_local_dirs()
+    load_sync_state()
+    start_background_sync()
     url = f'http://127.0.0.1:{PORT}'
     server = HTTPServer(('127.0.0.1', PORT), Handler)
     print(f'ACY1 RME Onboarding Agent  ->  {url}')
