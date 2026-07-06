@@ -441,6 +441,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', ct)
             self.send_header('Content-Length', len(data))
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
             self.end_headers()
             self.wfile.write(data)
         except FileNotFoundError: self._json(404,{'error':'file not found'})
