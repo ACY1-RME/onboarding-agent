@@ -71,13 +71,22 @@ def sync_all(manual=False):
         _sync_state["connected"] = reachable
         if reachable:
             try:
+                share_root = os.path.dirname(SHARE_PROGRESS_DIR)
                 run_ps(
                     f"New-Item -ItemType Directory -Path '{SHARE_PROGRESS_DIR}' -Force "
                     f"-ErrorAction SilentlyContinue | Out-Null; "
                     f"Copy-Item -Path '{LOCAL_PROGRESS_DIR}\\*.json' -Destination '{SHARE_PROGRESS_DIR}' "
                     f"-Force -ErrorAction SilentlyContinue; "
                     f"Copy-Item -Path '{SHARE_PROGRESS_DIR}\\*.json' -Destination '{LOCAL_CACHE_DIR}' "
-                    f"-Force -ErrorAction SilentlyContinue",
+                    f"-Force -ErrorAction SilentlyContinue; "
+                    f"foreach ($f in @('admins.json','roster.json','admin_log.json')) {{ "
+                    f"if (Test-Path (Join-Path '{DEST}' $f)) {{ Copy-Item -Path (Join-Path '{DEST}' $f) "
+                    f"-Destination (Join-Path '{share_root}' $f) -Force -ErrorAction SilentlyContinue }} "
+                    f"if (Test-Path (Join-Path '{share_root}' $f)) {{ "
+                    f"$localTime = if (Test-Path (Join-Path '{DEST}' $f)) {{ (Get-Item (Join-Path '{DEST}' $f)).LastWriteTimeUtc }} else {{ [DateTime]::MinValue }}; "
+                    f"$shareTime = (Get-Item (Join-Path '{share_root}' $f)).LastWriteTimeUtc; "
+                    f"if ($shareTime -gt $localTime) {{ Copy-Item -Path (Join-Path '{share_root}' $f) "
+                    f"-Destination (Join-Path '{DEST}' $f) -Force -ErrorAction SilentlyContinue }} }} }}",
                     timeout=15
                 )
                 _sync_state["last_sync"] = time.time()
@@ -99,6 +108,73 @@ def start_background_sync():
 def slugify_name(s):
     s = re.sub(r"[^a-z0-9]+", "_", (s or "").lower()).strip("_")
     return s or "unknown"
+
+import hashlib, secrets as _secrets
+
+ADMIN_USERS_FILE = os.path.join(DEST, "admins.json")
+ADMIN_ROSTER_FILE = os.path.join(DEST, "roster.json")
+ADMIN_LOG_FILE = os.path.join(DEST, "admin_log.json")
+_SESSION_TTL = 8 * 3600
+_sessions = {}
+
+_DEFAULT_ADMIN_USERS = '{"souyackg": {"salt": "d9d29dd4986f759711a9c1265832eac9", "hash": "2f7c7e53369631faffc1180580c8d36c16a7502e4bc1f0ad2b5b8c255da26563"}, "yeowilli": {"salt": "32921696503980b07ec0bf27f9fd0c43", "hash": "7c70ef1ce62bb9ca9da534c8e3eab14732646a66db47b585b0b68552185dce33"}, "admin": {"salt": "b9b4bc5f5628d47cb662e34eb62c1b08", "hash": "2671481a87afd66cc56dbad7aec9436cb676026622cd618d09d6876242d5136b"}}'
+
+def hash_password(password, salt_hex):
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), 100000).hex()
+
+def load_json_file(path, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+def save_json_file(path, obj):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(obj, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+def ensure_admin_files():
+    ensure_local_dirs()
+    if not os.path.exists(ADMIN_USERS_FILE):
+        save_json_file(ADMIN_USERS_FILE, json.loads(_DEFAULT_ADMIN_USERS))
+    if not os.path.exists(ADMIN_ROSTER_FILE):
+        save_json_file(ADMIN_ROSTER_FILE, {"people": []})
+    if not os.path.exists(ADMIN_LOG_FILE):
+        save_json_file(ADMIN_LOG_FILE, {"entries": []})
+
+def log_admin_action(username, action, detail):
+    log = load_json_file(ADMIN_LOG_FILE, {"entries": []})
+    log.setdefault("entries", []).append({
+        "ts": time.time(), "user": username, "action": action, "detail": detail
+    })
+    log["entries"] = log["entries"][-500:]
+    save_json_file(ADMIN_LOG_FILE, log)
+
+def check_login(username, password):
+    users = load_json_file(ADMIN_USERS_FILE, {})
+    u = users.get(username)
+    if not u:
+        return False
+    return hash_password(password, u["salt"]) == u["hash"]
+
+def create_session(username):
+    token = _secrets.token_urlsafe(24)
+    _sessions[token] = {"user": username, "expires": time.time() + _SESSION_TTL}
+    return token
+
+def verify_session(token):
+    s = _sessions.get(token)
+    if not s:
+        return None
+    if time.time() > s["expires"]:
+        _sessions.pop(token, None)
+        return None
+    return s["user"]
+
 
 CTX = (
     "You are the ACY1 RME Onboarding Agent helping a new RME technician at ACY1, "
@@ -130,13 +206,21 @@ CMDS = {
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        p = urlparse(self.path).path
+        from urllib.parse import parse_qs
+        parsed = urlparse(self.path)
+        p = parsed.path
+        qs = parse_qs(parsed.query)
+        token = (qs.get('token') or [''])[0]
         if p in ('/','/index.html'):
             self._file(os.path.join(DEST,'index.html'),'text/html; charset=utf-8')
         elif p == '/api/progress':
             self._list_progress()
         elif p == '/api/sync-status':
             self._json(200, dict(_sync_state))
+        elif p == '/api/admin/roster':
+            self._admin_get_roster(token)
+        elif p == '/api/admin/log':
+            self._admin_get_log(token)
         else:
             self._json(404,{'error':'not found'})
 
@@ -147,6 +231,13 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path=='/api/command':   self._cmd(bd.get('action',''),bd.get('arg',''))
         elif self.path=='/api/progress':  self._save_progress(bd)
         elif self.path=='/api/sync-now':  self._sync_now()
+        elif self.path=='/api/admin/login':          self._admin_login(bd)
+        elif self.path=='/api/admin/logout':         self._admin_logout(bd)
+        elif self.path=='/api/admin/change-password':self._admin_change_password(bd)
+        elif self.path=='/api/admin/roster/add':     self._admin_roster_add(bd)
+        elif self.path=='/api/admin/roster/remove':  self._admin_roster_remove(bd)
+        elif self.path=='/api/admin/user/edit':      self._admin_user_edit(bd)
+        elif self.path=='/api/admin/user/delete':    self._admin_user_delete(bd)
         else: self._json(404,{'error':'not found'})
 
     def _msg(self, msg):
@@ -206,6 +297,143 @@ class Handler(BaseHTTPRequestHandler):
     def _sync_now(self):
         result = sync_all(manual=True)
         self._json(200, result)
+
+    def _require_admin(self, token):
+        user = verify_session(token)
+        return user
+
+    def _admin_login(self, bd):
+        ensure_admin_files()
+        username = (bd.get('username') or '').strip()
+        password = bd.get('password') or ''
+        if check_login(username, password):
+            token = create_session(username)
+            log_admin_action(username, 'login', '')
+            self._json(200, {'ok': True, 'token': token, 'user': username})
+        else:
+            self._json(200, {'ok': False, 'error': 'Invalid username or password'})
+
+    def _admin_logout(self, bd):
+        token = bd.get('token') or ''
+        _sessions.pop(token, None)
+        self._json(200, {'ok': True})
+
+    def _admin_change_password(self, bd):
+        token = bd.get('token') or ''
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        new_pw = bd.get('new_password') or ''
+        if len(new_pw) < 6:
+            return self._json(200, {'ok': False, 'error': 'Password must be at least 6 characters'})
+        users = load_json_file(ADMIN_USERS_FILE, {})
+        salt = _secrets.token_hex(16)
+        users[user] = {'salt': salt, 'hash': hash_password(new_pw, salt)}
+        save_json_file(ADMIN_USERS_FILE, users)
+        log_admin_action(user, 'change_password', '')
+        threading.Thread(target=sync_all, daemon=True).start()
+        self._json(200, {'ok': True})
+
+    def _admin_get_roster(self, token):
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        ensure_admin_files()
+        roster = load_json_file(ADMIN_ROSTER_FILE, {'people': []})
+        self._json(200, roster)
+
+    def _admin_roster_add(self, bd):
+        token = bd.get('token') or ''
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        name = (bd.get('name') or '').strip()
+        role = bd.get('role') or 'both'
+        if not name:
+            return self._json(200, {'ok': False, 'error': 'Name required'})
+        roster = load_json_file(ADMIN_ROSTER_FILE, {'people': []})
+        roster.setdefault('people', [])
+        roster['people'] = [p for p in roster['people'] if p.get('name','').lower() != name.lower()]
+        roster['people'].append({'name': name, 'role': role, 'added_by': user, 'ts': time.time()})
+        save_json_file(ADMIN_ROSTER_FILE, roster)
+        log_admin_action(user, 'roster_add', name)
+        threading.Thread(target=sync_all, daemon=True).start()
+        self._json(200, {'ok': True})
+
+    def _admin_roster_remove(self, bd):
+        token = bd.get('token') or ''
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        name = (bd.get('name') or '').strip()
+        roster = load_json_file(ADMIN_ROSTER_FILE, {'people': []})
+        roster.setdefault('people', [])
+        roster['people'] = [p for p in roster['people'] if p.get('name','').lower() != name.lower()]
+        save_json_file(ADMIN_ROSTER_FILE, roster)
+        log_admin_action(user, 'roster_remove', name)
+        threading.Thread(target=sync_all, daemon=True).start()
+        self._json(200, {'ok': True})
+
+    def _admin_user_edit(self, bd):
+        token = bd.get('token') or ''
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        old_name = (bd.get('old_name') or '').strip()
+        new_name = (bd.get('new_name') or '').strip() or old_name
+        new_role = bd.get('new_role')
+        if not old_name:
+            return self._json(200, {'ok': False, 'error': 'old_name required'})
+        old_fn = os.path.join(LOCAL_PROGRESS_DIR, slugify_name(old_name) + '.json')
+        cache_fn = os.path.join(LOCAL_CACHE_DIR, slugify_name(old_name) + '.json')
+        data = None
+        for fn in (old_fn, cache_fn):
+            if os.path.exists(fn):
+                data = load_json_file(fn, None)
+                break
+        if data is None:
+            return self._json(200, {'ok': False, 'error': 'User progress file not found'})
+        data['name'] = new_name
+        if new_role:
+            data['role'] = new_role
+        data['ts'] = time.time()
+        new_fn = os.path.join(LOCAL_PROGRESS_DIR, slugify_name(new_name) + '.json')
+        save_json_file(new_fn, data)
+        if slugify_name(new_name) != slugify_name(old_name):
+            for fn in (old_fn, cache_fn):
+                try:
+                    if os.path.exists(fn): os.remove(fn)
+                except Exception: pass
+        log_admin_action(user, 'user_edit', f'{old_name} -> {new_name}')
+        threading.Thread(target=sync_all, daemon=True).start()
+        self._json(200, {'ok': True})
+
+    def _admin_user_delete(self, bd):
+        token = bd.get('token') or ''
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        name = (bd.get('name') or '').strip()
+        if not name:
+            return self._json(200, {'ok': False, 'error': 'name required'})
+        removed = False
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            fn = os.path.join(d, slugify_name(name) + '.json')
+            if os.path.exists(fn):
+                try:
+                    os.remove(fn); removed = True
+                except Exception: pass
+        log_admin_action(user, 'user_delete', name)
+        threading.Thread(target=sync_all, daemon=True).start()
+        self._json(200, {'ok': removed})
+
+    def _admin_get_log(self, token):
+        user = self._require_admin(token)
+        if not user:
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        log = load_json_file(ADMIN_LOG_FILE, {'entries': []})
+        self._json(200, log)
+
 
     def _file(self, path, ct):
         try:

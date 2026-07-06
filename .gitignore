@@ -7,3 +7,6 @@ Thumbs.db
 progress/
 progress_cache/
 sync_state.json
+admins.json
+roster.json
+admin_log.json
