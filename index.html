@@ -167,7 +167,7 @@ function applyProfile(){const nm=localStorage.getItem('ob_name');const rl=localS
 updateAdminBtnVisibility();
 document.querySelectorAll('.task-item[data-role]').forEach(el=>{const r=el.getAttribute('data-role');if(!rl||rl==='both'){el.classList.remove('role-hidden');}else{el.classList.toggle('role-hidden',r!==rl);}});
 updateProgress();}
-document.getElementById('pmName').addEventListener('input',checkPmReady);
+
 window.addEventListener('DOMContentLoaded',()=>{loadCustomTracks();document.querySelectorAll('.checklist input[type=checkbox]').forEach(cb=>{cb.checked=localStorage.getItem('ob_'+cb.id)==='1';});const nm=localStorage.getItem('ob_name');applyProfile();if(!nm){openProfileModal();}});
 
 function togglePhase(id){const el=document.getElementById(id);el.style.display=el.style.display==='none'?'':'none';}
