@@ -1,7 +1,7 @@
 # Pushes the latest Onboarding Agent changes (name/role personalization feature) to GitHub.
 $ErrorActionPreference = "Stop"
 try {
-    Set-Location "$env:USERPROFILE\Desktop\Onboarding Agent"
+    Set-Location "$env:USERPROFILE\Dev\tools\onboarding-agent"
     git add -A
     git commit -m "Add name/role modal + MHE/AR task filtering + dynamic specialty tracks (closes #2, #3, #4)"
     git push

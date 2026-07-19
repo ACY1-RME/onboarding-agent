@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "3.0",
+  "metadata": {
+    "name": "acy1-onboarding",
+    "displayName": "ACY1 RME Onboarding",
+    "description": "Constrained assistant for new ACY1 RME technicians (onboarding kiosk).",
+    "author": "ACY1 RME",
+    "version": "1.0.0",
+    "orderId": 50,
+    "visible": false
+  },
+  "llm": {
+    "provider": "bedrock",
+    "modelId": "Claude Sonnet 4.6",
+    "temperature": 0.4,
+    "reasoning": { "enabled": false }
+  },
+  "prompts": {
+    "systemPromptFile": "prompts/onboarding.txt"
+  },
+  "context": {
+    "summarizationEnabled": false
+  },
+  "ui": { "greetingEnabled": false },
+  "marketplaceSkills": [],
+  "tools": { "permissions": { "allow": [], "requireApproval": [] } },
+  "enableMemory": false
+}
