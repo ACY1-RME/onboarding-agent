@@ -1,4 +1,5 @@
 """ACY1 RME Onboarding Agent - HTTP Server (port 5901)"""
+import sys
 import threading
 import subprocess
 import json
@@ -58,12 +59,14 @@ def start_shutdown_watchdog():
         while True:
             time.sleep(3)
             if _page_seen[0] and (time.time() - _last_ping[0]) > PING_TIMEOUT_SEC:
+                print('Auto-shutdown: browser tab inactive', file=sys.stderr)
                 os._exit(0)
     threading.Thread(target=loop, daemon=True).start()
 
 _sync_lock = threading.Lock()
 _file_lock  = threading.Lock()  # guards all JSON read-modify-write ops
 _sync_state = {"connected": False, "last_sync": None, "last_attempt": None, "syncing": False}
+_start_time: float = time.time()
 
 def ensure_local_dirs():
     for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
@@ -164,12 +167,17 @@ ADMIN_ROSTER_FILE = os.path.join(STATE, "roster.json")
 ADMIN_LOG_FILE = os.path.join(STATE, "admin_log.json")
 _SESSION_TTL = 8 * 3600
 _sessions = {}
-_login_attempts = {}  # {username_lower: {'count': int, 'lock_until': float}}
+_login_attempts = {}
+_fb_times: dict[str, list[float]] = {}  # feedback rate limit  # {username_lower: {'count': int, 'lock_until': float}}
 
 def _check_rate_limit(username):
     key = (username or '').lower()
     rec = _login_attempts.get(key, {})
-    return time.time() >= rec.get('lock_until', 0)
+    lock = rec.get('lock_until', 0)
+    now = time.time()
+    if now >= lock:
+        return True, 0
+    return False, max(1, int(lock - now) + 1)
 
 def _record_failure(username):
     key = (username or '').lower()
@@ -335,26 +343,87 @@ def safe(fn):
         fn()
 
 CMDS = {
-    "openfile": lambda p: (safe(lambda: os.startfile(p)), "Opened file."),  # noqa: S606
+    "openfile": lambda p: (safe(lambda: os.startfile(p)), "Opened file.") if os.path.exists(p) else (None, f"File not found: {p}"),  # noqa: S606
     "openurl":  lambda u: (safe(lambda: open_url(u)), "Opened in browser.") if _safe_url(u) else (None, "Blocked: URL must use http:// or https://."),
 }
 
 class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Origin', 'http://127.0.0.1:5901')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self._sec_headers()
+        self.end_headers()
+
+    def do_GET(self):  # noqa: C901 -- dispatch handler
         parsed = urlparse(self.path)
         p = parsed.path
         qs = parse_qs(parsed.query)
         token = (qs.get('token') or [''])[0]
         if p in ('/','/index.html'):
             self._file(os.path.join(DEST,'index.html'),'text/html; charset=utf-8')
+        elif p == '/manifest.json':
+            self._manifest()
         elif p == '/api/progress':
             self._list_progress()
+        elif p.startswith('/api/progress/') and len(p) > 14:
+            self._get_user_progress(p[14:])
         elif p == '/api/sync-status':
-            self._json(200, dict(_sync_state))
+            st = dict(_sync_state)
+            st['uptime_sec'] = int(time.time() - _start_time)
+            self._json(200, st)
         elif p == '/api/admin/roster':
             self._admin_get_roster(token)
         elif p == '/api/admin/log':
-            self._admin_get_log(token)
+            self._admin_get_log(token, qs)
+        elif p == '/api/admin/feedback':
+            self._admin_get_feedback(token)
+        elif p == '/api/admin/stats-detail':
+            self._admin_stats_detail(token)
+        elif p == '/api/admin/stats-export':
+            self._admin_stats_export(token)
+        elif p == '/api/broadcast':
+            self._get_broadcast()
+        elif p == '/api/stats':
+            self._get_stats()
+        elif p == '/api/export':
+            self._export_csv(token)
+        elif p == '/api/export-notes':
+            self._export_notes_csv(token)
+        elif p == '/api/notes':
+            self._get_notes(qs)
+        elif p == '/api/changelog':
+            self._get_changelog()
+        elif p == '/api/version':
+            ensure_local_dirs()
+            user_count = len({fn for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR)
+                              if os.path.isdir(d) for fn in os.listdir(d)
+                              if fn.endswith('.json')})
+            note_dir = os.path.join(STATE, 'notes')
+            note_count = sum(1 for fn in (os.listdir(note_dir) if os.path.isdir(note_dir) else [])
+                             if fn.endswith('.json'))
+            self._json(200, {'version': '1.0', 'built': '2026-07-21', 'port': PORT,
+                             'uptime_sec': int(time.time() - _start_time),
+                             'users': user_count, 'notes': note_count})
+        elif p == '/health':
+            uptime = int(time.time() - _start_time)
+            ensure_local_dirs()
+            user_count = len({fn for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR)
+                              if os.path.isdir(d) for fn in os.listdir(d)
+                              if fn.endswith('.json')})
+            note_dir = os.path.join(STATE, 'notes')
+            note_count = sum(1 for fn in (os.listdir(note_dir) if os.path.isdir(note_dir) else [])
+                             if fn.endswith('.json'))
+            fb_path = os.path.join(STATE, 'feedback', 'feedback.json')
+            try:
+                with open(fb_path, encoding='utf-8') as _fh:
+                    fb_count = len(json.load(_fh))
+            except (FileNotFoundError, json.JSONDecodeError):
+                fb_count = 0
+            self._json(200, {'ok': True, 'uptime_sec': uptime, 'port': PORT,
+                             'sync': dict(_sync_state), 'users': user_count,
+                             'notes': note_count, 'feedback': fb_count})
         else:
             self._json(404,{'error':'not found'})
 
@@ -364,9 +433,12 @@ class Handler(BaseHTTPRequestHandler):
             MAX_BODY = 512 * 1024
             if n > MAX_BODY:
                 return self._json(413, {'error': 'request too large'})
-            bd = json.loads(self.rfile.read(n) or '{}')
+            raw = self.rfile.read(n) or b'{}'
+            bd = json.loads(raw)
         except (ValueError, json.JSONDecodeError):
             return self._json(400, {'error': 'bad request'})
+        if not isinstance(bd, dict):
+            return self._json(400, {'error': 'expected JSON object'})
         if   self.path=='/api/ping':
             _last_ping[0] = time.time()
             _page_seen[0] = True
@@ -399,7 +471,105 @@ class Handler(BaseHTTPRequestHandler):
             return self._admin_user_edit(bd)
         if self.path == '/api/admin/user/delete':
             return self._admin_user_delete(bd)
+        if self.path == '/api/notes':
+            return self._save_notes(bd)
+        if self.path == '/api/feedback':
+            return self._save_feedback(bd)
+        if self.path == '/api/admin/broadcast':
+            return self._set_broadcast(bd)
         return self._json(404, {'error': 'not found'})
+
+    def do_DELETE(self):
+        """Handle DELETE requests (admin feedback deletion)."""
+        try:
+            parsed = urlparse(self.path)
+            p = parsed.path
+            qs = parse_qs(parsed.query)
+            token = (qs.get('token') or [''])[0]
+            if p == '/api/admin/feedback/all':
+                return self._admin_clear_feedback(token)
+            if p.startswith('/api/admin/feedback/'):
+                ts = p.split('/')[-1]
+                return self._admin_delete_feedback(token, ts)
+            return self._json(404, {'error': 'not found'})
+        except Exception:
+            return self._json(500, {'error': 'server error'})
+
+    def _admin_delete_feedback(self, token: str, ts: str):
+        """Delete a single feedback entry by timestamp (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        fb_path = os.path.join(STATE, 'feedback', 'feedback.json')
+        try:
+            with open(fb_path, encoding='utf-8') as fh:
+                entries = json.load(fh)
+            if not isinstance(entries, list):
+                entries = []
+        except (FileNotFoundError, json.JSONDecodeError):
+            entries = []
+        before = len(entries)
+        entries = [e for e in entries if str(e.get('ts', '')) != ts]
+        if len(entries) == before:
+            return self._json(404, {'ok': False, 'error': 'Entry not found'})
+        with open(fb_path, 'w', encoding='utf-8') as fh:
+            json.dump(entries, fh, ensure_ascii=False, indent=2)
+        return self._json(200, {'ok': True, 'deleted': ts})
+
+    def _admin_clear_feedback(self, token: str):
+        """Clear all feedback entries (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        fb_path = os.path.join(STATE, 'feedback', 'feedback.json')
+        try:
+            with open(fb_path, encoding='utf-8') as fh:
+                entries = json.load(fh)
+            if not isinstance(entries, list):
+                entries = []
+        except (FileNotFoundError, json.JSONDecodeError):
+            entries = []
+        count = len(entries)
+        with open(fb_path, 'w', encoding='utf-8') as fh:
+            json.dump([], fh)
+        return self._json(200, {'ok': True, 'cleared': count})
+
+    def _save_feedback(self, bd: dict):
+        """Save user feedback/flag to feedback log JSON file."""
+        name = (bd.get('name') or '').strip()[:60]
+        msg  = (bd.get('message') or '').strip()[:1000]
+        kind = (bd.get('kind') or 'feedback').strip()[:20]
+        if not name or not msg:
+            return self._json(400, {'ok': False, 'error': 'name and message required'})
+        # Rate-limit: 5 submissions per name per hour
+        now = time.time()
+        times = [t for t in _fb_times.get(name, []) if now - t < 3600]
+        if len(times) >= 5:
+            return self._json(429, {'ok': False, 'error': 'Too many submissions — please wait'})
+        times.append(now)
+        _fb_times[name] = times
+        fb_dir = os.path.join(STATE, 'feedback')
+        try:
+            os.makedirs(fb_dir, exist_ok=True)
+            fb_path = os.path.join(fb_dir, 'feedback.json')
+            try:
+                with open(fb_path, encoding='utf-8') as fh:
+                    entries = json.load(fh)
+                if not isinstance(entries, list):
+                    entries = []
+            except (FileNotFoundError, json.JSONDecodeError):
+                entries = []
+            entries.append({
+                'ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                'name': name,
+                'kind': kind,
+                'message': msg,
+            })
+            with open(fb_path, 'w', encoding='utf-8') as fh:
+                json.dump(entries, fh, indent=2, ensure_ascii=False)
+            print(f'[feedback] {name}: {kind}', file=sys.stderr)
+        except Exception as exc:
+            print(f'[feedback] save error: {exc}', file=sys.stderr)
+            return self._json(500, {'ok': False, 'error': 'save failed'})
+        return self._json(200, {'ok': True})
 
     def _msg(self, msg):
         if not msg:
@@ -464,6 +634,9 @@ class Handler(BaseHTTPRequestHandler):
             'pct':     _to_int(bd.get('pct'), lo=0, hi=100),
             'checked': [str(x)[:20] for x in raw_checked[:100]],
             'ts':      time.time(),
+            'notes':   {str(k)[:20]: str(v)[:200]
+                        for k, v in (bd.get('notes') or {}).items()
+                        if isinstance(bd.get('notes'), dict)}[:50],
         }
         fn = os.path.join(LOCAL_PROGRESS_DIR, slugify_name(name[:60]) + '.json')
         try:
@@ -473,6 +646,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'ok': False, 'error': str(e)})
         threading.Thread(target=sync_all, daemon=True).start()
         return self._json(200, {'ok': True})
+
+    def _get_user_progress(self, raw_name: str):
+        """Return progress for a single user by URL slug."""
+        slug = slugify_name(raw_name[:60])
+        ensure_local_dirs()
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            fn = os.path.join(d, slug + '.json')
+            if os.path.isfile(fn):
+                with contextlib.suppress(Exception):
+                    with open(fn, encoding='utf-8') as f:
+                        data = json.load(f)
+                    data.pop('notes', None)  # strip personal notes from API
+                    return self._json(200, data)
+        return self._json(404, {'error': 'not found'})
 
     def _list_progress(self):
         # Reads local + cached-from-share files only -- instant, never blocks
@@ -490,6 +677,99 @@ class Handler(BaseHTTPRequestHandler):
                             people.append(json.load(f))
         self._json(200, {'people': people})
 
+    def _get_stats(self):
+        """Aggregate progress stats across all tracked people."""
+        ensure_local_dirs()
+        people = []
+        seen: set = set()
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            if os.path.isdir(d):
+                for fn in os.listdir(d):
+                    if fn.endswith('.json') and fn not in seen:
+                        seen.add(fn)
+                        with contextlib.suppress(Exception), open(os.path.join(d, fn), encoding='utf-8') as f:
+                            people.append(json.load(f))
+        total = len(people)
+        pcts = [p.get('pct', 0) for p in people if isinstance(p.get('pct'), (int, float))]
+        avg = round(sum(pcts) / len(pcts)) if pcts else 0
+        complete = sum(1 for x in pcts if x >= 100)
+        uptime = int(time.time() - _start_time)
+        self._json(200, {
+            'total_people': total,
+            'avg_pct': avg,
+            'complete_count': complete,
+            'uptime_sec': uptime,
+            'sync_connected': _sync_state.get('connected', False),
+        })
+
+    def _export_csv(self, token: str):
+        """Stream progress data as CSV (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'error': 'Not authenticated'})
+        ensure_local_dirs()
+        rows: list[str] = ['name,role,start_date,done,total,pct,ts']
+        seen: set = set()
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            if not os.path.isdir(d):
+                continue
+            for fn in os.listdir(d):
+                if fn.endswith('.json') and fn not in seen:
+                    seen.add(fn)
+                    with contextlib.suppress(Exception), open(os.path.join(d, fn), encoding='utf-8') as f:
+                        p = json.load(f)
+                    def _q(v: object) -> str:
+                        return '"' + str(v or '').replace('"', '""') + '"'
+                    rows.append(','.join(_q(p.get(k, '')) for k in
+                                        ['name','role','start','done','total','pct','ts']))
+        payload = '\n'.join(rows).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/csv; charset=utf-8')
+        self.send_header('Content-Disposition', 'attachment; filename="onboarding_progress.csv"')
+        self.send_header('Content-Length', len(payload))
+        self._sec_headers()
+        self.end_headers()
+        self.wfile.write(payload)
+        return None
+
+    def _get_notes(self, qs: dict):
+        """Return saved notes for a user (by name param)."""
+        name = ((qs.get('name') or [''])[0]).strip()[:60]
+        if not name:
+            return self._json(400, {'error': 'name required'})
+        ensure_local_dirs()
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            fn = os.path.join(d, slugify_name(name) + '.json')
+            if os.path.isfile(fn):
+                with contextlib.suppress(Exception):
+                    with open(fn, encoding='utf-8') as f:
+                        data = json.load(f)
+                    return self._json(200, {'notes': data.get('notes', {})})
+        return self._json(200, {'notes': {}})
+
+    def _save_notes(self, bd: dict):
+        """Merge notes into existing progress file."""
+        name = (bd.get('name') or '').strip()[:60]
+        if not name:
+            return self._json(400, {'ok': False, 'error': 'name required'})
+        notes_in = bd.get('notes') or {}
+        if not isinstance(notes_in, dict):
+            return self._json(400, {'ok': False, 'error': 'notes must be object'})
+        clean_notes = {str(k)[:20]: str(v)[:200]
+                       for k, v in notes_in.items()
+                       if isinstance(v, str) and v.strip()}
+        ensure_local_dirs()
+        fn = os.path.join(LOCAL_PROGRESS_DIR, slugify_name(name) + '.json')
+        existing: dict = {}
+        if os.path.isfile(fn):
+            with contextlib.suppress(Exception), open(fn, encoding='utf-8') as f:
+                existing = json.load(f)
+        existing.setdefault('notes', {}).update(clean_notes)
+        tmp = fn + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(existing, f)
+        os.replace(tmp, fn)
+        return self._json(200, {'ok': True, 'saved': len(clean_notes)})
+
     def _sync_now(self):
         result = sync_all(manual=True)
         self._json(200, result)
@@ -501,8 +781,17 @@ class Handler(BaseHTTPRequestHandler):
         ensure_admin_files()
         username = (bd.get('username') or '').strip()
         password = bd.get('password') or ''
-        if not _check_rate_limit(username):
-            return self._json(200, {'ok': False, 'error': 'Too many failed attempts. Try again in 30 seconds.'})
+        _allowed, _retry = _check_rate_limit(username)
+        if not _allowed:
+            data = json.dumps({'ok': False, 'error': f'Too many failed attempts. Retry in {_retry}s.'}).encode()
+            self.send_response(429)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', len(data))
+            self.send_header('Retry-After', str(_retry))
+            self._sec_headers()
+            self.end_headers()
+            self.wfile.write(data)
+            return None
         if check_login(username, password):
             _clear_attempts(username)
             token = create_session(username)
@@ -639,18 +928,172 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=sync_all, daemon=True).start()
         return self._json(200, {'ok': removed})
 
-    def _admin_get_log(self, token):
+    def _admin_get_log(self, token, qs: dict | None = None):
         user = self._require_admin(token)
         if not user:
             return self._json(401, {'ok': False, 'error': 'Not authenticated'})
         log = load_json_file(ADMIN_LOG_FILE, {'entries': []})
+        entries = log.get('entries', [])
+        try:
+            limit = int(((qs or {}).get('last') or ['200'])[0])
+            limit = max(1, min(limit, 1000))
+        except (ValueError, TypeError, IndexError):
+            limit = 200
+        if limit < len(entries):
+            log = dict(log)
+            log['entries'] = entries[-limit:]
         return self._json(200, log)
 
+
+    def _export_notes_csv(self, token: str):
+        """Export all user notes as CSV (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'error': 'Not authenticated'})
+        ensure_local_dirs()
+        rows: list[str] = ['name,task_id,note']
+        seen: set = set()
+        def _q(v: object) -> str:
+            return '"' + str(v or '').replace('"', '""') + '"'
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            if not os.path.isdir(d):
+                continue
+            for fn in os.listdir(d):
+                if fn.endswith('.json') and fn not in seen:
+                    seen.add(fn)
+                    with contextlib.suppress(Exception), open(os.path.join(d, fn), encoding='utf-8') as f:
+                        p = json.load(f)
+                    name = p.get('name', fn.replace('.json', ''))
+                    notes = p.get('notes') or {}
+                    if isinstance(notes, dict):
+                        for tid, note in notes.items():
+                            if note and str(note).strip():
+                                rows.append(','.join(_q(v) for v in [name, tid, note]))
+        payload = '\n'.join(rows).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/csv; charset=utf-8')
+        self.send_header('Content-Disposition', 'attachment; filename="onboarding_notes.csv"')
+        self.send_header('Content-Length', len(payload))
+        self._sec_headers()
+        self.end_headers()
+        self.wfile.write(payload)
+        return None
+
+    def _admin_get_feedback(self, token: str):
+        """Return feedback submissions (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        fb_path = os.path.join(STATE, 'feedback', 'feedback.json')
+        try:
+            with open(fb_path, encoding='utf-8') as fh:
+                entries = json.load(fh)
+            if not isinstance(entries, list):
+                entries = []
+        except (FileNotFoundError, json.JSONDecodeError):
+            entries = []
+        return self._json(200, {'ok': True, 'entries': list(reversed(entries))})
+
+    def _admin_stats_detail(self, token: str):
+        """Return per-user task completion breakdown (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        ensure_local_dirs()
+        users: list[dict] = []
+        seen: set = set()
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            if not os.path.isdir(d):
+                continue
+            for fn in os.listdir(d):
+                if fn.endswith('.json') and fn not in seen:
+                    seen.add(fn)
+                    with contextlib.suppress(Exception), open(os.path.join(d, fn), encoding='utf-8') as f:
+                        p = json.load(f)
+                    done = int(p.get('done') or 0)
+                    total = int(p.get('total') or 0)
+                    pct = int(p.get('pct') or 0)
+                    users.append({
+                        'name': p.get('name', fn.replace('.json', '')),
+                        'role': p.get('role', ''),
+                        'done': done,
+                        'total': total,
+                        'pct': pct,
+                        'ts': p.get('ts', ''),
+                        'start': p.get('start', ''),
+                        'note_count': len(p.get('notes') or {}),
+                        'checked': list(p.get('checked') or []),
+                    })
+        users.sort(key=lambda u: u['pct'], reverse=True)
+        avg = round(sum(u['pct'] for u in users) / len(users), 1) if users else 0
+        complete = sum(1 for u in users if u['pct'] == 100)
+        return self._json(200, {
+            'ok': True,
+            'users': users,
+            'avg_pct': avg,
+            'complete_count': complete,
+            'total_users': len(users),
+        })
+
+    def _admin_stats_export(self, token: str):
+        """Export per-user stats as CSV (admin only)."""
+        if not self._require_admin(token):
+            return self._json(401, {'error': 'Not authenticated'})
+        ensure_local_dirs()
+        def _q(v: object) -> str:
+            return '"' + str(v or '').replace('"', '""') + '"'
+        rows = ['name,role,done,total,pct,start,last_sync,note_count']
+        seen: set = set()
+        for d in (LOCAL_PROGRESS_DIR, LOCAL_CACHE_DIR):
+            if not os.path.isdir(d):
+                continue
+            for fn in os.listdir(d):
+                if fn.endswith('.json') and fn not in seen:
+                    seen.add(fn)
+                    p: dict = {}
+                    with contextlib.suppress(Exception), open(os.path.join(d, fn), encoding='utf-8') as f:
+                        p = json.load(f)
+                    rows.append(','.join(_q(p.get(k, '')) for k in
+                                        ['name', 'role', 'done', 'total', 'pct', 'start', 'ts']) +
+                                ',' + _q(len(p.get('notes') or {})))
+        payload = '\n'.join(rows).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/csv; charset=utf-8')
+        self.send_header('Content-Disposition', 'attachment; filename="user_stats.csv"')
+        self.send_header('Content-Length', len(payload))
+        self._sec_headers()
+        self.end_headers()
+        self.wfile.write(payload)
+        return None
+
+    def _get_broadcast(self):
+        """Return current broadcast message (public endpoint)."""
+        path = os.path.join(STATE, 'broadcast.json')
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = {'message': '', 'kind': 'info'}
+        return self._json(200, data)
+
+    def _set_broadcast(self, bd: dict):
+        """Set or clear the sitewide broadcast message (admin only)."""
+        token = (bd.get('token') or '').strip()
+        if not self._require_admin(token):
+            return self._json(401, {'ok': False, 'error': 'Not authenticated'})
+        message = (bd.get('message') or '').strip()[:300]
+        kind = (bd.get('kind') or 'info').strip()[:20]
+        path = os.path.join(STATE, 'broadcast.json')
+        data = {'message': message, 'kind': kind}
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+        return self._json(200, {'ok': True})
 
     def _sec_headers(self):
         """Emit security headers on every response."""
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Permissions-Policy', 'geolocation=(), camera=(), microphone=()')
         # CSP: self-hosted only; inline scripts/styles required by the single-file app.
         self.send_header(
             'Content-Security-Policy',
@@ -663,6 +1106,13 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def _file(self, path, ct):
+        # Prevent path traversal: resolved path must stay inside DEST
+        try:
+            real = os.path.realpath(path)
+            if not real.startswith(os.path.realpath(DEST)):
+                return self._json(403, {'error': 'forbidden'})
+        except Exception:
+            return self._json(400, {'error': 'bad path'})
         try:
             with open(path, 'rb') as f:
                 data = f.read()
@@ -677,6 +1127,44 @@ class Handler(BaseHTTPRequestHandler):
         except FileNotFoundError:
             self._json(404, {'error': 'file not found'})
 
+    def _get_changelog(self):
+        """Return recent feature changelog."""
+        entries = [
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Chat history persists across sessions'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Feedback form (F key) — report issues to admin'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'A/Z keys expand/collapse all phases'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'N key jumps to next incomplete task'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Search highlights matching text'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Phase notes badge shows tasks with notes'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Sound mute toggle in gear menu'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Admin broadcast message banner'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Copy progress summary to clipboard'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Task deep links (?task=id)'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Ctrl+S saves task notes immediately'},
+            {'v': '2.0', 'date': '2026-07-21', 'note': 'Day-streak badge after 2+ active days'},
+        ]
+        return self._json(200, {'ok': True, 'entries': entries})
+
+    def _manifest(self):
+        """Serve a minimal PWA web app manifest."""
+        manifest = {
+            'name': 'ACY1 RME Onboarding Agent',
+            'short_name': 'Onboarding',
+            'description': 'ACY1 RME new hire onboarding checklist',
+            'start_url': '/',
+            'display': 'standalone',
+            'background_color': '#06120c',
+            'theme_color': '#00351f',
+            'icons': [],
+        }
+        data = json.dumps(manifest).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/manifest+json')
+        self.send_header('Content-Length', len(data))
+        self._sec_headers()
+        self.end_headers()
+        self.wfile.write(data)
+
     def _json(self, code, obj):
         data = json.dumps(obj).encode('utf-8')
         self.send_response(code)
@@ -686,7 +1174,10 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def log_message(self, *a): pass
+    def log_message(self, fmt, *args):
+        # Suppress 2xx/3xx noise; log 4xx/5xx to stderr for debugging
+        if args and str(args[1] if len(args) > 1 else '').startswith(('4', '5')):
+            print(f'[{self.log_date_time_string()}] {fmt % args}', file=sys.stderr)
 
 if __name__ == '__main__':
     ensure_local_dirs()
@@ -696,7 +1187,14 @@ if __name__ == '__main__':
     start_shutdown_watchdog()
     url = f'http://127.0.0.1:{PORT}'
     server = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
-    print(f'ACY1 RME Onboarding Agent  ->  {url}')
+    print('=' * 56)
+    print(f'  ACY1 RME Onboarding Agent  |  port {PORT}')
+    print(f'  URL:  {url}')
+    print(f'  Dir:  {DEST}')
+    print('=' * 56)
+    import platform
+    print(f'  Python {platform.python_version()}  |  PID {os.getpid()}')
+    print('=' * 56)
     threading.Timer(0.8, lambda: open_url(url)).start()
     try:
         server.serve_forever()

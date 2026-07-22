@@ -1880,4 +1880,141 @@ toggleDetailDone=function(){
   }else{dd.style.display='none';}
 };
 
+
+/* ── Progress milestone toasts ──────────────────────────── */
+var _milestones=[25,50,75,100];
+var _milestonesShown=JSON.parse(localStorage.getItem('ob_milestones_shown')||'[]');
+var _origUPMilestone=updateProgress;
+updateProgress=function(){
+  _origUPMilestone();
+  var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+  var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+  var pct=total?Math.round(done/total*100):0;
+  _milestones.forEach(function(m){
+    if(pct>=m&&_milestonesShown.indexOf(m)<0){
+      _milestonesShown.push(m);
+      localStorage.setItem('ob_milestones_shown',JSON.stringify(_milestonesShown));
+      var msgs={25:'You are 25% done! Solid start.',50:'Halfway there! Keep going.',75:'75% complete! Almost there.',100:'All done! Outstanding work!'};
+      setTimeout(function(){_showToast('\u{1F3AF} '+msgs[m],'success',4000);},500);
+    }
+  });
+};
+
+/* ── Expand / Collapse all phases ────────────────────────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');
+  if(!sb)return;
+  var row=document.createElement('div');
+  row.style.cssText='display:flex;gap:5px;margin-bottom:4px;flex-wrap:wrap;align-items:center';
+  var btnAll=document.createElement('button');
+  btnAll.textContent='Expand all';
+  btnAll.title='Expand all phases';
+  btnAll.className='hide-done-btn';
+  btnAll.style.fontSize='.62rem';
+  btnAll.onclick=function(){
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      body.style.display='';
+      localStorage.setItem('ob_ph_'+body.id,'open');
+      var hd=body.previousElementSibling;
+      if(hd){hd.classList.remove('collapsed');var cv=hd.querySelector('.ph-chevron');if(cv)cv.innerHTML='&#9660;';}
+    });
+    _updatePhaseBars();
+    btnAll.textContent='Collapse all';btnAll.onclick=collapseAll;
+  };
+  function collapseAll(){
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      body.style.display='none';
+      localStorage.setItem('ob_ph_'+body.id,'closed');
+      var hd=body.previousElementSibling;
+      if(hd){hd.classList.add('collapsed');var cv=hd.querySelector('.ph-chevron');if(cv)cv.innerHTML='&#9658;';}
+    });
+    btnAll.textContent='Expand all';btnAll.onclick=function(){
+      document.querySelectorAll('.phase-body').forEach(function(body){
+        body.style.display='';localStorage.setItem('ob_ph_'+body.id,'open');
+        var hd=body.previousElementSibling;if(hd){hd.classList.remove('collapsed');var cv=hd.querySelector('.ph-chevron');if(cv)cv.innerHTML='&#9660;';}
+      });
+      _updatePhaseBars();collapseAll._btnState='expand';
+    };
+  }
+  var firstRow=sb.querySelector('div');
+  if(firstRow)firstRow.appendChild(btnAll);
+})();
+
+/* ── Improved searchTasks: count with phase breakdown ────── */
+var _origSearch2=searchTasks;
+searchTasks=function(q){
+  _origSearch2(q);
+  var cnt=document.getElementById('search-count');
+  if(cnt&&q){
+    var vis=0;document.querySelectorAll('.checklist .task-item').forEach(function(it){if(it.style.display!=='none')vis++;});
+    if(vis>0){
+      cnt.textContent=vis+' task'+(vis===1?'':'s')+' found (press Enter to open first)';
+    }
+  }
+};
+
+
+/* ── Improved closeTaskDetail: restore focus ─────────────── */
+var _origCloseDetail=closeTaskDetail;
+closeTaskDetail=function(){
+  _origCloseDetail();
+  if(_curTask){
+    var item=document.querySelector('[onclick="showTaskDetail(\''+_curTask+'\')"]');
+    if(item)item.focus();
+  }
+};
+
+/* ── Print task detail ───────────────────────────────────── */
+function _printTask(){
+  if(!_curTask)return;
+  var d=TASK_DETAILS[_curTask];if(!d)return;
+  var note=localStorage.getItem('ob_note_'+_curTask)||'';
+  var steps=d.steps.map(function(s,i){return '<li>'+s+'</li>';}).join('');
+  var html='<html><head><title>'+d.title+'</title><style>body{font-family:Segoe UI,sans-serif;margin:30px;color:#111}h1{font-size:1.3rem}p{line-height:1.65}ol{margin:12px 0;padding-left:24px}li{margin:5px 0}.note{border-left:3px solid #aaa;padding:8px 12px;background:#f5f5f5;font-size:.87rem}</style></head><body>'
+    +'<h1>'+d.icon+' '+d.title+'</h1>'
+    +(d.body?'<div>'+d.body+'</div>':'<p>'+(d.desc||'')+'</p>')
+    +(steps?'<h3>Steps</h3><ol>'+steps+'</ol>':'')
+    +(note?'<h3>My Notes</h3><div class="note">'+note.replace(/\n/g,'<br>')+'</div>':'')
+    +'<p style="color:#aaa;font-size:.75rem">ACY1 RME Onboarding &mdash; '+(localStorage.getItem('ob_name')||'')+'</p>'
+    +'</body></html>';
+  var w=window.open('','_blank','width=700,height=600');
+  if(w){w.document.write(html);w.document.close();setTimeout(function(){w.print();},300);}
+}
+
+/* ── Add print button to detail panel ask-row ─────────────── */
+(function(){
+  var ar=document.querySelector('.detail-ask-row');
+  if(!ar||ar.querySelector('#detail-print-btn'))return;
+  var btn=document.createElement('button');btn.id='detail-print-btn';
+  btn.className='detail-ask-btn';btn.innerHTML='&#128438; Print';
+  btn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);margin-left:4px';
+  btn.title='Print / save this task';
+  btn.onclick=_printTask;
+  var nextBtn=document.getElementById('detail-next-btn');
+  if(nextBtn)ar.insertBefore(btn,nextBtn);
+  else ar.appendChild(btn);
+})();
+
+/* ── Tooltip on task time badges ─────────────────────────── */
+(function(){
+  document.querySelectorAll('.task-time').forEach(function(t){
+    var id=t.closest('.task-item')&&t.closest('.task-item').querySelector('input[type=checkbox]');
+    if(id&&TM[id.id]){t.title='Estimated '+fmtDur(TM[id.id]);}
+  });
+})();
+
+/* ── Phase start time tracker ────────────────────────────── */
+var _origUPPhStart=updateProgress;
+updateProgress=function(){
+  _origUPPhStart();
+  document.querySelectorAll('.phase-body').forEach(function(body){
+    var cbs=body.querySelectorAll('input[type=checkbox]');
+    var anyChecked=false;
+    cbs.forEach(function(c){if(c.checked)anyChecked=true;});
+    if(anyChecked&&!localStorage.getItem('ob_pstart_'+body.id)){
+      localStorage.setItem('ob_pstart_'+body.id,Date.now());
+    }
+  });
+};
+
 </script></body></html>
