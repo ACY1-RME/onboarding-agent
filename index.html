@@ -31,7 +31,7 @@ header .badge::before{content:'👤';font-size:.9rem;filter:brightness(0) invert
 .phase-head .ph-num{background:linear-gradient(135deg,var(--gold),var(--gold2));color:var(--accent);box-shadow:0 0 6px rgba(240,196,83,.4);border-radius:50%;width:16px;height:16px;font-size:.62rem;display:flex;align-items:center;justify-content:center;font-weight:800}
 .phase-body{padding:0 10px}
 .task-item{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:6px;margin:2px 0;cursor:pointer;transition:background .15s}
-.task-item:hover{background:rgba(0,255,168,.08)}
+.task-item:hover{background:rgba(0,255,168,.09);transform:translateX(1px)}.task-item{transition:background .15s,transform .1s}
 .task-item.active-detail{background:rgba(0,255,168,.12);outline:1px solid rgba(0,255,168,.35)}
 .task-item input[type=checkbox]{accent-color:var(--accent);margin-top:3px;cursor:pointer;flex-shrink:0}
 .task-label{font-size:.82rem;line-height:1.35;flex:1}
@@ -58,8 +58,8 @@ header .badge::before{content:'👤';font-size:.9rem;filter:brightness(0) invert
 .detail-step{display:flex;gap:10px;align-items:flex-start;font-size:.84rem;line-height:1.45}
 .step-num{background:var(--green2);color:var(--accent);width:20px;height:20px;min-width:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.67rem;font-weight:800;margin-top:1px}
 .detail-links{display:flex;flex-wrap:wrap;gap:8px}
-.detail-link-btn{padding:8px 15px;background:var(--green);color:#fff;border:none;border-radius:7px;font-size:.82rem;cursor:pointer;transition:background .15s}
-.detail-link-btn:hover{background:var(--green2)}
+.detail-link-btn{padding:7px 14px;background:var(--green2);color:var(--accent);border:1px solid rgba(0,255,168,.25);border-radius:7px;font-size:.8rem;cursor:pointer;transition:all .2s;font-weight:600}
+.detail-link-btn:hover{background:var(--green);border-color:var(--accent);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.3)}
 .detail-posix{background:rgba(240,192,96,.05);border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:13px 14px}
 .posix-title{font-size:.77rem;font-weight:700;color:var(--warn);margin-bottom:7px;display:flex;align-items:center;gap:6px}
 .posix-reason{font-size:.8rem;color:var(--muted);margin-bottom:9px;line-height:1.55}
@@ -409,7 +409,7 @@ header .badge::before{content:'👤';font-size:.9rem;filter:brightness(0) invert
 </div>
 </div>
 <div class='right'>
-<div class='detail-panel' id='task-detail-panel' role='dialog' aria-modal='true' aria-label='Task detail'><div class='detail-header'><button class='detail-back' onclick='closeTaskDetail()'>&#8592; Back</button><span class='detail-hicon' id='detail-icon'></span><span class='detail-htitle' id='detail-title'></span><span id='detail-phase-ctx' style='font-size:.62rem;color:var(--muted);margin-left:6px;font-weight:400;display:none'></span><span class='detail-time-badge' id='detail-time-badge' style='display:none'></span><span id='detail-pos-idx' style='font-size:.6rem;color:var(--border);font-family:monospace;margin-left:4px;display:none'></span><span style='flex:1'></span><button class='detail-nav-btn' id='detail-hprev' onclick='_navDetailTask(-1)' title='Previous task' disabled aria-label='Previous task'>&#8592;</button><button class='detail-nav-btn' id='detail-hnext' onclick='_navDetailTask(1)' title='Next task' style='margin-left:4px' aria-label='Next task'>&#8594;</button><button class='detail-done-btn' id='detail-done-btn' onclick='toggleDetailDone()' style='margin-left:8px'>&#9744; Mark done</button></div><div class='detail-body'><div class='detail-desc' id='detail-desc'></div><div class='steps-label' id='steps-label'>Steps</div><div class='detail-steps' id='detail-steps'></div><div class='links-label' id='links-label' style='display:none'></div><div class='detail-links' id='detail-links'></div><div class='detail-posix' id='detail-posix' style='display:none'></div><div class='task-note-row'><div class='task-note-label'><span>&#128221; Notes <span style='font-size:.55rem;color:var(--border);font-weight:400'>auto-saved</span></span><span class='task-note-chars' id='task-note-chars'>0/1000</span></div><textarea class='task-note-input' id='task-note-input' placeholder='Your notes for this task...' maxlength='1000' oninput='_saveTaskNote(this.value)'></textarea></div><div class='detail-ask-row'><button class='detail-ask-btn' onclick='askAboutTask()'>&#128172; Ask AI</button><button class='detail-ask-btn' id='detail-next-btn' onclick='_detailNextTask()' style='background:none;border:1px solid var(--border);color:var(--muted);margin-left:auto' title='Open next incomplete task'>Next &#8594;</button></div></div></div>
+<div class='detail-panel' id='task-detail-panel' role='dialog' aria-modal='true' aria-label='Task detail'><div class='detail-header'><button class='detail-back' onclick='closeTaskDetail()'>&#8592; Back</button><span class='detail-hicon' id='detail-icon'></span><span class='detail-htitle' id='detail-title'></span><span id='detail-phase-ctx' style='font-size:.62rem;color:var(--muted);margin-left:6px;font-weight:400;display:none'></span><span class='detail-time-badge' id='detail-time-badge' style='display:none'></span><span id='detail-pos-idx' style='font-size:.6rem;color:var(--border);font-family:monospace;margin-left:4px;display:none'></span><span style='flex:1'></span><button class='detail-nav-btn' id='detail-hprev' onclick='_navDetailTask(-1)' title='Previous task' disabled aria-label='Previous task'>&#8592;</button><button class='detail-nav-btn' id='detail-hnext' onclick='_navDetailTask(1)' title='Next task' style='margin-left:4px' aria-label='Next task'>&#8594;</button><button class='detail-done-btn' id='detail-done-btn' onclick='toggleDetailDone()' style='margin-left:8px'>&#9744; Mark done</button></div><div class='detail-body'><div class='detail-desc' id='detail-desc'></div><div class='steps-label' id='steps-label'>Steps</div><div class='detail-steps' id='detail-steps'></div><div class='links-label' id='links-label' style='display:none'></div><div class='detail-links' id='detail-links'></div><div class='detail-posix' id='detail-posix' style='display:none'></div><div class='task-note-row'><div class='task-note-label'><span>&#128221; Notes <span style='font-size:.55rem;color:var(--border);font-weight:400'>auto-saved</span></span><span class='task-note-chars' id='task-note-chars'>0/1000</span></div><textarea class='task-note-input' id='task-note-input' placeholder='Your notes for this task...' maxlength='1000' oninput='_saveTaskNote(this.value)'></textarea></div><div class='detail-ask-row'><button class='detail-ask-btn' onclick='askAboutTask()'>&#128172; Ask AI</button><button class='detail-ask-btn' onclick='_shareTask()' style='background:none;border:1px solid var(--border);color:var(--muted);margin-left:4px' title='Copy link to this task'>&#128279; Share</button><button class='detail-ask-btn' id='detail-next-btn' onclick='_detailNextTask()' style='background:none;border:1px solid var(--border);color:var(--muted);margin-left:auto' title='Open next incomplete task'>Next &#8594;</button></div></div></div>
 <div class='tabs'><div class='tab-btn active' onclick="showTab('chat',this)">&#129302; AI Assistant</div><div class='tab-btn' onclick="showTab('resources',this)">&#128196; Resources</div><div class='tab-btn' onclick="showTab('quicklinks',this)">&#128279; Quick Links &amp; TAC</div></div>
 <div class='tab-content active' id='tab-chat'><div style='display:flex;justify-content:flex-end;padding:4px 10px 0;border-bottom:1px solid var(--border)'><button onclick='_clearChatHistory()' title='Clear chat history' style='background:none;border:none;color:var(--muted);cursor:pointer;font-size:.68rem;padding:2px 8px;border-radius:4px;transition:color .15s' onmouseover="this.style.color='var(--warn)'" onmouseout="this.style.color='var(--muted)'">&#128465; Clear chat</button></div><div class='chat-messages' id='chatbox'><div class='msg system'>ACY1 RME Onboarding Agent &mdash; powered by Aki AI</div><div class='msg ai' style='max-width:94%;border-left:3px solid var(--accent)'><strong>&#128293; Welcome to the Red Vest Program</strong><br><br>At CBRE | Amazon, every task can be done safely &mdash; and your safety matters more than any task you'll be asked to do. We don't expect you to be fast yet; we expect you to be <strong>safe</strong>. Efficiency comes with experience.<br><br>Your <strong>red vest</strong> tells everyone you're new so we can keep an extra eye out for you. You also bring fresh eyes &mdash; if something looks off or you wonder why we do it a certain way, <strong>speak up and ask</strong>. You might have a better way.<br><br>You've earned this job. Never take shortcuts or rush to impress us &mdash; working safely and asking questions is what truly impresses us. When in doubt, <strong>stop and ask</strong>.</div><div class='msg ai' id='welcome-msg'>&#128075; Welcome to ACY1! Click any task on the left to see step-by-step guidance and direct links. Ask me anything about training, equipment, safety, or site procedures.</div></div><div class='chat-input-row'><input type='text' id='chatInput' placeholder='Ask about training, equipment, safety...' onkeydown="if(event.key==='Enter')sendMsg()"><button onclick='sendMsg()'>Send</button></div></div>
 <div class='tab-content' id='tab-resources'><div style='padding:8px 12px 4px;display:flex;gap:8px;align-items:center'><input id='res-search' type='text' placeholder='&#128269; Filter resources...' oninput='_filterResources(this.value)' style='flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.78rem;padding:5px 10px;outline:none' aria-label='Filter resources'><button onclick="document.getElementById('res-search').value='';_filterResources('')" style='background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0 4px' title='Clear'>&#10005;</button></div><div class='res-section'><h3>&#128218; ACY1 Training Guides</h3><div class='res-grid'><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Training Guides\\ACY1_MHE_Training_Guide.pdf`)"><span class='res-icon'>&#128196;</span><div class='res-info'><div class='name'>ACY1 MHE Training Guide</div><div class='desc'>Conveyor &amp; material handling &mdash; ACY1 site-specific</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Training Guides\\ACY1_Controls_Training_Guide.pdf`)"><span class='res-icon'>&#128196;</span><div class='res-info'><div class='name'>ACY1 Controls Training Guide</div><div class='desc'>VFDs, PLCs, Eaton SVX/SPX, control cabinets</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Training Guides\\ACY1_AR_Training_Guide.pdf`)"><span class='res-icon'>&#128196;</span><div class='res-info'><div class='name'>ACY1 AR Training Guide</div><div class='desc'>Amazon Robotics floor operations &mdash; site-specific</div></div></div></div><h3>&#9989; TAC 301 Evaluation Checklists</h3><div class='res-grid'><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\FT Resources\\Checklists\\RME - Electrical Conveyor TAC 301 Hands-on Evaluation.pdf`)"><span class='res-icon'>&#9989;</span><div class='res-info'><div class='name'>TAC 301 Eval &mdash; Electrical Conveyor</div><div class='desc'>Hands-on evaluation criteria &mdash; reviewed with Field Trainer</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\FT Resources\\Checklists\\RME - Control Cabinets TAC 301 Hands On Evaluation.pdf`)"><span class='res-icon'>&#9989;</span><div class='res-info'><div class='name'>TAC 301 Eval &mdash; Control Cabinets</div><div class='desc'>Hands-on evaluation criteria &mdash; reviewed with Field Trainer</div></div></div></div><h3>&#128268; MDR / Right Angle Transfer (RT3)</h3><div class='res-grid'><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Right Angle Transfer (RT3)\\Maintenance Manuals\\MDR 710 Maintenance Manual.pdf`)"><span class='res-icon'>&#128269;</span><div class='res-info'><div class='name'>MDR 710 Maintenance Manual</div><div class='desc'>Full maintenance procedures for MDR 710 rollers</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Right Angle Transfer (RT3)\\Training Manuals\\RT3 Right Angle Transfer - Training Manual.pdf`)"><span class='res-icon'>&#128196;</span><div class='res-info'><div class='name'>RT3 Training Manual</div><div class='desc'>Intelligrated/Honeywell RT3 right angle transfer</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Right Angle Transfer (RT3)\\Reference Guides\\MDR Control Card Quick Reference Guide.pdf`)"><span class='res-icon'>&#128195;</span><div class='res-info'><div class='name'>MDR Control Card Quick Reference</div><div class='desc'>ConveyLinx controller &mdash; fault diagnosis reference</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Right Angle Transfer (RT3)\\Reference Guides\\MDR Fault Codes.png`)"><span class='res-icon'>&#9888;</span><div class='res-info'><div class='name'>MDR Fault Codes Chart</div><div class='desc'>Visual fault code reference for MDR 710 / ConveyLinx</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\Right Angle Transfer (RT3)\\Reference Guides\\RT3 Parts List - ACY1.xlsx`)"><span class='res-icon'>&#128202;</span><div class='res-info'><div class='name'>RT3 Parts List &mdash; ACY1</div><div class='desc'>Site-specific common parts for RT3 / MDR components</div></div></div></div><h3>&#128194; Equipment Documentation Folders</h3><div class='res-row'><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MHE - Conveyors`)">&#128194; Conveyors</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\VFDs and PLCs`)">&#9889; VFDs &amp; PLCs</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\CSS - Controls and Software`)">&#128187; Controls &amp; Software</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MHE - Sorters`)">&#128260; Sorters</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MHE - Robots and Lifts`)">&#129302; Robots &amp; Lifts</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MHE - AFE and Flat Inducts`)">&#128218; AFE &amp; Flat Inducts</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MHE - SLAM`)">&#127381; SLAM</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MHE - Pack and Ship`)">&#128230; Pack &amp; Ship</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\Electrical Drawings`)">&#128208; Electrical Drawings</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\AR - Amazon Robotics`)">&#129302; AR Documents</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\Equipment Documentation`)">&#128193; All Equipment Docs</div></div><h3>&#128270; Safety &amp; Procedures</h3><div class='res-row'><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\Safety`)">&#9888; Safety Folder</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\SOPs and Jam Slayer`)">&#128203; SOPs</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\Tech Drills`)">&#128296; Tech Drills</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\PDM - Predictive Maintenance`)">&#128200; PDM</div><div class='res-chip' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\MRA`)">&#128202; MRA Benchmarks</div></div><h3>&#128101; Field Trainer Resources</h3><div class='res-grid'><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\FT Resources\\RME quick links.docx`)"><span class='res-icon'>&#128279;</span><div class='res-info'><div class='name'>RME Quick Links</div><div class='desc'>Key contacts, tools, and URLs for ACY1 RME</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\FT Resources\\TAC Learning Paths Assignments.xlsx`)"><span class='res-icon'>&#128202;</span><div class='res-info'><div class='name'>TAC Learning Path Assignments</div><div class='desc'>Full list of TAC paths, IDs, and assignments</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\FT Resources\\OwnershipandEscalation_v05-18-2021.xlsx`)"><span class='res-icon'>&#128101;</span><div class='res-info'><div class='name'>Ownership &amp; Escalation Matrix</div><div class='desc'>Who owns what &mdash; escalation paths for equipment issues</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`\\\\ant\\dept-na\\ACY1\\Support\\RME\\RME Tools\\onboarding-agent\\reference\\ACY1 RME Reference\\Training`)"><span class='res-icon'>&#127979;</span><div class='res-info'><div class='name'>Training Documents Folder</div><div class='desc'>COE modules, study guides, KIVA training &amp; more</div></div></div></div><h3>&#9889; AET Self-Study Course</h3><div class='res-grid'><div class='res-card' onclick="cmd('openfile',String.raw`C:\\Users\\souyackg\\Dev\\reference\\automation-engineering-technology\\AET_Course.html`)"><span class='res-icon'>&#128218;</span><div class='res-info'><div class='name'>AET Course &mdash; 13 Modules</div><div class='desc'>Electrical, PLCs, VFDs, Sensors, Robotics, Safety &amp; PID &mdash; offline self-study</div></div></div><div class='res-card' onclick="cmd('openfile',String.raw`C:\Users\souyackg\Dev\reference\automation-engineering-technology\AET_Academy.html`)"><span class='res-icon'>&#127918;</span><div class='res-info'><div class='name'>AET Academy &mdash; Interactive</div><div class='desc'>Flashcards, quizzes, lab sims, gamified progression &amp; printable certificate</div></div></div></div></div></div>
@@ -453,7 +453,7 @@ d.steps.forEach((s,i)=>{
   se.innerHTML+=`<div class=\"detail-step\"><span class=\"step-num\">${i+1}</span><span>${icon}${s}</span></div>`;
 });
 _la=[];const le=document.getElementById('detail-links');le.innerHTML='';
-if(d.links&&d.links.length){d.links.forEach((l,i)=>{_la.push(l);le.innerHTML+=`<button class="detail-link-btn" onclick="_xl(${i})">${l.label}</button>`;});}
+if(d.links&&d.links.length){d.links.forEach((l,i)=>{_la.push(l);const _tip=l.file?l.file.split('\\').pop().split('/').pop():'';le.innerHTML+=`<button class="detail-link-btn" onclick="_xl(${i})" title="${_tip}">${l.label} &#10138;</button>`;});}
 const pe=document.getElementById('detail-posix');
 if(d.posix){let btns=d.posix.groups.map(g=>`<button class="posix-btn" onclick="cmd('openurl','${g.url}')">${g.name}</button>`).join('');pe.innerHTML=`<div class="posix-title">&#128272; Need Permissions?</div><div class="posix-reason">${d.posix.reason}</div><div class="posix-links">${btns}</div>`;pe.style.display='';}else{pe.style.display='none';}
 document.getElementById('task-detail-panel').classList.add('active');var _db=document.querySelector('.detail-body');if(_db)_db.scrollTop=0;}
@@ -1554,6 +1554,234 @@ updateProgress=function(){
   if(pfAfter&&pfAfter.style.width!==widBefore){
     pfAfter.style.animation='none';void pfAfter.offsetWidth;
     pfAfter.style.animation='fillPulse .6s ease-out';
+  }
+};
+
+
+/* ── Phase jump with [ / ] keys ─────────────────────────── */
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.ctrlKey||e.metaKey)return;
+  var phases=[...document.querySelectorAll('.phase-head')].filter(function(h){return h.style.display!=='none';});
+  if(!phases.length)return;
+  // Find currently visible phase (first one whose body is at/near top of viewport)
+  var cl=document.querySelector('.checklist');
+  var curPhaseIdx=-1;
+  if(cl){
+    var scrollTop=cl.scrollTop;
+    phases.forEach(function(ph,i){var r=ph.getBoundingClientRect();if(r.top<=150&&r.bottom>=0)curPhaseIdx=i;});
+  }
+  if(e.key===']'){
+    var nxt=Math.min(curPhaseIdx+1,phases.length-1);
+    phases[nxt].scrollIntoView({block:'start',behavior:'smooth'});
+  } else if(e.key==='['){
+    var prv=Math.max(curPhaseIdx-1,0);
+    phases[prv].scrollIntoView({block:'start',behavior:'smooth'});
+  }
+});
+
+/* ── Word count in task note ──────────────────────────────── */
+var _origSaveNote=_saveTaskNote;
+_saveTaskNote=function(val){
+  _origSaveNote(val);
+  var cc=document.getElementById('task-note-chars');
+  if(cc){
+    var words=val.trim()?val.trim().split(/\s+/).length:0;
+    cc.textContent=val.length+'/1000'+(words>0?' \u00b7 '+words+'w':'');
+  }
+};
+
+/* ── Ctrl+Enter in note textarea saves forcefully ─────────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    var ta=document.getElementById('task-note-input');
+    if(e.target!==ta)return;
+    if((e.ctrlKey||e.metaKey)&&e.key==='s'){
+      e.preventDefault();
+      if(_curTask){localStorage.setItem('ob_note_'+_curTask,ta.value);_showToast('Note saved','success',1500);}
+    }
+  });
+})();
+
+/* ── Improved time tally: show done time + remaining ────────── */
+var _origUPTally2=updateProgress;
+updateProgress=function(){
+  _origUPTally2();
+  var tt=document.getElementById('time-tally');
+  if(!tt)return;
+  var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+  var doneMins=0,remMins=0;
+  cbs.forEach(function(c){var m=typeof TM!=='undefined'?TM[c.id]:0;if(c.checked)doneMins+=(m||0);else remMins+=(m||0);});
+  if(doneMins||remMins){
+    var html='<span>Time: <span class="td">'+fmtDur(doneMins)+'</span> done';
+    if(remMins)html+=' <span style="color:var(--border)">/ ~'+fmtDur(remMins)+' left</span>';
+    html+='</span>';
+    tt.innerHTML=html;
+  }
+};
+
+/* ── Focus first item when search bar cleared ─────────────── */
+(function(){
+  var si=document.getElementById('search-input');
+  if(!si)return;
+  si.addEventListener('input',function(){
+    if(this.value===''){
+      // Re-show all tasks that were hidden-by-search (keep hide-done logic)
+      document.querySelectorAll('.checklist .task-item').forEach(function(it){
+        var cb=it.querySelector('input[type=checkbox]');
+        if(cb&&cb.checked&&_hideDone)it.style.display='none';
+        else it.style.display='';
+      });
+    }
+  });
+})();
+
+
+/* ── Phase complete visual indicator ────────────────────── */
+function _updatePhaseCompleteBadge(){
+  document.querySelectorAll('.phase-body').forEach(function(body){
+    var cbs=body.querySelectorAll('input[type=checkbox]');
+    var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+    var head=body.previousElementSibling;
+    if(!head)return;
+    var isComplete=(cbs.length>0&&done===cbs.length);
+    head.classList.toggle('phase-complete',isComplete);
+    // Update ph-num badge color
+    var num=head.querySelector('.ph-num');
+    if(num){
+      if(isComplete){num.style.background='linear-gradient(135deg,var(--accent),var(--accent2))';num.style.color='#000';}
+      else{num.style.background='';num.style.color='';}
+    }
+  });
+}
+
+/* ── Extend updateProgress to update phase badges ─────────── */
+var _origUPPhBadge=updateProgress;
+updateProgress=function(){
+  _origUPPhBadge();
+  _updatePhaseCompleteBadge();
+};
+
+/* ── "Jump to first incomplete" toolbar button ───────────── */
+(function(){
+  var toolbar=document.querySelector('.search-wrap');
+  if(!toolbar)return;
+  var btn=document.createElement('button');
+  btn.title='Jump to first incomplete task';
+  btn.style.cssText='position:absolute;right:10px;top:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;padding:2px 6px;border-radius:4px;transition:color .15s';
+  btn.innerHTML='&#9654; First incomplete';
+  btn.onmouseenter=function(){this.style.color='var(--accent)';};
+  btn.onmouseleave=function(){this.style.color='var(--muted)';};
+  btn.onclick=function(){
+    var first=null;
+    document.querySelectorAll('.checklist .task-item').forEach(function(it){
+      if(first)return;
+      var cb=it.querySelector('input[type=checkbox]');
+      if(cb&&!cb.checked&&it.style.display!=='none')first=cb;
+    });
+    if(first){
+      showTaskDetail(first.id);
+      first.closest('.task-item').scrollIntoView({block:'nearest',behavior:'smooth'});
+    }else{_showToast('All tasks complete!','success');}
+  };
+  toolbar.style.position='relative';
+  toolbar.appendChild(btn);
+})();
+
+/* ── Improved progress ring: show done/total below ─────────── */
+(function(){
+  var lbl=document.querySelector('.pring-label');
+  if(lbl&&!document.getElementById('ring-sub')){
+    var sub=document.createElement('div');sub.id='ring-sub';
+    sub.style.cssText='font-size:.5rem;color:var(--muted);text-align:center;white-space:nowrap;margin-top:0';
+    lbl.after(sub);
+    var _upRing=updateRing;
+    updateRing=function(pct){
+      _upRing(pct);
+      var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+      var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+      sub.textContent=done+'/'+total;
+    };
+  }
+})();
+
+/* ── CSS for phase-complete state ────────────────────────── */
+(function(){
+  var s=document.createElement('style');
+  s.textContent='.phase-complete{color:var(--accent2)!important}.phase-complete .ph-chevron{color:var(--accent)}.phase-complete .ph-count{color:var(--accent2)!important}';
+  document.head.appendChild(s);
+  _updatePhaseCompleteBadge();
+})();
+
+
+/* ── Share/deep-link to specific task ────────────────────── */
+function _shareTask(){
+  if(!_curTask)return;
+  var url=location.href.split('#')[0]+'#task='+_curTask;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(function(){_showToast('Task link copied!','success');}).catch(function(){_showToast('Copy failed','warn');});
+  }else{_showToast('Cannot copy: '+url,'');}
+}
+
+/* ── Handle #task= hash on load ──────────────────────────── */
+window.addEventListener('DOMContentLoaded',function(){
+  var hash=location.hash;
+  if(hash&&hash.startsWith('#task=')){
+    var id=hash.slice(6);
+    if(id&&TASK_DETAILS[id])setTimeout(function(){showTaskDetail(id);},400);
+  }
+});
+
+/* ── Detail panel: focus back button on open for a11y ────── */
+var _origShowDetail4=showTaskDetail;
+showTaskDetail=function(taskId){
+  _origShowDetail4(taskId);
+  setTimeout(function(){var bb=document.querySelector('.detail-back');if(bb)bb.focus();},150);
+};
+
+/* ── Search: highlight matched text in task labels ──────── */
+var _origSearchTasks2=searchTasks;
+searchTasks=function(q){
+  _origSearchTasks2(q);
+  // Remove previous highlights
+  document.querySelectorAll('.task-label .hl').forEach(function(el){
+    el.outerHTML=el.textContent;
+  });
+  if(!q)return;
+  var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+  document.querySelectorAll('.checklist .task-item:not([style*="display: none"]) .task-label').forEach(function(lbl){
+    var txt=lbl.childNodes[0];
+    if(txt&&txt.nodeType===3){
+      var html=txt.textContent.replace(re,'<span class="hl" style="background:rgba(0,255,168,.25);color:var(--accent);border-radius:2px;padding:0 1px">$1</span>');
+      if(html!==txt.textContent){
+        var span=document.createElement('span');span.innerHTML=html;
+        lbl.replaceChild(span,txt);
+      }
+    }
+  });
+};
+
+/* ── Auto-expand phase when searching ──────────────────── */
+var _origSearchTasks3=searchTasks;
+searchTasks=function(q){
+  if(q){
+    // Show all phases so search can find across collapsed ones
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      body.style.display='';
+      var head=body.previousElementSibling;
+      if(head){head.classList.remove('collapsed');var chev=head.querySelector('.ph-chevron');if(chev)chev.innerHTML='&#9660;';}
+    });
+  }
+  _origSearchTasks3(q);
+  if(!q){
+    // Restore phase states after clearing search
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var st=localStorage.getItem('ob_ph_'+body.id);
+      if(st==='closed'){
+        body.style.display='none';
+        var hd=body.previousElementSibling;
+        if(hd){hd.classList.add('collapsed');var cv=hd.querySelector('.ph-chevron');if(cv)cv.innerHTML='&#9658;';}
+      }
+    });
   }
 };
 
