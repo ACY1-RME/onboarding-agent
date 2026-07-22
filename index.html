@@ -2251,4 +2251,205 @@ updateProgress=function(){
 })();
 
 
+/* ── 106: Detail panel: copy title+steps as plain text ───── */
+(function(){
+  var _origShow3=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow3(taskId);
+    var ar=document.querySelector('.detail-ask-row');
+    if(!ar||ar.querySelector('#detail-copy-btn'))return;
+    var btn=document.createElement('button');btn.id='detail-copy-btn';
+    btn.className='detail-ask-btn';btn.innerHTML='&#128203; Copy';
+    btn.title='Copy task as plain text';
+    btn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);margin-left:4px';
+    btn.onclick=function(){
+      var d=TASK_DETAILS[_curTask];if(!d)return;
+      var lines=[d.icon+' '+d.title,''];
+      if(d.desc)lines.push(d.desc,'');
+      if(d.steps.length){lines.push('Steps:');d.steps.forEach(function(s,i){lines.push((i+1)+'. '+s);});lines.push('');}
+      var note=localStorage.getItem('ob_note_'+_curTask)||'';
+      if(note){lines.push('Notes:');lines.push(note);}
+      navigator.clipboard&&navigator.clipboard.writeText(lines.join('\n')).then(function(){
+        _showToast('Copied to clipboard','success',1800);
+      });
+    };
+    var pbtn=document.getElementById('detail-print-btn');
+    if(pbtn)ar.insertBefore(btn,pbtn);else ar.appendChild(btn);
+  };
+})();
+
+/* ── 107: Sidebar: show onboarding score (% * quality) ───── */
+(function(){
+  function _computeScore(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var pct=total?done/total:0;
+    var noteCount=Object.keys(TASK_DETAILS).filter(function(id){return (localStorage.getItem('ob_note_'+id)||'').trim().length>0;}).length;
+    var noteBonus=Math.min(noteCount/10,.1);
+    return Math.round((pct+noteBonus)*100);
+  }
+  var el=document.getElementById('pct');
+  if(!el)return;
+  var sc=document.createElement('div');sc.id='ob-score';
+  sc.style.cssText='font-size:.6rem;color:var(--muted);margin-top:1px;text-align:center';
+  el.parentNode.appendChild(sc);
+  function _updateScore(){
+    var s=_computeScore();
+    sc.textContent='Score: '+s;
+    sc.style.color=s>=90?'var(--accent)':s>=50?'var(--gold)':'var(--muted)';
+  }
+  _updateScore();
+  var _origUPScore=updateProgress;
+  updateProgress=function(){_origUPScore();_updateScore();};
+})();
+
+/* ── 108: Task item: right-click context menu ─────────────── */
+(function(){
+  var menu=document.createElement('div');menu.id='task-ctx-menu';
+  menu.style.cssText='position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px 0;z-index:9000;box-shadow:0 4px 18px rgba(0,0,0,.6);display:none;min-width:150px';
+  document.body.appendChild(menu);
+  function _closeCtx(){menu.style.display='none';}
+  document.addEventListener('click',_closeCtx);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')_closeCtx();});
+  function _ctxItem(label,cb){
+    var li=document.createElement('div');
+    li.style.cssText='padding:6px 14px;cursor:pointer;font-size:.72rem;color:var(--text);transition:background .15s';
+    li.onmouseenter=function(){li.style.background='rgba(0,255,168,.07)';};
+    li.onmouseleave=function(){li.style.background='';};
+    li.textContent=label;li.onclick=function(){_closeCtx();cb();};
+    return li;
+  }
+  document.querySelectorAll('.task-item').forEach(function(item){
+    item.addEventListener('contextmenu',function(e){
+      e.preventDefault();
+      var cb=item.querySelector('input[type=checkbox]');
+      var tid=cb?cb.id:null;
+      menu.innerHTML='';
+      menu.appendChild(_ctxItem(cb&&cb.checked?'Mark incomplete':'Mark done',function(){
+        if(cb){cb.checked=!cb.checked;updateProgress();}
+      }));
+      menu.appendChild(_ctxItem('Open details',function(){if(tid)showTaskDetail(tid);}));
+      menu.appendChild(_ctxItem('Copy share link',function(){
+        if(tid){var u=location.href.split('#')[0]+'#task='+tid;
+          navigator.clipboard&&navigator.clipboard.writeText(u).then(function(){_showToast('Link copied','success',1800);});}
+      }));
+      menu.appendChild(_ctxItem('Add/edit note',function(){
+        if(tid){showTaskDetail(tid);setTimeout(function(){var n=document.getElementById('task-note-input');if(n)n.focus();},300);}
+      }));
+      menu.style.display='block';
+      var mx=e.clientX,my=e.clientY;
+      if(mx+160>window.innerWidth)mx=window.innerWidth-165;
+      if(my+140>window.innerHeight)my=window.innerHeight-145;
+      menu.style.left=mx+'px';menu.style.top=my+'px';
+    });
+  });
+})();
+
+/* ── 109: Detail panel: completed timestamp relative label ── */
+(function(){
+  function _relTime(ts){
+    var age=Date.now()-ts;
+    if(age<60000)return 'just now';
+    if(age<3600000)return Math.round(age/60000)+'m ago';
+    if(age<86400000)return Math.round(age/3600000)+'h ago';
+    return Math.round(age/86400000)+'d ago';
+  }
+  var _origShow4=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow4(taskId);
+    var dd=document.getElementById('detail-done-date');
+    var ts=localStorage.getItem('ob_done_ts_'+taskId);
+    if(dd&&ts){dd.textContent='Completed '+_relTime(Number(ts));dd.style.display='';}
+    else if(dd){dd.style.display='none';}
+  };
+})();
+
+/* ── 110: Sidebar: days-active counter next to name ─────── */
+(function(){
+  var nm=document.querySelector('.user-name');
+  if(!nm)return;
+  var start=localStorage.getItem('ob_start');
+  if(!start)return;
+  var days=Math.max(1,Math.floor((Date.now()-new Date(start+'T00:00:00').getTime())/86400000)+1);
+  var sp=document.createElement('span');
+  sp.style.cssText='font-size:.58rem;color:var(--muted);margin-left:6px;font-weight:400';
+  sp.textContent='Day '+days;
+  nm.appendChild(sp);
+})();
+
+/* ── 111: Chat: typing indicator while waiting ─────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes typingDot{0%,80%,100%{transform:scale(0);opacity:.4}40%{transform:scale(1);opacity:1}}'+
+    '.typing-dot{display:inline-block;width:5px;height:5px;background:var(--accent);border-radius:50%;margin:0 2px;animation:typingDot 1.2s ease-in-out infinite}'+
+    '.typing-dot:nth-child(2){animation-delay:.2s}.typing-dot:nth-child(3){animation-delay:.4s}';
+  document.head.appendChild(st);
+  var _origSendTyp=sendMsg;
+  sendMsg=async function(){
+    var box=document.getElementById('chatbox');
+    var typEl=null;
+    if(box){typEl=document.createElement('div');typEl.className='msg ai';
+      typEl.innerHTML='<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+      box.appendChild(typEl);box.scrollTop=box.scrollHeight;}
+    try{await _origSendTyp();}finally{if(typEl&&typEl.parentNode)typEl.remove();}
+  };
+})();
+
+/* ── 112: Checklist: hover highlight row ────────────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.task-item:hover{background:rgba(0,255,168,.04)!important;border-color:rgba(0,255,168,.2)!important}'+
+    '.task-item.active-detail{background:rgba(0,255,168,.07)!important;border-color:var(--accent)!important}';
+  document.head.appendChild(st);
+})();
+
+/* ── 113: Search: Esc clears search box ─────────────────────── */
+(function(){
+  var si=document.getElementById('searchInput');
+  if(!si)return;
+  si.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&si.value){
+      e.stopPropagation();si.value='';searchTasks('');si.blur();
+    }
+  });
+})();
+
+/* ── 114: Progress bar: gradient fill ───────────────────────── */
+(function(){
+  var pf=document.getElementById('pfill');
+  if(!pf)return;
+  pf.style.background='linear-gradient(90deg,var(--accent2),var(--accent))';
+  pf.style.boxShadow='0 0 8px rgba(0,255,168,.35)';
+  pf.style.borderRadius='4px';
+})();
+
+/* ── 115: Phase headers: show task count fraction ───────────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    var body=hd.nextElementSibling;
+    if(!body||!body.classList.contains('phase-body'))return;
+    var cbs=body.querySelectorAll('input[type=checkbox]');
+    if(!cbs.length)return;
+    var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+    var badge=hd.querySelector('.ph-count');
+    if(!badge){badge=document.createElement('span');badge.className='ph-count';
+      badge.style.cssText='font-size:.6rem;font-weight:500;margin-left:6px;color:var(--muted);padding:1px 5px;background:rgba(255,255,255,.06);border-radius:8px';
+      hd.appendChild(badge);}
+    badge.textContent=done+'/'+cbs.length;
+    badge.style.color=done===cbs.length?'var(--accent)':'var(--muted)';
+  });
+  var _origUPPhCount=updateProgress;
+  updateProgress=function(){
+    _origUPPhCount();
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      var badge=hd.querySelector('.ph-count');
+      if(badge){badge.textContent=done+'/'+cbs.length;badge.style.color=done===cbs.length?'var(--accent)':'var(--muted)';}
+    });
+  };
+})();
+
+
 </script></body></html>
