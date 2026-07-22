@@ -3856,4 +3856,208 @@ function _exportStateJSON(){
 })();
 
 
+/* ── 186: Scroll to top button in checklist ─────────────────── */
+(function(){
+  var cl=document.querySelector('.checklist');if(!cl)return;
+  var btn=document.createElement('button');
+  btn.id='scroll-top-btn';
+  btn.innerHTML='&#8679;';btn.title='Back to top (T)';
+  btn.style.cssText='position:sticky;bottom:8px;float:right;width:28px;height:28px;border-radius:50%;background:rgba(0,255,168,.15);color:var(--accent);border:1px solid rgba(0,255,168,.3);cursor:pointer;font-size:.9rem;display:none;z-index:50;transition:opacity .3s';
+  cl.appendChild(btn);
+  btn.onclick=function(){cl.scrollTop=0;};
+  cl.addEventListener('scroll',function(){btn.style.display=cl.scrollTop>120?'block':'none';});
+  document.addEventListener('keydown',function(e){
+    if(e.key==='t'||e.key==='T'){
+      if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+      cl.scrollTop=0;
+    }
+  });
+})();
+
+/* ── 187: Task note: emoji quick-insert row ─────────────────── */
+(function(){
+  var EMOJIS=['\u2705','\u26A0\uFE0F','\u{1F4CB}','\u{1F4A1}','\u{1F6A7}','\u2B50','\u{1F4CC}','\u{1F4DE}'];
+  var _origShow19=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow19(taskId);
+    var ta=document.getElementById('task-note-input');if(!ta)return;
+    var wrap=ta.parentNode;
+    if(wrap.querySelector('.emoji-row'))return;
+    var row=document.createElement('div');row.className='emoji-row';
+    row.style.cssText='display:flex;gap:3px;margin-bottom:3px;flex-wrap:wrap';
+    EMOJIS.forEach(function(em){
+      var b=document.createElement('button');b.textContent=em;
+      b.style.cssText='background:none;border:1px solid var(--border);border-radius:5px;padding:1px 5px;cursor:pointer;font-size:.8rem;transition:background .15s';
+      b.onmouseenter=function(){b.style.background='rgba(0,255,168,.08)';};
+      b.onmouseleave=function(){b.style.background='';};
+      b.onclick=function(){
+        var pos=ta.selectionStart||ta.value.length;
+        ta.value=ta.value.slice(0,pos)+em+ta.value.slice(pos);
+        ta.focus();ta.setSelectionRange(pos+em.length,pos+em.length);
+        _saveTaskNote&&_saveTaskNote(taskId,ta.value);
+      };
+      row.appendChild(b);
+    });
+    ta.before(row);
+  };
+})();
+
+/* ── 188: Phase headers: show days-remaining estimate ───────── */
+(function(){
+  function _phaseDaysLeft(){
+    var start=localStorage.getItem('ob_start');if(!start)return;
+    var startMs=new Date(start+'T00:00:00').getTime();
+    var elapsed=Math.max(1,(Date.now()-startMs)/86400000);
+    var allCbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var doneTotal=0;allCbs.forEach(function(c){if(c.checked)doneTotal++;});
+    if(!doneTotal)return;
+    var ratePerDay=doneTotal/elapsed;
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      var rem=0;cbs.forEach(function(c){if(!c.checked)rem++;});
+      if(!rem)return;
+      var days=Math.ceil(rem/ratePerDay);
+      var sp=hd.querySelector('.ph-days');
+      if(!sp){sp=document.createElement('span');sp.className='ph-days';
+        sp.style.cssText='font-size:.58rem;color:var(--muted);margin-left:4px;font-style:italic;font-weight:400';hd.appendChild(sp);}
+      sp.textContent='~'+days+'d';
+      sp.title='Estimated days at current pace';
+    });
+  }
+  _phaseDaysLeft();
+  var _origUPDays=updateProgress;
+  updateProgress=function(){_origUPDays();_phaseDaysLeft();};
+})();
+
+/* ── 189: Detail panel: "open in new tab" for file links ─────── */
+(function(){
+  var _origShow20=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow20(taskId);
+    var d=TASK_DETAILS[taskId];if(!d||!d.links)return;
+    setTimeout(function(){
+      document.querySelectorAll('.detail-link-btn').forEach(function(btn,i){
+        var l=_la&&_la[i];if(!l)return;
+        if(l.url&&!btn.dataset.externalSet){
+          btn.dataset.externalSet='1';
+          btn.title=(btn.title||'')+'  (opens in browser)';
+        }
+      });
+    },80);
+  };
+})();
+
+/* ── 190: Sidebar: last-opened task label ───────────────────── */
+(function(){
+  var el=document.createElement('div');el.id='last-opened-label';
+  el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  var ph=document.getElementById('phase-incomplete-count')||document.getElementById('done-count');
+  if(ph)ph.parentNode.appendChild(el);
+  function _updateLastOpened(){
+    var id=localStorage.getItem('ob_last_task');
+    var d=id&&TASK_DETAILS[id];
+    el.textContent=d?'Last: '+d.title.slice(0,22):'';
+  }
+  _updateLastOpened();
+  var _origShow21=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow21(taskId);
+    localStorage.setItem('ob_last_task',taskId);
+    _updateLastOpened();
+  };
+})();
+
+/* ── 191: Checklist: keyboard shortcut B to go back to list ─── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='b'&&e.key!=='B')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    var panel=document.getElementById('task-detail-panel');
+    if(panel&&panel.classList.contains('active'))closeTaskDetail();
+  });
+})();
+
+/* ── 192: Detail: external resource links open badge ────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.detail-link-btn::after{content:" \u2197";font-size:.6em;opacity:.6}';
+  document.head.appendChild(st);
+})();
+
+/* ── 193: Progress: weekly activity mini chart ───────────────── */
+(function(){
+  var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  function _buildChart(){
+    var el=document.getElementById('week-chart');
+    if(!el){
+      el=document.createElement('canvas');el.id='week-chart';
+      el.width=160;el.height=36;
+      el.style.cssText='display:block;margin:4px auto;border-radius:4px';
+      el.title='Tasks completed per day this week';
+      var sc=document.getElementById('ob-score');if(sc)sc.after(el);else return;
+    }
+    var ctx=el.getContext('2d');ctx.clearRect(0,0,160,36);
+    var now=new Date();
+    var bars=DAYS.map(function(_,i){
+      var d=new Date(now);d.setDate(now.getDate()-(now.getDay()-i));
+      var dateStr=d.toLocaleDateString();
+      return parseInt(localStorage.getItem('ob_day_'+dateStr)||'0',10);
+    });
+    var max=Math.max.apply(null,bars)||1;
+    bars.forEach(function(v,i){
+      var x=4+i*22,h=Math.max(2,Math.round(v/max*28)),y=32-h;
+      ctx.fillStyle=i===now.getDay()?'var(--accent)':'rgba(0,255,168,.35)';
+      ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,16,h,2):ctx.rect(x,y,16,h);
+      ctx.fill();
+    });
+  }
+  function _recordToday(){
+    var today=new Date().toLocaleDateString();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+    localStorage.setItem('ob_day_'+today,done);
+  }
+  _buildChart();
+  var _origUPChart=updateProgress;
+  updateProgress=function(){_origUPChart();_recordToday();_buildChart();};
+})();
+
+/* ── 194: Chat: message timestamp ───────────────────────────── */
+(function(){
+  var _origAppend3=appendMsg;
+  appendMsg=function(text,cls){
+    var el=_origAppend3(text,cls);
+    if((cls==='user'||cls==='ai')&&el){
+      var ts=document.createElement('span');
+      var t=new Date();
+      ts.style.cssText='font-size:.55rem;color:rgba(255,255,255,.25);display:block;margin-top:2px;text-align:'+(cls==='user'?'right':'left');
+      ts.textContent=t.getHours()+':'+(t.getMinutes()<10?'0':'')+t.getMinutes();
+      el.appendChild(ts);
+    }
+    return el;
+  };
+})();
+
+/* ── 195: Sidebar: compact tasks-left ring label ─────────────── */
+(function(){
+  var _origUPLeft=updateProgress;
+  updateProgress=function(){
+    _origUPLeft();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var sub=document.getElementById('ring-sub');
+    if(!sub){
+      sub=document.createElement('div');sub.id='ring-sub';
+      sub.style.cssText='font-size:.58rem;color:var(--muted);text-align:center;line-height:1.2;position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);white-space:nowrap';
+      var rw=document.querySelector('.prog-ring-wrap,.ring-wrap');
+      if(rw){rw.style.position='relative';rw.appendChild(sub);}
+    }
+    var left=total-done;
+    sub.textContent=left?left+' left':'done!';
+    sub.style.color=left?'var(--muted)':'var(--accent)';
+  };
+})();
+
+
 </script></body></html>
