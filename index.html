@@ -4060,4 +4060,182 @@ function _exportStateJSON(){
 })();
 
 
+/* ── 196: Checklist items: swipe-to-check on mobile ─────────── */
+(function(){
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var startX=0,startY=0;
+    item.addEventListener('touchstart',function(e){
+      startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+    },{passive:true});
+    item.addEventListener('touchend',function(e){
+      var dx=e.changedTouches[0].clientX-startX;
+      var dy=Math.abs(e.changedTouches[0].clientY-startY);
+      if(dx>50&&dy<30){
+        var cb=item.querySelector('input[type=checkbox]');
+        if(cb){cb.checked=!cb.checked;updateProgress();
+          item.style.transition='background .3s';
+          item.style.background=cb.checked?'rgba(0,255,168,.12)':'';
+          setTimeout(function(){item.style.background='';},500);}
+      }
+    },{passive:true});
+  });
+})();
+
+/* ── 197: Detail: share button improved with task title ──────── */
+(function(){
+  var _origShare=_shareTask;
+  _shareTask=function(){
+    if(!_curTask)return;
+    var d=TASK_DETAILS[_curTask];
+    var url=location.href.split('#')[0]+'#task='+_curTask;
+    var text=d?d.title+'\n'+url:url;
+    if(navigator.share){
+      navigator.share({title:d?d.title:'ACY1 Onboarding',text:text,url:url}).catch(function(){});
+    }else if(navigator.clipboard){
+      navigator.clipboard.writeText(url).then(function(){_showToast('Link copied','success',1800);});
+    }
+  };
+})();
+
+/* ── 198: Add visible link count to resources tab ───────────── */
+(function(){
+  var tab=document.querySelector('.tab-btn[onclick*="resources"]');if(!tab)return;
+  var cnt=document.querySelectorAll('#tab-resources a,.resource-item').length;
+  if(!cnt)return;
+  if(!tab.querySelector('.res-count')){
+    var s=document.createElement('span');s.className='res-count';
+    s.style.cssText='font-size:.58rem;margin-left:3px;color:var(--muted);vertical-align:middle';
+    s.textContent='('+cnt+')';tab.appendChild(s);
+  }
+})();
+
+/* ── 199: Keyboard shortcut: R to go to Resources tab ───────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='r'&&e.key!=='R')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    if(typeof showTab==='function')showTab('resources');
+  });
+})();
+
+/* ── 200: Milestone: 200 improvements celebration toast ──────── */
+(function(){
+  if(!localStorage.getItem('ob_imp200_shown')){
+    localStorage.setItem('ob_imp200_shown','1');
+    setTimeout(function(){
+      _showToast('\u{1F3C6} v2 milestone: 200 improvements loaded!','success',4500);
+    },1200);
+  }
+})();
+
+/* ── 201: Detail: show task-level time vs total invested ─────── */
+(function(){
+  var _origShow22=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow22(taskId);
+    var tm=TM[taskId]||0;if(!tm)return;
+    var allCbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var totalMins=0;allCbs.forEach(function(cb){totalMins+=(TM[cb.id]||0);});
+    var pct=totalMins?Math.round(tm/totalMins*100):0;
+    var el=document.getElementById('detail-pct-of-total');
+    if(!el){
+      el=document.createElement('span');el.id='detail-pct-of-total';
+      el.style.cssText='font-size:.6rem;color:var(--muted);margin-left:4px';
+      var eta=document.getElementById('detail-eta-badge');if(eta)eta.after(el);
+    }
+    el.textContent=pct+'% of total time';
+  };
+})();
+
+/* ── 202: Checklist: filter by phase button row ─────────────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var phaseRow=document.createElement('div');
+  phaseRow.style.cssText='display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px;align-items:center';
+  var allBtn=document.createElement('button');
+  allBtn.className='hide-done-btn';allBtn.style.cssText='font-size:.58rem;padding:1px 5px';
+  allBtn.textContent='All phases';allBtn.style.background='rgba(0,255,168,.12)';
+  var _activePhase=null;
+  allBtn.onclick=function(){
+    _activePhase=null;
+    document.querySelectorAll('.phase-body').forEach(function(body){body.style.display='';});
+    phaseRow.querySelectorAll('button').forEach(function(b){b.style.background='';b.style.color='';});
+    allBtn.style.background='rgba(0,255,168,.12)';
+    _updatePhaseBars&&_updatePhaseBars();
+  };
+  phaseRow.appendChild(allBtn);
+  var phNum=0;
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    phNum++;
+    var n=phNum;
+    var btn=document.createElement('button');
+    btn.className='hide-done-btn';btn.style.cssText='font-size:.58rem;padding:1px 5px';
+    btn.textContent='P'+n;
+    btn.title=hd.textContent.replace(/\d+\/\d+/g,'').replace(/[^\w\s]/g,'').trim().slice(0,20);
+    btn.onclick=function(){
+      _activePhase=n-1;
+      var bodies=document.querySelectorAll('.phase-body');
+      bodies.forEach(function(body,i){body.style.display=i===_activePhase?'':'none';});
+      var heads=document.querySelectorAll('.phase-head,.phase-header');
+      heads.forEach(function(h,i){h.closest('.phase-wrap')?null:null;});
+      phaseRow.querySelectorAll('button').forEach(function(b){b.style.background='';b.style.color='';});
+      btn.style.background='rgba(0,255,168,.18)';btn.style.color='var(--accent)';
+      allBtn.style.background='';
+    };
+    phaseRow.appendChild(btn);
+  });
+  if(phNum>1)sb.prepend(phaseRow);
+})();
+
+/* ── 203: Detail panel: close on click outside ───────────────── */
+(function(){
+  document.addEventListener('click',function(e){
+    var panel=document.getElementById('task-detail-panel');
+    if(!panel||!panel.classList.contains('active'))return;
+    if(panel.contains(e.target))return;
+    if(e.target.closest('.task-item'))return;
+    if(e.target.closest('#task-ctx-menu'))return;
+    closeTaskDetail();
+  });
+})();
+
+/* ── 204: Progress: sparkline of cumulative done count ───────── */
+(function(){
+  var el=document.createElement('canvas');el.id='spark-canvas';
+  el.width=120;el.height=20;
+  el.style.cssText='display:block;margin:2px auto;opacity:.6';
+  el.title='Cumulative tasks completed over time';
+  var tl=document.getElementById('time-left-badge')||document.getElementById('time-tally');
+  if(tl)tl.after(el);
+  function _updateSpark(){
+    var now=new Date();var pts=[];
+    for(var i=6;i>=0;i--){
+      var d=new Date(now);d.setDate(now.getDate()-i);
+      var v=parseInt(localStorage.getItem('ob_day_'+d.toLocaleDateString())||'0',10);
+      pts.push(v);
+    }
+    var max=Math.max.apply(null,pts)||1;
+    var ctx=el.getContext('2d');ctx.clearRect(0,0,120,20);
+    ctx.strokeStyle='rgba(0,255,168,.6)';ctx.lineWidth=1.5;ctx.lineJoin='round';
+    ctx.beginPath();
+    pts.forEach(function(v,i){
+      var x=i*(120/6),y=18-Math.round(v/max*14);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    });
+    ctx.stroke();
+  }
+  _updateSpark();
+  var _origUPSpark=updateProgress;
+  updateProgress=function(){_origUPSpark();_updateSpark();};
+})();
+
+/* ── 205: App: auto-save note on blur (not just Ctrl+S) ──────── */
+(function(){
+  var ta=document.getElementById('task-note-input');if(!ta)return;
+  ta.addEventListener('blur',function(){
+    if(_curTask)_saveTaskNote&&_saveTaskNote(_curTask,ta.value);
+  });
+})();
+
+
 </script></body></html>
