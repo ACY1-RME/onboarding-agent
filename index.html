@@ -3473,4 +3473,202 @@ function _exportCSV(){
 })();
 
 
+/* ── 166: Detail panel: related tasks by phase ───────────────── */
+(function(){
+  var _origShow15=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow15(taskId);
+    var el=document.getElementById('detail-related');
+    if(!el){
+      el=document.createElement('div');el.id='detail-related';
+      el.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)';
+      var note=document.getElementById('task-note-input');
+      if(note&&note.parentNode)note.parentNode.after(el);
+    }
+    el.innerHTML='';
+    var item=document.querySelector('[onclick="showTaskDetail(\''+taskId+'\')"]');
+    var phBody=item&&item.closest('.phase-body');
+    if(!phBody){el.style.display='none';return;}
+    var siblings=[];
+    phBody.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      if(cb.id!==taskId)siblings.push(cb.id);
+    });
+    if(!siblings.length){el.style.display='none';return;}
+    el.style.display='';
+    var hdr=document.createElement('div');
+    hdr.style.cssText='font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:5px;font-weight:600';
+    hdr.textContent='In same phase';el.appendChild(hdr);
+    siblings.slice(0,4).forEach(function(sid){
+      var d=TASK_DETAILS[sid];if(!d)return;
+      var cb2=document.getElementById(sid);
+      var done=cb2&&cb2.checked;
+      var row=document.createElement('div');
+      row.style.cssText='font-size:.68rem;padding:3px 6px;border-radius:5px;cursor:pointer;margin-bottom:2px;display:flex;align-items:center;gap:5px;transition:background .15s';
+      row.innerHTML='<span style="font-size:.65rem;color:'+(done?'var(--accent)':'var(--muted)')+'">'+( done?'&#10003;':'&#9675;')+'</span>'+
+        '<span style="color:'+(done?'var(--muted)':'var(--text)')+(done?';text-decoration:line-through':'')+'">'+(d.icon||'')+' '+d.title+'</span>';
+      row.onmouseenter=function(){row.style.background='rgba(0,255,168,.06)';};
+      row.onmouseleave=function(){row.style.background='';};
+      row.onclick=function(){showTaskDetail(sid);};
+      el.appendChild(row);
+    });
+    if(siblings.length>4){var m=document.createElement('div');m.style.cssText='font-size:.6rem;color:var(--muted);padding:2px 6px';m.textContent='+'+(siblings.length-4)+' more in this phase';el.appendChild(m);}
+  };
+})();
+
+/* ── 167: Welcome banner dismissal ──────────────────────────── */
+(function(){
+  var wb=document.querySelector('.welcome-banner,.welcome-msg');
+  if(!wb)return;
+  if(localStorage.getItem('ob_welcome_dismissed')==='1'){wb.style.display='none';return;}
+  var close=document.createElement('button');
+  close.innerHTML='&times;';
+  close.style.cssText='position:absolute;top:6px;right:8px;background:none;border:none;font-size:1rem;color:var(--muted);cursor:pointer;line-height:1';
+  close.title='Dismiss';
+  close.onclick=function(){wb.style.display='none';localStorage.setItem('ob_welcome_dismissed','1');};
+  wb.style.position='relative';wb.appendChild(close);
+})();
+
+/* ── 168: Sidebar: session-start time badge ─────────────────── */
+(function(){
+  var SESSION_START=Date.now();
+  var el=document.createElement('div');
+  el.id='session-time';
+  el.style.cssText='font-size:.58rem;color:var(--muted);text-align:center;margin-top:1px';
+  var pct=document.getElementById('pct');
+  if(pct&&pct.parentNode)pct.parentNode.appendChild(el);
+  setInterval(function(){
+    var secs=Math.round((Date.now()-SESSION_START)/1000);
+    var m=Math.floor(secs/60),s=secs%60;
+    el.textContent='Session: '+m+'m '+(s<10?'0':'')+s+'s';
+  },10000);
+})();
+
+/* ── 169: Task items: show done-date tooltip on completed tasks ─ */
+(function(){
+  function _updateDoneTips(){
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      if(!cb.checked)return;
+      var ts=localStorage.getItem('ob_done_ts_'+cb.id);
+      if(!ts)return;
+      var item=cb.closest('.task-item');if(!item)return;
+      item.title='Completed '+new Date(Number(ts)).toLocaleDateString();
+    });
+  }
+  _updateDoneTips();
+  var _origUPDTip=updateProgress;
+  updateProgress=function(){_origUPDTip();_updateDoneTips();};
+})();
+
+/* ── 170: Sidebar: dark/light theme toggle ──────────────────── */
+(function(){
+  var lightCSS='html,body{background:#f4f8f5!important;color:#1a2e22!important}'+
+    '.sidebar{background:#e8f5ed!important;border-right:1px solid #b8d9c4!important}'+
+    '#task-detail-panel{background:#f0f8f2!important}'+
+    '.task-item{background:#fff!important;border-color:#c8e0d0!important;color:#1a2e22!important}'+
+    '.phase-head,.phase-header{background:#dff0e8!important}'+
+    '.task-label{color:#1a2e22!important}'+
+    '.task-time,.diff-badge{opacity:.85}';
+  var isLight=localStorage.getItem('ob_theme')==='light';
+  var lightEl=document.createElement('style');lightEl.id='light-theme';
+  if(isLight)lightEl.textContent=lightCSS;
+  document.head.appendChild(lightEl);
+  var btn=document.createElement('button');
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 7px;border-radius:6px;cursor:pointer;margin:2px 4px';
+  btn.textContent=isLight?'Dark mode':'Light mode';btn.title='Toggle light/dark theme';
+  btn.onclick=function(){
+    isLight=!isLight;localStorage.setItem('ob_theme',isLight?'light':'dark');
+    lightEl.textContent=isLight?lightCSS:'';
+    btn.textContent=isLight?'Dark mode':'Light mode';
+    _showToast(isLight?'Light mode on':'Dark mode on','',1800);
+  };
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(btn);
+})();
+
+/* ── 171: Search: filter by completion status ───────────────── */
+(function(){
+  var _filterStatus='all';
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var row=document.createElement('div');
+  row.style.cssText='display:flex;gap:4px;margin-bottom:4px;flex-wrap:wrap';
+  ['All','Done','Undone'].forEach(function(lbl){
+    var btn=document.createElement('button');btn.className='hide-done-btn';
+    btn.style.cssText='font-size:.6rem;padding:1px 6px';btn.textContent=lbl;
+    btn.style.background=lbl==='All'?'rgba(0,255,168,.12)':'';
+    btn.onclick=function(){
+      _filterStatus=lbl.toLowerCase();
+      row.querySelectorAll('button').forEach(function(b){b.style.background='';});
+      btn.style.background='rgba(0,255,168,.12)';
+      document.querySelectorAll('.checklist .task-item').forEach(function(item){
+        var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+        if(_filterStatus==='all')item.style.display='';
+        else if(_filterStatus==='done')item.style.display=cb.checked?'':'none';
+        else item.style.display=cb.checked?'none':'';
+      });
+    };
+    row.appendChild(btn);
+  });
+  var firstDiv=sb.querySelector('div');if(firstDiv)firstDiv.before(row);else sb.prepend(row);
+})();
+
+/* ── 172: Detail: add external URL launch button ────────────── */
+(function(){
+  var _origShow16=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow16(taskId);
+    var d=TASK_DETAILS[taskId];if(!d)return;
+    var le=document.getElementById('detail-links');if(!le)return;
+    var existingLaunch=le.querySelector('.launch-url-btn');
+    if(existingLaunch)existingLaunch.remove();
+    if(d.links&&d.links.length){
+      var firstUrl=d.links.find(function(l){return l.url;});
+      if(firstUrl){
+        var btn=document.createElement('button');
+        btn.className='detail-link-btn launch-url-btn';
+        btn.style.cssText='border-color:rgba(0,196,126,.5);margin-top:4px';
+        btn.innerHTML='&#127758; Open in browser: '+firstUrl.label;
+        btn.onclick=function(){cmd('openurl',firstUrl.url);};
+        le.appendChild(btn);
+      }
+    }
+  };
+})();
+
+/* ── 173: Checklist: progress mini-ring per phase (simpler SVG) ─ */
+/* (148 added SVG mini-rings — skip duplicate, just ensure they render on initial load) */
+(function(){
+  setTimeout(function(){
+    if(typeof updateProgress==='function')updateProgress();
+  },400);
+})();
+
+/* ── 174: App: persistent scroll position in detail body ─────── */
+(function(){
+  var db=document.querySelector('.detail-body');
+  if(!db)return;
+  db.addEventListener('scroll',function(){
+    if(_curTask)localStorage.setItem('ob_det_scroll_'+_curTask,db.scrollTop);
+  });
+  var _origShow17=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow17(taskId);
+    setTimeout(function(){
+      var saved=parseInt(localStorage.getItem('ob_det_scroll_'+taskId)||'0',10);
+      if(saved>0){var bd=document.querySelector('.detail-body');if(bd)bd.scrollTop=saved;}
+    },120);
+  };
+})();
+
+/* ── 175: Sidebar: copy progress report to clipboard ────────── */
+(function(){
+  var btn=document.createElement('button');
+  btn.textContent='Copy report';
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 7px;border-radius:6px;cursor:pointer;margin:2px 4px';
+  btn.title='Copy progress summary to clipboard';
+  btn.onclick=function(){
+    typeof _copyProgressSummary==='function'?_copyProgressSummary():_showToast('Not available','warn',1500);
+  };
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(btn);
+})();
+
+
 </script></body></html>
