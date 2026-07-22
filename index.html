@@ -3671,4 +3671,189 @@ function _exportCSV(){
 })();
 
 
+/* ── 176: Starred tasks: toggle + filter ────────────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.star-btn{background:none;border:none;cursor:pointer;font-size:.85rem;padding:0 2px;opacity:.35;transition:opacity .15s,transform .15s;line-height:1;vertical-align:middle}'+
+    '.star-btn.starred{opacity:1;transform:scale(1.1)}'+
+    '.task-item.task-starred{border-color:rgba(240,196,83,.45)!important;background:rgba(240,196,83,.04)!important}';
+  document.head.appendChild(st);
+  function _isStarred(id){return localStorage.getItem('ob_star_'+id)==='1';}
+  function _setStarred(id,v){if(v)localStorage.setItem('ob_star_'+id,'1');else localStorage.removeItem('ob_star_'+id);}
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+    var btn=document.createElement('button');btn.className='star-btn';btn.textContent='\u2605';
+    btn.title='Star this task';
+    if(_isStarred(cb.id)){btn.classList.add('starred');item.classList.add('task-starred');}
+    btn.onclick=function(e){
+      e.stopPropagation();
+      var starred=!_isStarred(cb.id);
+      _setStarred(cb.id,starred);
+      btn.classList.toggle('starred',starred);
+      item.classList.toggle('task-starred',starred);
+    };
+    item.appendChild(btn);
+  });
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var fBtn=document.createElement('button');
+  fBtn.className='hide-done-btn';fBtn.style.fontSize='.62rem';fBtn.textContent='Starred';fBtn.title='Show starred tasks only';
+  var _showStarred=false;
+  fBtn.onclick=function(){
+    _showStarred=!_showStarred;
+    fBtn.style.background=_showStarred?'rgba(240,196,83,.18)':'';
+    fBtn.style.color=_showStarred?'var(--gold)':'';
+    document.querySelectorAll('.checklist .task-item').forEach(function(item){
+      var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+      item.style.display=(!_showStarred||_isStarred(cb.id))?'':'none';
+    });
+    _showToast(_showStarred?'Showing starred tasks':'Showing all tasks','',1600);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(fBtn);
+})();
+
+/* ── 177: Browser tab: show incomplete count in title ────────── */
+(function(){
+  var _origUPTitle2=updateProgress;
+  updateProgress=function(){
+    _origUPTitle2();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var left=total-done;
+    document.title=left>0?'('+left+' left) ACY1 Onboarding':'ACY1 Onboarding \u2713';
+  };
+})();
+
+/* ── 178: Phase header: show sum of task times ───────────────── */
+(function(){
+  function _addPhaseTimes(){
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      if(hd.querySelector('.ph-time'))return;
+      var total=0;
+      body.querySelectorAll('input[type=checkbox]').forEach(function(cb){total+=(TM[cb.id]||0);});
+      if(!total)return;
+      var sp=document.createElement('span');sp.className='ph-time';
+      sp.style.cssText='font-size:.6rem;color:var(--muted);margin-left:5px;font-weight:400';
+      sp.textContent=fmtDur(total);
+      var cnt=hd.querySelector('.ph-count');
+      if(cnt)cnt.after(sp);else hd.appendChild(sp);
+    });
+  }
+  _addPhaseTimes();
+})();
+
+/* ── 179: Chat: format code blocks in AI responses ───────────── */
+(function(){
+  var _origAppend2=appendMsg;
+  appendMsg=function(text,cls){
+    if(cls==='ai'&&typeof text==='string'){
+      text=text
+        .replace(/```([^`]*?)```/gs,function(_,c){return '<pre style="background:rgba(0,255,168,.06);border:1px solid rgba(0,255,168,.15);border-radius:5px;padding:5px 8px;font-size:.68rem;overflow-x:auto;white-space:pre-wrap">'+c.replace(/</g,'&lt;')+'</pre>';})
+        .replace(/`([^`]+?)`/g,'<code style="background:rgba(0,255,168,.1);padding:1px 4px;border-radius:3px;font-size:.85em">$1</code>');
+    }
+    return _origAppend2(text,cls);
+  };
+})();
+
+/* ── 180: Export full state as JSON ──────────────────────────── */
+function _exportStateJSON(){
+  var state={};
+  for(var i=0;i<localStorage.length;i++){
+    var k=localStorage.key(i);
+    if(k&&k.startsWith('ob_'))state[k]=localStorage.getItem(k);
+  }
+  state['_exported']=new Date().toISOString();
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='onboarding-state.json';a.click();
+  _showToast('State exported as JSON','success',2000);
+}
+
+/* ── 181: Add JSON export button ──────────────────────────────── */
+(function(){
+  var exp=document.querySelector('[onclick="_exportNotesTxt()"]');if(!exp)return;
+  var btn=document.createElement('button');
+  btn.textContent='Export State';btn.title='Export all progress/notes as JSON';
+  btn.className=exp.className;btn.style.cssText=exp.style.cssText||'';
+  btn.onclick=_exportStateJSON;
+  exp.parentNode.appendChild(btn);
+})();
+
+/* ── 182: Note placeholder: task-aware hint text ────────────── */
+(function(){
+  var HINTS={
+    cb1:'e.g. "Badge picked up, employee number 12345"',
+    cb2:'e.g. "Completed in Knet on 7/22"',
+    t1:'e.g. "Met supervisor John — ext 4521"',
+    t4:'e.g. "Locker #214, combo 8-16-42"',
+    t7:'e.g. "Trained on sorter belt day 1"',
+    t13:'e.g. "AR certified, passed test 7/20"',
+  };
+  var _origShow18=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow18(taskId);
+    var ta=document.getElementById('task-note-input');if(!ta)return;
+    ta.placeholder=HINTS[taskId]||'Add your notes, reminders, or observations...';
+  };
+})();
+
+/* ── 183: Checklist: highlight currently open task ───────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.task-item.active-detail::before{content:"";display:block;position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:3px 0 0 3px}'+
+    '.task-item{position:relative}';
+  document.head.appendChild(st);
+})();
+
+/* ── 184: Settings drawer: consolidated toggle panel ────────── */
+(function(){
+  var drawer=null;
+  var btn=document.createElement('button');
+  btn.innerHTML='&#9881;';btn.title='Settings';
+  btn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 7px;cursor:pointer;font-size:.9rem;margin:2px 4px';
+  btn.onclick=function(){
+    if(drawer&&drawer.style.display!=='none'){drawer.style.display='none';return;}
+    if(!drawer){
+      drawer=document.createElement('div');
+      drawer.style.cssText='position:fixed;bottom:60px;left:10px;width:220px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;z-index:1200;box-shadow:0 4px 20px rgba(0,0,0,.6)';
+      var hdr=document.createElement('div');hdr.style.cssText='font-size:.7rem;font-weight:700;color:var(--text);margin-bottom:8px';hdr.textContent='Settings';
+      drawer.appendChild(hdr);
+      var TOGGLES=[
+        {label:'Hide completed',key:'ob_hide_done',fn:function(v){_hideDone=v==='1';_applyHideDone&&_applyHideDone();}},
+        {label:'Compact view',key:'ob_compact',fn:function(v){var s=document.getElementById('compact-style');if(s)s.textContent=v==='1'?'.task-item{padding:4px 8px!important;min-height:26px!important}.task-label{font-size:.78rem!important}':'';}},
+        {label:'Auto-collapse phases',key:'ob_autocollapse',fn:null},
+        {label:'Sound effects',key:'ob_sound_off',invert:true,fn:null},
+      ];
+      TOGGLES.forEach(function(t){
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:7px';
+        var lbl=document.createElement('label');lbl.style.cssText='font-size:.68rem;color:var(--text)';lbl.textContent=t.label;
+        var tog=document.createElement('input');tog.type='checkbox';
+        var val=localStorage.getItem(t.key)==='1';
+        tog.checked=t.invert?!val:val;
+        tog.style.cssText='accent-color:var(--accent);cursor:pointer;width:16px;height:16px';
+        tog.onchange=function(){
+          var nv=t.invert?(!tog.checked?'1':'0'):(tog.checked?'1':'0');
+          localStorage.setItem(t.key,nv);
+          if(t.fn)t.fn(nv);
+        };
+        row.appendChild(lbl);row.appendChild(tog);
+        drawer.appendChild(row);
+      });
+      document.body.appendChild(drawer);
+    }
+    drawer.style.display='';
+  };
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.prepend(btn);
+})();
+
+/* ── 185: Confetti: also fires on phase completion ──────────── */
+(function(){
+  var _origFirePhase=firePhaseCelebration;
+  firePhaseCelebration=function(name){
+    _origFirePhase(name);
+    if(typeof _launchConfetti==='function')_launchConfetti();
+  };
+})();
+
+
 </script></body></html>
