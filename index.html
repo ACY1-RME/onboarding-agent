@@ -2840,4 +2840,175 @@ updateProgress=function(){
 })();
 
 
+/* ── 136: Sidebar: total notes word count summary ────────────── */
+(function(){
+  function _updateNotesSummary(){
+    var tasks=Object.keys(TASK_DETAILS);
+    var notedCount=0,totalWords=0;
+    tasks.forEach(function(id){
+      var n=(localStorage.getItem('ob_note_'+id)||'').trim();
+      if(n){notedCount++;totalWords+=n.split(/\s+/).filter(Boolean).length;}
+    });
+    var el=document.getElementById('notes-summary');
+    if(!el){
+      el=document.createElement('div');el.id='notes-summary';
+      el.style.cssText='font-size:.58rem;color:var(--muted);text-align:center;margin-top:1px';
+      var ph=document.getElementById('phase-incomplete-count')||document.getElementById('done-count');
+      if(ph)ph.parentNode.appendChild(el);
+    }
+    el.textContent=notedCount?notedCount+' notes \u00B7 '+totalWords+' words':'No notes yet';
+  }
+  _updateNotesSummary();
+  var _origSaveN2=_saveTaskNote;
+  _saveTaskNote=function(id,text){_origSaveN2(id,text);_updateNotesSummary();};
+})();
+
+/* ── 137: Chat: copy last AI message button ─────────────────── */
+(function(){
+  var box=document.getElementById('chatbox');
+  if(!box)return;
+  var btn=document.createElement('button');
+  btn.textContent='Copy last reply';
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:6px;cursor:pointer;margin:4px 0 0 4px;display:block';
+  btn.title='Copy the last AI response';
+  btn.onclick=function(){
+    var msgs=box.querySelectorAll('.msg.ai');
+    if(!msgs.length)return;
+    var last=msgs[msgs.length-1];
+    var text=(last.innerText||last.textContent||'').trim();
+    navigator.clipboard&&navigator.clipboard.writeText(text).then(function(){_showToast('Copied','success',1800);});
+  };
+  box.after(btn);
+})();
+
+/* ── 138: Task items: fade-in on initial load ───────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes taskFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}'+
+    '.task-item{animation:taskFadeIn .28s ease both}';
+  document.head.appendChild(st);
+  document.querySelectorAll('.task-item').forEach(function(item,i){
+    item.style.animationDelay=(i*18)+'ms';
+  });
+})();
+
+/* ── 139: Detail steps: highlight on hover ──────────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.detail-step:hover{background:rgba(0,255,168,.06)!important;border-radius:6px;cursor:default}'+
+    '.detail-step:hover .step-num{background:var(--accent)!important;color:#000!important}';
+  document.head.appendChild(st);
+})();
+
+/* ── 140: Export: download all notes as Markdown ─────────────── */
+function _exportNotesMd(){
+  var tasks=Object.keys(TASK_DETAILS);
+  var lines=['# ACY1 Onboarding Notes','','**Name:** '+(localStorage.getItem('ob_name')||'(unknown)'),'**Date:** '+new Date().toLocaleDateString(),''];
+  var hasNotes=false;
+  tasks.forEach(function(id){
+    var n=(localStorage.getItem('ob_note_'+id)||'').trim();
+    if(!n)return;
+    var d=TASK_DETAILS[id];
+    lines.push('## '+(d?d.title:id));
+    lines.push('');
+    lines.push(n);
+    lines.push('');
+    hasNotes=true;
+  });
+  if(!hasNotes){_showToast('No notes to export','warn',2000);return;}
+  var blob=new Blob([lines.join('\n')],{type:'text/markdown'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='onboarding-notes.md';a.click();
+  _showToast('Markdown exported','success',2200);
+}
+
+/* ── 141: Add Markdown export button next to TXT export ───────── */
+(function(){
+  var exp=document.querySelector('[onclick="_exportNotesTxt()"]')||document.querySelector('.export-btn');
+  if(!exp)return;
+  var btn=document.createElement('button');
+  btn.textContent='Export MD';
+  btn.className=exp.className;
+  btn.style.cssText=exp.style.cssText||'';
+  btn.title='Download notes as Markdown';
+  btn.onclick=_exportNotesMd;
+  exp.after(btn);
+})();
+
+/* ── 142: Sidebar: "All phases complete" celebration badge ───── */
+(function(){
+  function _checkAllPhases(){
+    var total=0,done=0;
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      total++;
+      var c=0;cbs.forEach(function(x){if(x.checked)c++;});
+      if(c===cbs.length)done++;
+    });
+    var el=document.getElementById('all-phases-badge');
+    if(!el){
+      el=document.createElement('div');el.id='all-phases-badge';
+      el.style.cssText='display:none;font-size:.65rem;font-weight:700;color:var(--accent);text-align:center;padding:4px;border:1px solid var(--accent);border-radius:8px;margin:6px 8px;letter-spacing:.04em';
+      el.textContent='\u2605 All Phases Complete!';
+      var cl=document.querySelector('.checklist');if(cl)cl.before(el);
+    }
+    el.style.display=(total>0&&done===total)?'':'none';
+  }
+  _checkAllPhases();
+  var _origUPAllPh=updateProgress;
+  updateProgress=function(){_origUPAllPh();_checkAllPhases();};
+})();
+
+/* ── 143: Search box: show result count in placeholder ────────── */
+(function(){
+  var si=document.getElementById('searchInput');
+  if(!si)return;
+  si.addEventListener('input',function(){
+    if(!si.value){si.placeholder='Search tasks...';return;}
+    setTimeout(function(){
+      var vis=0;document.querySelectorAll('.checklist .task-item').forEach(function(it){if(it.style.display!=='none')vis++;});
+      si.placeholder=vis+' match'+(vis===1?'':'es');
+    },30);
+  });
+})();
+
+/* ── 144: Phase headers: keyboard open/close with Space ─────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    hd.setAttribute('tabindex','0');
+    hd.addEventListener('keydown',function(e){
+      if(e.key===' '||e.key==='Enter'){
+        e.preventDefault();
+        var oc=hd.getAttribute('onclick');
+        var m=oc&&oc.match(/togglePhase\('([^']+)'\)/);
+        if(m)togglePhase(m[1]);
+      }
+    });
+  });
+})();
+
+/* ── 145: Detail panel: escape to previous task (back nav) ───── */
+(function(){
+  var _history=[];
+  var _origShow10=showTaskDetail;
+  showTaskDetail=function(taskId){
+    if(_curTask&&_curTask!==taskId)_history.push(_curTask);
+    if(_history.length>20)_history.shift();
+    _origShow10(taskId);
+    var btn=document.getElementById('detail-back-hist');
+    if(!btn){
+      btn=document.createElement('button');btn.id='detail-back-hist';
+      btn.style.cssText='background:none;border:none;color:var(--muted);font-size:.78rem;cursor:pointer;padding:2px 6px;margin-right:4px';
+      btn.title='Back to previous task (Alt+Left)';btn.innerHTML='&#8592; Back';
+      btn.onclick=function(){var prev=_history.pop();if(prev)showTaskDetail(prev);};
+      var hprev=document.getElementById('detail-hprev');
+      if(hprev)hprev.parentNode.insertBefore(btn,hprev);
+    }
+    btn.style.display=_history.length?'':'none';
+  };
+  document.addEventListener('keydown',function(e){
+    if(e.altKey&&e.key==='ArrowLeft'){var prev=_history.pop();if(prev)showTaskDetail(prev);}
+  });
+})();
+
+
 </script></body></html>
