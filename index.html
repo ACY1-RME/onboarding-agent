@@ -3260,4 +3260,217 @@ function _exportNotesMd(){
 })();
 
 
+/* ── 156: Checklist: task done sound (subtle) ─────────────────── */
+(function(){
+  function _playDone(checked){
+    try{
+      var ac=new (window.AudioContext||window.webkitAudioContext)();
+      var osc=ac.createOscillator();var gain=ac.createGain();
+      osc.connect(gain);gain.connect(ac.destination);
+      osc.frequency.value=checked?880:440;
+      osc.type=checked?'sine':'triangle';
+      gain.gain.setValueAtTime(.12,ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+.25);
+      osc.start();osc.stop(ac.currentTime+.25);
+    }catch(e){}
+  }
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change',function(){_playDone(cb.checked);});
+  });
+})();
+
+/* ── 157: Detail: show estimated completion date for this task ── */
+(function(){
+  var _origShow13=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow13(taskId);
+    var tm=TM[taskId];if(!tm)return;
+    var el=document.getElementById('detail-eta-badge');
+    if(!el){
+      el=document.createElement('span');el.id='detail-eta-badge';
+      el.style.cssText='font-size:.62rem;color:var(--gold);background:rgba(240,196,83,.12);border:1px solid rgba(240,196,83,.25);border-radius:7px;padding:1px 7px;margin-left:6px;vertical-align:middle';
+      var tb=document.getElementById('detail-time-badge');if(tb)tb.after(el);
+    }
+    var hours=tm/60;
+    el.textContent=hours<1?'~'+tm+'m task':'~'+fmtDur(tm)+' task';
+    el.title='Estimated time to complete this task';
+  };
+})();
+
+/* ── 158: Sidebar: quick stats mini table ─────────────────────── */
+(function(){
+  function _buildStatsTable(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,doneMins=0,totalMins=0;
+    cbs.forEach(function(cb){
+      var m=TM[cb.id]||0;totalMins+=m;
+      if(cb.checked){done++;doneMins+=m;}
+    });
+    var noteCnt=Object.keys(TASK_DETAILS).filter(function(id){return (localStorage.getItem('ob_note_'+id)||'').trim();}).length;
+    var streak=parseInt(localStorage.getItem('ob_streak_count')||'0',10);
+    var rows=[
+      ['Tasks done',done+' / '+cbs.length],
+      ['Time invested',fmtDur(doneMins)],
+      ['Time remaining',fmtDur(totalMins-doneMins)],
+      ['Notes',noteCnt],
+      ['Streak',streak?streak+'d':'-'],
+    ];
+    var el=document.getElementById('quick-stats-table');
+    if(!el){
+      el=document.createElement('table');el.id='quick-stats-table';
+      el.style.cssText='width:100%;border-collapse:collapse;font-size:.63rem;margin:6px 0';
+      var cont=document.querySelector('.sidebar-stats,.prog-section');
+      if(cont)cont.appendChild(el);else return;
+    }
+    el.innerHTML=rows.map(function(r){
+      return '<tr><td style="color:var(--muted);padding:1px 0">'+r[0]+'</td><td style="text-align:right;color:var(--text);font-weight:600">'+r[1]+'</td></tr>';
+    }).join('');
+  }
+  _buildStatsTable();
+  var _origUPStats=updateProgress;
+  updateProgress=function(){_origUPStats();_buildStatsTable();};
+})();
+
+/* ── 159: Checklist: group tasks by done/undone separators ───── */
+(function(){
+  var _origUPSep=updateProgress;
+  updateProgress=function(){
+    _origUPSep();
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var sep=body.querySelector('.done-sep');
+      if(sep)sep.remove();
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      var doneItems=[],undoneItems=[];
+      cbs.forEach(function(cb){
+        (cb.checked?doneItems:undoneItems).push(cb.closest('.task-item'));
+      });
+      if(!doneItems.length||!undoneItems.length)return;
+      var divider=document.createElement('div');divider.className='done-sep';
+      divider.style.cssText='font-size:.58rem;color:var(--muted);padding:3px 8px;border-top:1px solid rgba(255,255,255,.05);margin-top:4px;letter-spacing:.07em;text-transform:uppercase';
+      divider.textContent=doneItems.length+' completed';
+      var lastUndone=undoneItems[undoneItems.length-1];
+      if(lastUndone&&lastUndone.nextSibling)body.insertBefore(divider,lastUndone.nextSibling);
+      else body.appendChild(divider);
+    });
+  };
+})();
+
+/* ── 160: Note panel: search/find within notes ────────────────── */
+(function(){
+  var _origShow14=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow14(taskId);
+    var noteArea=document.getElementById('task-note-input');
+    if(!noteArea)return;
+    var wrap=noteArea.parentNode;
+    if(wrap.querySelector('#note-search'))return;
+    var si=document.createElement('input');si.id='note-search';
+    si.type='text';si.placeholder='Find in note...';
+    si.style.cssText='width:100%;box-sizing:border-box;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.65rem;margin-bottom:3px';
+    si.addEventListener('input',function(){
+      var q=si.value.toLowerCase();
+      var ta=document.getElementById('task-note-input');
+      if(!q||!ta)return;
+      var val=ta.value;var idx=val.toLowerCase().indexOf(q);
+      if(idx>=0){ta.focus();ta.setSelectionRange(idx,idx+q.length);}
+    });
+    noteArea.before(si);
+  };
+})();
+
+/* ── 161: Phase header: "tap to expand" visual indicator ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.phase-head,.phase-header{cursor:pointer;user-select:none;transition:background .15s}'+
+    '.phase-head:hover,.phase-header:hover{background:rgba(0,255,168,.04)!important}'+
+    '.phase-head:active,.phase-header:active{background:rgba(0,255,168,.08)!important}';
+  document.head.appendChild(st);
+})();
+
+/* ── 162: Export: CSV of task completion status ────────────────── */
+function _exportCSV(){
+  var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+  var rows=[['ID','Title','Done','Time(min)','Done At','Note']];
+  cbs.forEach(function(cb){
+    var d=TASK_DETAILS[cb.id];if(!d)return;
+    var ts=localStorage.getItem('ob_done_ts_'+cb.id);
+    var note=(localStorage.getItem('ob_note_'+cb.id)||'').replace(/"/g,'""').replace(/\n/g,' ');
+    rows.push([cb.id,'"'+(d.title||'').replace(/"/g,'""')+'"',cb.checked?'1':'0',TM[cb.id]||0,ts?new Date(Number(ts)).toLocaleString():'','"'+note+'"']);
+  });
+  var csv=rows.map(function(r){return r.join(',');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='onboarding-progress.csv';a.click();
+  _showToast('CSV exported','success',2000);
+}
+
+/* ── 163: Add CSV export button ──────────────────────────────── */
+(function(){
+  var exp=document.querySelector('[onclick="_exportNotesTxt()"]');
+  if(!exp)return;
+  var btn=document.createElement('button');
+  btn.textContent='Export CSV';
+  btn.className=exp.className;
+  btn.style.cssText=exp.style.cssText||'';
+  btn.title='Export progress as CSV';
+  btn.onclick=_exportCSV;
+  exp.after(btn);
+})();
+
+/* ── 164: Sidebar: "view all notes" summary panel toggle ──────── */
+(function(){
+  var panel=null;
+  var btn=document.createElement('button');
+  btn.textContent='All Notes';
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 8px;border-radius:6px;cursor:pointer;margin:4px 0 0 4px';
+  btn.title='View all notes in one place';
+  btn.onclick=function(){
+    if(panel&&panel.style.display!=='none'){panel.style.display='none';return;}
+    if(!panel){
+      panel=document.createElement('div');
+      panel.style.cssText='position:fixed;top:60px;right:300px;width:280px;max-height:60vh;overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;z-index:800;box-shadow:0 4px 20px rgba(0,0,0,.6)';
+      var closeBtn=document.createElement('button');closeBtn.textContent='x';
+      closeBtn.style.cssText='float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem';
+      closeBtn.onclick=function(){panel.style.display='none';};
+      panel.appendChild(closeBtn);
+      document.body.appendChild(panel);
+    }
+    panel.querySelectorAll('.note-entry').forEach(function(e){e.remove();});
+    var hasAny=false;
+    Object.keys(TASK_DETAILS).forEach(function(id){
+      var n=(localStorage.getItem('ob_note_'+id)||'').trim();if(!n)return;
+      hasAny=true;
+      var d=TASK_DETAILS[id];
+      var entry=document.createElement('div');entry.className='note-entry';
+      entry.style.cssText='margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)';
+      entry.innerHTML='<div style="font-size:.68rem;font-weight:600;color:var(--text);margin-bottom:2px">'+(d?d.title:id)+'</div>'+
+        '<div style="font-size:.63rem;color:var(--muted);white-space:pre-wrap">'+n.slice(0,200)+(n.length>200?'...':'')+'</div>';
+      entry.style.cursor='pointer';
+      entry.onclick=function(){panel.style.display='none';showTaskDetail(id);};
+      panel.appendChild(entry);
+    });
+    if(!hasAny){var e=document.createElement('div');e.style.cssText='font-size:.68rem;color:var(--muted);text-align:center;padding:20px 0';e.textContent='No notes yet';panel.appendChild(e);}
+    panel.style.display='';
+  };
+  var exp=document.querySelector('[onclick="_exportNotesTxt()"]');
+  if(exp)exp.after(btn);
+})();
+
+/* ── 165: Progress ring: accessible aria-label update ─────────── */
+(function(){
+  var ring=document.querySelector('.prog-ring-wrap,.ring-wrap');
+  if(!ring)return;
+  ring.setAttribute('role','progressbar');
+  ring.setAttribute('aria-valuemin','0');ring.setAttribute('aria-valuemax','100');
+  var _origUPAria=updateProgress;
+  updateProgress=function(){
+    _origUPAria();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var pct=total?Math.round(done/total*100):0;
+    ring.setAttribute('aria-valuenow',''+pct);
+    ring.setAttribute('aria-label',pct+'% of onboarding complete ('+done+'/'+total+')');
+  };
+})();
+
+
 </script></body></html>
