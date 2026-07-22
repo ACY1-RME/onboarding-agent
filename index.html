@@ -2017,4 +2017,238 @@ updateProgress=function(){
   });
 };
 
+/* ── 96: Task difficulty badges (Quick/Standard/Deep) ───── */
+(function(){
+  var DIFF={};
+  Object.keys(TM).forEach(function(id){
+    var m=TM[id];
+    DIFF[id]=m<=15?{lbl:'Quick',cls:'diff-quick'}:m<=60?{lbl:'Standard',cls:'diff-std'}:{lbl:'Deep',cls:'diff-deep'};
+  });
+  var st=document.createElement('style');
+  st.textContent='.diff-badge{display:inline-block;font-size:.55rem;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle;letter-spacing:.04em;opacity:.8}'+
+    '.diff-quick{background:rgba(0,255,168,.15);color:#00ffa8;border:1px solid rgba(0,255,168,.3)}'+
+    '.diff-std{background:rgba(240,196,83,.12);color:#f0c453;border:1px solid rgba(240,196,83,.25)}'+
+    '.diff-deep{background:rgba(200,80,255,.12);color:#cc88ff;border:1px solid rgba(200,80,255,.25)}';
+  document.head.appendChild(st);
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');
+    if(!cb||!DIFF[cb.id])return;
+    if(item.querySelector('.diff-badge'))return;
+    var d=DIFF[cb.id];
+    var b=document.createElement('span');b.className='diff-badge '+d.cls;b.textContent=d.lbl;
+    var lbl=item.querySelector('.task-label');
+    if(lbl)lbl.after(b);else item.appendChild(b);
+  });
+})();
+
+/* ── 97: Reset all progress button (settings panel) ─────── */
+(function(){
+  var prog=document.querySelector('.prog-section')||document.querySelector('.sidebar-header');
+  if(!prog)return;
+  var btn=document.createElement('button');
+  btn.id='reset-progress-btn';
+  btn.textContent='Reset';
+  btn.title='Reset all checklist progress';
+  btn.style.cssText='font-size:.58rem;padding:2px 7px;background:none;border:1px solid rgba(255,80,80,.4);color:rgba(255,100,100,.7);border-radius:6px;cursor:pointer;margin-top:4px;display:block;margin-left:auto';
+  btn.onclick=function(){
+    if(!confirm('Reset ALL checklist progress? This cannot be undone.'))return;
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      cb.checked=false;
+      localStorage.removeItem('ob_'+cb.id);
+      localStorage.removeItem('ob_done_ts_'+cb.id);
+    });
+    localStorage.removeItem('ob_cert_shown');
+    localStorage.removeItem('ob_milestones_shown');
+    _milestonesShown.length=0;
+    updateProgress();
+    _showToast('Progress reset.','warn',2500);
+  };
+  prog.appendChild(btn);
+})();
+
+/* ── 98: Compact/comfortable density toggle ──────────────── */
+(function(){
+  var compact=localStorage.getItem('ob_compact')==='1';
+  var st=document.createElement('style');
+  st.id='compact-style';
+  if(compact)st.textContent='.task-item{padding:4px 8px!important;min-height:26px!important}.task-label{font-size:.78rem!important}.task-time{font-size:.55rem!important}.diff-badge{display:none!important}';
+  document.head.appendChild(st);
+  var sb=document.querySelector('.search-wrap');
+  if(!sb)return;
+  var btn=document.createElement('button');
+  btn.className='hide-done-btn';btn.style.fontSize='.62rem';btn.title='Toggle compact view';
+  btn.innerHTML=compact?'&#9707; Expand':'&#9707; Compact';
+  btn.onclick=function(){
+    compact=!compact;
+    localStorage.setItem('ob_compact',compact?'1':'0');
+    var s=document.getElementById('compact-style');
+    if(s)s.textContent=compact?'.task-item{padding:4px 8px!important;min-height:26px!important}.task-label{font-size:.78rem!important}.task-time{font-size:.55rem!important}.diff-badge{display:none!important}':'';
+    btn.innerHTML=compact?'&#9707; Expand':'&#9707; Compact';
+    _showToast(compact?'Compact view on':'Comfortable view on','',1800);
+  };
+  var row=sb.querySelector('div');
+  if(row)row.appendChild(btn);
+})();
+
+/* ── 99: "Time left" badge in progress header ────────────── */
+(function(){
+  var tt=document.getElementById('time-tally');
+  if(!tt)return;
+  var _origUPTimeLeft=updateProgress;
+  updateProgress=function(){
+    _origUPTimeLeft();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var doneMins=0,leftMins=0;
+    cbs.forEach(function(cb){
+      var t=TM[cb.id]||0;
+      if(cb.checked)doneMins+=t;else leftMins+=t;
+    });
+    var tl=document.getElementById('time-left-badge');
+    if(!tl){tl=document.createElement('div');tl.id='time-left-badge';tl.style.cssText='font-size:.62rem;color:var(--muted);text-align:right;margin-top:2px';tt.after(tl);}
+    tl.textContent=leftMins>0?fmtDur(leftMins)+' remaining':'All done!';
+  };
+})();
+
+/* ── 100: Phase elapsed time display on phase headers ────── */
+(function(){
+  function _renderPhaseTime(){
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var started=localStorage.getItem('ob_pstart_'+body.id);
+      if(!started)return;
+      var hd=body.previousElementSibling;if(!hd)return;
+      var et=hd.querySelector('.ph-elapsed');
+      if(!et){et=document.createElement('span');et.className='ph-elapsed';et.style.cssText='font-size:.6rem;color:var(--muted);margin-left:6px;font-weight:400';hd.appendChild(et);}
+      var mins=Math.round((Date.now()-Number(started))/60000);
+      et.textContent='started '+fmtDur(mins)+' ago';
+    });
+  }
+  _renderPhaseTime();
+  setInterval(_renderPhaseTime,60000);
+})();
+
+/* ── 101: Confetti burst on 100% completion ──────────────── */
+(function(){
+  var _confettiShown=false;
+  var _origUPConfetti=updateProgress;
+  updateProgress=function(){
+    _origUPConfetti();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+    if(done===cbs.length&&cbs.length>0&&!_confettiShown){
+      _confettiShown=true;
+      _launchConfetti();
+    }else if(done<cbs.length){_confettiShown=false;}
+  };
+  function _launchConfetti(){
+    var canvas=document.createElement('canvas');
+    canvas.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999';
+    document.body.appendChild(canvas);
+    var ctx=canvas.getContext('2d');
+    canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+    var pieces=Array.from({length:90},function(){
+      return{x:Math.random()*canvas.width,y:-20,vy:2+Math.random()*3,vx:(Math.random()-.5)*3,
+        rot:Math.random()*360,rotv:(Math.random()-.5)*8,
+        color:['#00ffa8','#f0c453','#cc88ff','#4ea8ff','#ff6b6b'][Math.floor(Math.random()*5)],
+        w:6+Math.random()*7,h:3+Math.random()*4};
+    });
+    var frame=0;
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      var alive=false;
+      pieces.forEach(function(p){
+        p.y+=p.vy;p.x+=p.vx;p.rot+=p.rotv;p.vy+=0.06;
+        if(p.y<canvas.height+30)alive=true;
+        ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);
+        ctx.fillStyle=p.color;ctx.globalAlpha=Math.max(0,1-frame/160);
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();
+      });
+      frame++;
+      if(alive&&frame<200)requestAnimationFrame(draw);
+      else{canvas.remove();}
+    }
+    requestAnimationFrame(draw);
+  }
+})();
+
+/* ── 102: Detail panel: reading time estimate for body text ─ */
+(function(){
+  var _origShow2=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow2(taskId);
+    var d=TASK_DETAILS[taskId];if(!d)return;
+    var body=d.body||d.desc||'';
+    var words=(body.replace(/<[^>]+>/g,'')).trim().split(/\s+/).filter(Boolean).length;
+    words+=d.steps.join(' ').split(/\s+/).length;
+    var mins=Math.max(1,Math.round(words/200));
+    var rt=document.getElementById('detail-read-time');
+    if(!rt){
+      rt=document.createElement('span');rt.id='detail-read-time';
+      rt.style.cssText='font-size:.6rem;color:var(--muted);margin-left:8px';
+      var dtitle=document.getElementById('detail-title');
+      if(dtitle&&dtitle.parentNode)dtitle.parentNode.appendChild(rt);
+    }
+    rt.textContent='~'+mins+' min read';
+  };
+})();
+
+/* ── 103: "Next Up" smart recommendation below phase list ─── */
+(function(){
+  function _renderNextUp(){
+    var el=document.getElementById('next-up-card');
+    if(!el){
+      el=document.createElement('div');el.id='next-up-card';
+      el.style.cssText='background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin:10px 8px 4px;font-size:.72rem;cursor:pointer;transition:border-color .2s';
+      el.onmouseenter=function(){el.style.borderColor='var(--accent)'};
+      el.onmouseleave=function(){el.style.borderColor='var(--border)'};
+      var cl=document.querySelector('.checklist');
+      if(cl)cl.after(el);else return;
+    }
+    var first=null;
+    document.querySelectorAll('.checklist .task-item').forEach(function(item){
+      if(first)return;
+      var cb=item.querySelector('input[type=checkbox]');
+      if(cb&&!cb.checked&&item.style.display!=='none'){first=cb.id;}
+    });
+    if(!first){el.innerHTML='<span style="color:var(--accent)">&#10003; All tasks complete!</span>';el.onclick=null;return;}
+    var d=TASK_DETAILS[first];
+    if(!d){el.style.display='none';return;}
+    el.style.display='';
+    el.innerHTML='<div style="color:var(--muted);font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Next Up</div>'+
+      '<div style="font-weight:600;color:var(--text)">'+(d.icon||'')+' '+d.title+'</div>'+
+      (d.desc?'<div style="color:var(--muted);margin-top:3px;font-size:.68rem">'+d.desc.slice(0,80)+(d.desc.length>80?'...':'')+'</div>':'')+
+      (TM[first]?'<div style="color:var(--accent2);margin-top:4px;font-size:.62rem">&#9203; '+fmtDur(TM[first])+'</div>':'');
+    el.onclick=function(){showTaskDetail(first);};
+  }
+  _renderNextUp();
+  var _origUPNextUp=updateProgress;
+  updateProgress=function(){_origUPNextUp();_renderNextUp();};
+})();
+
+/* ── 104: Checklist items tabindex for keyboard nav ─────── */
+(function(){
+  var items=document.querySelectorAll('.task-item');
+  items.forEach(function(item,i){
+    item.setAttribute('tabindex','0');
+    item.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){
+        var cb=item.querySelector('input[type=checkbox]');
+        if(cb){cb.checked=!cb.checked;updateProgress();}
+      }
+      if(e.key==='ArrowDown'){var n=items[i+1];if(n)n.focus();}
+      if(e.key==='ArrowUp'){var p=items[i-1];if(p)p.focus();}
+    });
+  });
+})();
+
+/* ── 105: Auto-scroll phase header into view when opened ─── */
+(function(){
+  var _origTogPhase=togglePhase;
+  togglePhase=function(id){
+    _origTogPhase(id);
+    var hd=document.querySelector('[onclick="togglePhase(\''+id+'\')"]');
+    if(hd){setTimeout(function(){hd.scrollIntoView({behavior:'smooth',block:'nearest'});},180);}
+  };
+})();
+
+
 </script></body></html>
