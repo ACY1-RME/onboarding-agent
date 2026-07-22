@@ -3011,4 +3011,253 @@ function _exportNotesMd(){
 })();
 
 
+/* ── 146: Resource links: open-count tracker ─────────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.res-open-count{font-size:.55rem;color:var(--muted);margin-left:4px;vertical-align:middle}';
+  document.head.appendChild(st);
+  document.querySelectorAll('.resource-link,.res-link,a[href]').forEach(function(a){
+    var href=a.getAttribute('href')||a.getAttribute('onclick')||'';
+    var key='ob_ropen_'+btoa(href.slice(0,40)).slice(0,12);
+    var cnt=parseInt(localStorage.getItem(key)||'0',10);
+    if(cnt>0){var s=document.createElement('span');s.className='res-open-count';s.textContent='x'+cnt;a.appendChild(s);}
+    a.addEventListener('click',function(){
+      var c=parseInt(localStorage.getItem(key)||'0',10)+1;
+      localStorage.setItem(key,c);
+      var existing=a.querySelector('.res-open-count');
+      if(existing)existing.textContent='x'+c;
+      else{var s=document.createElement('span');s.className='res-open-count';s.textContent='x'+c;a.appendChild(s);}
+    });
+  });
+})();
+
+/* ── 147: Chat: suggested follow-ups after AI responds ───────── */
+(function(){
+  var FOLLOWUPS=['What should I do first?','How long will this take?','Who do I ask for help?','What are the most important tasks?','Where do I find my schedule?'];
+  var _origAppend=appendMsg;
+  var _lastAI=null;
+  appendMsg=function(text,cls){
+    var el=_origAppend(text,cls);
+    if(cls==='ai'&&typeof text==='string'&&text.length>20){
+      _lastAI=el;
+      setTimeout(function(){
+        if(!_lastAI||_lastAI!==el)return;
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 4px 8px';
+        FOLLOWUPS.slice(0,3).forEach(function(q){
+          var chip=document.createElement('button');
+          chip.textContent=q;
+          chip.style.cssText='font-size:.6rem;padding:2px 7px;border-radius:10px;border:1px solid var(--border);background:rgba(0,255,168,.08);color:var(--text);cursor:pointer;transition:background .15s';
+          chip.onmouseenter=function(){chip.style.background='rgba(0,255,168,.18)';};
+          chip.onmouseleave=function(){chip.style.background='rgba(0,255,168,.08)';};
+          chip.onclick=function(){_chip(q);row.remove();};
+          row.appendChild(chip);
+        });
+        var box=document.getElementById('chatbox');
+        if(box){box.appendChild(row);box.scrollTop=box.scrollHeight;}
+      },300);
+    }
+    return el;
+  };
+})();
+
+/* ── 148: Sidebar: completion percentage ring mini for phase ─── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.ph-mini-ring{display:inline-block;vertical-align:middle;margin-left:5px}'+
+    '.ph-mini-ring circle{transition:stroke-dashoffset .4s}';
+  document.head.appendChild(st);
+  function _drawMini(hd,pct){
+    var r=6,circ=2*Math.PI*r;
+    var svg=hd.querySelector('.ph-mini-ring');
+    if(!svg){
+      svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('width','14');svg.setAttribute('height','14');
+      svg.className='ph-mini-ring';
+      var bg=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      bg.setAttribute('cx','8');bg.setAttribute('cy','8');bg.setAttribute('r',''+r);
+      bg.setAttribute('fill','none');bg.setAttribute('stroke','rgba(255,255,255,.1)');bg.setAttribute('stroke-width','2.5');
+      var fg=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      fg.setAttribute('cx','8');fg.setAttribute('cy','8');fg.setAttribute('r',''+r);
+      fg.setAttribute('fill','none');fg.setAttribute('stroke','var(--accent)');fg.setAttribute('stroke-width','2.5');
+      fg.setAttribute('stroke-linecap','round');
+      fg.setAttribute('stroke-dasharray',''+circ.toFixed(1));
+      fg.setAttribute('transform','rotate(-90 8 8)');fg.className='ph-fg';
+      svg.appendChild(bg);svg.appendChild(fg);
+      hd.appendChild(svg);
+    }
+    var fg=svg.querySelector('.ph-fg');
+    if(fg)fg.setAttribute('stroke-dashoffset',(circ*(1-pct/100)).toFixed(2));
+  }
+  function _updateMiniRings(){
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      _drawMini(hd,Math.round(done/cbs.length*100));
+    });
+  }
+  _updateMiniRings();
+  var _origUPMini=updateProgress;
+  updateProgress=function(){_origUPMini();_updateMiniRings();};
+})();
+
+/* ── 149: Task note: #hashtag highlighting ───────────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.note-rendered .tag{color:var(--accent);font-weight:600}'+
+    '.note-rendered .mention{color:var(--gold);font-weight:600}';
+  document.head.appendChild(st);
+  function _renderNotePreview(taskId){
+    var note=(localStorage.getItem('ob_note_'+taskId)||'').trim();
+    var el=document.getElementById('note-preview-rendered');
+    if(!el){
+      el=document.createElement('div');el.id='note-preview-rendered';el.className='note-rendered';
+      el.style.cssText='font-size:.68rem;color:var(--muted);margin-top:3px;line-height:1.55;min-height:0;white-space:pre-wrap';
+      var ta=document.getElementById('task-note-input');if(ta)ta.before(el);
+    }
+    if(!note){el.style.display='none';return;}
+    el.style.display='';
+    el.innerHTML=note
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/#(\w+)/g,'<span class="tag">#$1</span>')
+      .replace(/@(\w+)/g,'<span class="mention">@$1</span>');
+  }
+  var _origShow11=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow11(taskId);
+    _renderNotePreview(taskId);
+  };
+  var _origSaveN3=_saveTaskNote;
+  _saveTaskNote=function(id,text){
+    _origSaveN3(id,text);
+    if(_curTask===id)_renderNotePreview(id);
+  };
+})();
+
+/* ── 150: Completion: show summary stats in certificate ──────── */
+(function(){
+  var _origCert=showCertificate;
+  showCertificate=function(){
+    _origCert();
+    setTimeout(function(){
+      var cert=document.querySelector('.cert-body,.certificate');
+      if(!cert)return;
+      var tasks=Object.keys(TASK_DETAILS).length;
+      var notes=Object.keys(TASK_DETAILS).filter(function(id){return (localStorage.getItem('ob_note_'+id)||'').trim();}).length;
+      var start=localStorage.getItem('ob_start');
+      var days=start?Math.max(1,Math.floor((Date.now()-new Date(start+'T00:00:00').getTime())/86400000)+1):0;
+      var stats=document.createElement('div');
+      stats.style.cssText='font-size:.7rem;color:var(--muted);text-align:center;margin-top:12px;line-height:2';
+      stats.innerHTML=tasks+' tasks completed &nbsp;\u00B7&nbsp; '+notes+' notes written'+(days?' &nbsp;\u00B7&nbsp; '+days+' days':'');
+      cert.appendChild(stats);
+    },800);
+  };
+})();
+
+/* ── 151: Sidebar: "Jump to next incomplete" floating button ─── */
+(function(){
+  var fab=document.createElement('button');
+  fab.id='fab-next';
+  fab.innerHTML='&#8659;';
+  fab.title='Jump to next incomplete task (J)';
+  fab.style.cssText='position:fixed;bottom:20px;right:20px;width:36px;height:36px;border-radius:50%;'+
+    'background:var(--accent);color:#000;font-size:1.1rem;font-weight:700;border:none;cursor:pointer;'+
+    'z-index:900;box-shadow:0 3px 14px rgba(0,255,168,.4);display:none;transition:opacity .3s,transform .2s;'+
+    'align-items:center;justify-content:center';
+  fab.onclick=function(){
+    var first=null;
+    document.querySelectorAll('.checklist .task-item').forEach(function(item){
+      if(first)return;
+      var cb=item.querySelector('input[type=checkbox]');
+      if(cb&&!cb.checked)first=cb.id;
+    });
+    if(first)showTaskDetail(first);
+  };
+  document.body.appendChild(fab);
+  function _updateFAB(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    fab.style.display=(done>0&&done<total)?'flex':'none';
+  }
+  _updateFAB();
+  var _origUPFAB=updateProgress;
+  updateProgress=function(){_origUPFAB();_updateFAB();};
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='j'&&e.key!=='J')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    fab.onclick();
+  });
+})();
+
+/* ── 152: Progress bar: pulse on each task checked ───────────── */
+(function(){
+  var _origCBChange=updateProgress;
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var pf=document.getElementById('pfill');
+      if(!pf)return;
+      pf.style.transition='width .4s ease,box-shadow .2s';
+      pf.style.boxShadow='0 0 16px rgba(0,255,168,.7)';
+      setTimeout(function(){pf.style.boxShadow='0 0 8px rgba(0,255,168,.35)';},500);
+    });
+  });
+})();
+
+/* ── 153: Checklist: show/hide only incomplete button ─────────── */
+(function(){
+  var _showingMine=false;
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var btn=document.createElement('button');
+  btn.className='hide-done-btn';btn.style.fontSize='.62rem';
+  btn.textContent='Incomplete only';btn.title='Show only incomplete tasks';
+  btn.onclick=function(){
+    _showingMine=!_showingMine;
+    btn.style.background=_showingMine?'rgba(0,255,168,.18)':'';
+    btn.style.color=_showingMine?'var(--accent)':'';
+    document.querySelectorAll('.checklist .task-item').forEach(function(item){
+      var cb=item.querySelector('input[type=checkbox]');
+      if(!cb)return;
+      if(_showingMine&&cb.checked)item.style.display='none';
+      else item.style.display='';
+    });
+    _showToast(_showingMine?'Showing incomplete tasks only':'Showing all tasks','',1600);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 154: Detail panel: link hover preview domain ────────────── */
+(function(){
+  var _origShow12=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow12(taskId);
+    setTimeout(function(){
+      document.querySelectorAll('.detail-link-btn').forEach(function(btn){
+        var idx=parseInt((btn.getAttribute('onclick')||'').replace(/\D/g,''),10);
+        var l=_la&&_la[idx];
+        if(l&&l.url){
+          try{var domain=new URL(l.url).hostname;btn.title=domain;}catch(x){}
+        }
+      });
+    },60);
+  };
+})();
+
+/* ── 155: Keyboard shortcut: ? shows updated help ────────────── */
+(function(){
+  var _origKbdHelp=_showKbdHelp;
+  _showKbdHelp=function(){
+    _origKbdHelp();
+    setTimeout(function(){
+      var bd=document.querySelector('.kbd-help-body,.modal-body');
+      if(!bd)return;
+      var extra=document.createElement('div');
+      extra.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:.65rem;color:var(--muted)';
+      extra.innerHTML='<b style="color:var(--text)">Also:</b> J = next incomplete &nbsp;\u00B7&nbsp; N = open note &nbsp;\u00B7&nbsp; Alt+Left = back &nbsp;\u00B7&nbsp; [ / ] = prev/next phase &nbsp;\u00B7&nbsp; Ctrl+S = save note &nbsp;\u00B7&nbsp; Ctrl+K = search';
+      if(!bd.querySelector('.kbd-extra')){{extra.className='kbd-extra';bd.appendChild(extra);}}
+    },50);
+  };
+})();
+
+
 </script></body></html>
