@@ -4396,4 +4396,179 @@ function _exportStateJSON(){
 })();
 
 
+/* ── 216: Detail: smooth scroll to steps section ────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='#detail-steps .detail-step{scroll-margin-top:8px}.detail-body{scroll-behavior:smooth}';
+  document.head.appendChild(st);
+})();
+
+/* ── 217: Checklist: mark range of tasks done with shift-click ─ */
+(function(){
+  var _lastChecked=null;
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('click',function(e){
+      if(e.shiftKey&&_lastChecked&&_lastChecked!==cb){
+        var all=Array.from(document.querySelectorAll('.checklist input[type=checkbox]'));
+        var i1=all.indexOf(_lastChecked),i2=all.indexOf(cb);
+        var lo=Math.min(i1,i2),hi=Math.max(i1,i2);
+        for(var i=lo;i<=hi;i++)all[i].checked=cb.checked;
+        updateProgress();
+      }
+      _lastChecked=cb;
+    });
+  });
+})();
+
+/* ── 218: Note panel: word wrap toggle ───────────────────────── */
+(function(){
+  var _origShow25=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow25(taskId);
+    var ta=document.getElementById('task-note-input');if(!ta)return;
+    var wrap=ta.parentNode;if(wrap.querySelector('#note-wrap-btn'))return;
+    var btn=document.createElement('button');btn.id='note-wrap-btn';
+    btn.style.cssText='font-size:.58rem;background:none;border:1px solid var(--border);color:var(--muted);padding:1px 6px;border-radius:5px;cursor:pointer;margin-left:4px';
+    btn.textContent='Wrap: ON';
+    var wrap_on=true;
+    btn.onclick=function(){
+      wrap_on=!wrap_on;
+      ta.style.whiteSpace=wrap_on?'pre-wrap':'pre';
+      ta.style.overflowX=wrap_on?'hidden':'auto';
+      btn.textContent=wrap_on?'Wrap: ON':'Wrap: OFF';
+    };
+    var wc=document.getElementById('note-word-count');if(wc)wc.after(btn);else ta.after(btn);
+  };
+})();
+
+/* ── 219: Detail links: icon based on link type ─────────────── */
+(function(){
+  var _origShow26=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow26(taskId);
+    setTimeout(function(){
+      document.querySelectorAll('.detail-link-btn').forEach(function(btn,i){
+        var l=_la&&_la[i];if(!l)return;
+        var icon=l.url?'\uD83C\uDF10 ':l.file?'\uD83D\uDCC1 ':'\uD83D\uDD17 ';
+        if(!btn.dataset.iconSet){btn.dataset.iconSet='1';btn.innerHTML=icon+btn.innerHTML;}
+      });
+    },70);
+  };
+})();
+
+/* ── 220: Phase: badge glow on just-completed phase ─────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes phaseGlow{0%{box-shadow:0 0 0 0 rgba(0,255,168,.6)}70%{box-shadow:0 0 0 8px rgba(0,255,168,0)}100%{box-shadow:none}}'+
+    '.phase-head.just-done,.phase-header.just-done{animation:phaseGlow 1.2s ease-out}';
+  document.head.appendChild(st);
+  var _origUPPhGlow=updateProgress;
+  updateProgress=function(){
+    _origUPPhGlow();
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      var key='ob_pglow_'+body.id;
+      var hd=body.previousElementSibling;if(!hd)return;
+      if(done===cbs.length&&localStorage.getItem(key)!=='1'){
+        localStorage.setItem(key,'1');
+        hd.classList.add('just-done');
+        setTimeout(function(){hd.classList.remove('just-done');},1200);
+      }else if(done<cbs.length){localStorage.removeItem(key);}
+    });
+  };
+})();
+
+/* ── 221: Sidebar: user avatar initials circle ───────────────── */
+(function(){
+  var name=localStorage.getItem('ob_name')||'';if(!name)return;
+  var parts=name.trim().split(/\s+/);
+  var initials=(parts[0][0]+(parts[1]?parts[1][0]:'')).toUpperCase();
+  var av=document.createElement('div');
+  av.style.cssText='width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));color:#000;font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center;margin:0 auto 4px;text-transform:uppercase;letter-spacing:.03em';
+  av.textContent=initials;av.title=name;
+  var nm=document.querySelector('.user-name');
+  if(nm)nm.before(av);
+})();
+
+/* ── 222: Checklist: count and show total tasks per phase ────── */
+(function(){
+  document.querySelectorAll('.phase-body').forEach(function(body){
+    var total=body.querySelectorAll('input[type=checkbox]').length;
+    var hd=body.previousElementSibling;if(!hd||!total)return;
+    var ex=hd.querySelector('.ph-total');
+    if(!ex){ex=document.createElement('span');ex.className='ph-total';
+      ex.style.cssText='font-size:.57rem;color:rgba(255,255,255,.3);margin-left:3px;font-weight:400';
+      ex.textContent='('+total+')';
+      var phTime=hd.querySelector('.ph-time');
+      if(phTime)phTime.after(ex);else hd.appendChild(ex);
+    }
+  });
+})();
+
+/* ── 223: Detail: steps that are links auto-get click handler ── */
+(function(){
+  var _origShow27=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow27(taskId);
+    document.querySelectorAll('#detail-steps .detail-step').forEach(function(step){
+      var text=step.textContent||'';
+      var urlMatch=text.match(/https?:\/\/[^\s]+/);
+      if(urlMatch&&!step.dataset.urlSet){
+        step.dataset.urlSet='1';
+        step.style.cursor='pointer';
+        step.title='Click to open: '+urlMatch[0].slice(0,50);
+        step.addEventListener('click',function(){cmd('openurl',urlMatch[0]);});
+      }
+    });
+  };
+})();
+
+/* ── 224: Quick search with # for tags and @ for phase ───────── */
+(function(){
+  var _origSrc4=searchTasks;
+  searchTasks=function(q){
+    if(q.startsWith('#')||q.startsWith('@')){
+      var tag=q.slice(1).toLowerCase();
+      document.querySelectorAll('.checklist .task-item').forEach(function(item){
+        var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+        var note=(localStorage.getItem('ob_note_'+cb.id)||'').toLowerCase();
+        var match=note.includes('#'+tag)||note.includes('@'+tag);
+        item.style.display=match?'':'none';
+      });
+      var cnt=document.getElementById('search-count');
+      if(cnt){
+        var vis=0;document.querySelectorAll('.checklist .task-item').forEach(function(it){if(it.style.display!=='none')vis++;});
+        cnt.textContent=vis+' task'+(vis===1?'':'s')+' with '+q;
+      }
+    }else{_origSrc4(q);}
+  };
+})();
+
+/* ── 225: Sidebar: total completed phases count ─────────────── */
+(function(){
+  function _phaseSummary(){
+    var done=0,total=0;
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      total++;
+      var c=0;cbs.forEach(function(x){if(x.checked)c++;});
+      if(c===cbs.length)done++;
+    });
+    var el=document.getElementById('phase-summary-lbl');
+    if(!el){
+      el=document.createElement('div');el.id='phase-summary-lbl';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px';
+      var dc=document.getElementById('done-count');if(dc)dc.parentNode.appendChild(el);
+    }
+    el.textContent=done+' of '+total+' phases complete';
+    el.style.color=done===total?'var(--accent)':'var(--muted)';
+  }
+  _phaseSummary();
+  var _origUPPS=updateProgress;
+  updateProgress=function(){_origUPPS();_phaseSummary();};
+})();
+
+
 </script></body></html>
