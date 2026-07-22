@@ -2633,4 +2633,211 @@ updateProgress=function(){
 })();
 
 
+/* ── 126: Detail panel: step progress mini-bar ───────────────── */
+(function(){
+  var _origShow7=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow7(taskId);
+    var d=TASK_DETAILS[taskId];if(!d||!d.steps.length)return;
+    var key='ob_steps_'+taskId;
+    var saved=JSON.parse(localStorage.getItem(key)||'[]');
+    var pct=Math.round(saved.length/d.steps.length*100);
+    var bar=document.getElementById('step-prog-bar');
+    if(!bar){
+      bar=document.createElement('div');bar.id='step-prog-bar';
+      bar.style.cssText='height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin:4px 0 8px;overflow:hidden';
+      var fill=document.createElement('div');fill.id='step-prog-fill';
+      fill.style.cssText='height:100%;background:var(--accent);border-radius:2px;transition:width .3s';
+      bar.appendChild(fill);
+      var stepsEl=document.getElementById('detail-steps');
+      if(stepsEl)stepsEl.before(bar);
+    }
+    var fill=document.getElementById('step-prog-fill');
+    if(fill)fill.style.width=pct+'%';
+    var lbl=document.getElementById('step-prog-lbl');
+    if(!lbl){lbl=document.createElement('div');lbl.id='step-prog-lbl';
+      lbl.style.cssText='font-size:.6rem;color:var(--muted);margin-bottom:4px';bar.after(lbl);}
+    lbl.textContent='Steps: '+saved.length+' / '+d.steps.length+' done';
+  };
+})();
+
+/* ── 127: Chat: clear history on double-click of header ─────── */
+(function(){
+  var ch=document.querySelector('.chat-header,.chat-title');
+  if(!ch)return;
+  ch.title='Double-click to clear chat history';
+  ch.style.cursor='pointer';
+  ch.addEventListener('dblclick',function(){
+    if(!confirm('Clear chat history?'))return;
+    _clearChatHistory&&_clearChatHistory();
+  });
+})();
+
+/* ── 128: Progress header: estimated finish date ─────────────── */
+(function(){
+  function _estimateFinish(){
+    var start=localStorage.getItem('ob_start');
+    if(!start)return;
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    if(!done||done===total)return;
+    var startMs=new Date(start+'T00:00:00').getTime();
+    var elapsed=Date.now()-startMs;
+    var ratePerMs=done/elapsed;
+    var remaining=total-done;
+    var estMs=Date.now()+remaining/ratePerMs;
+    var estDate=new Date(estMs);
+    var days=Math.round((estMs-Date.now())/86400000);
+    var el=document.getElementById('est-finish-date');
+    if(!el){
+      el=document.createElement('div');el.id='est-finish-date';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:2px';
+      var sc=document.getElementById('ob-score');
+      if(sc)sc.after(el);else{var pct=document.getElementById('pct');if(pct)pct.parentNode.appendChild(el);}
+    }
+    if(days<=0)el.textContent='Est. finish: today';
+    else el.textContent='Est. finish: ~'+days+'d';
+  }
+  _estimateFinish();
+  var _origUPFinish=updateProgress;
+  updateProgress=function(){_origUPFinish();_estimateFinish();};
+})();
+
+/* ── 129: Sidebar: animated streak flame counter ────────────── */
+(function(){
+  var streak=parseInt(localStorage.getItem('ob_streak_count')||'0',10);
+  if(!streak)return;
+  var nm=document.querySelector('.user-name');
+  if(!nm)return;
+  var fl=nm.querySelector('.streak-flame');
+  if(!fl){
+    fl=document.createElement('span');fl.className='streak-flame';
+    fl.style.cssText='margin-left:6px;font-size:.78rem;cursor:default;display:inline-block;animation:flamePulse 2s ease-in-out infinite';
+    nm.appendChild(fl);
+    var st=document.createElement('style');
+    st.textContent='@keyframes flamePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}';
+    document.head.appendChild(st);
+  }
+  fl.textContent='\U0001F525'+streak+'d';
+  fl.title=streak+'-day streak! Keep checking in daily.';
+})();
+
+/* ── 130: Note panel: timestamps on save ────────────────────── */
+(function(){
+  var _origSaveNote=_saveTaskNote;
+  _saveTaskNote=function(id,text){
+    _origSaveNote(id,text);
+    if(text.trim()){
+      localStorage.setItem('ob_note_ts_'+id,new Date().toLocaleString());
+    }
+  };
+  var _origShow8=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow8(taskId);
+    var ts=localStorage.getItem('ob_note_ts_'+taskId);
+    var lbl=document.getElementById('note-ts-lbl');
+    if(!lbl){
+      lbl=document.createElement('div');lbl.id='note-ts-lbl';
+      lbl.style.cssText='font-size:.58rem;color:var(--muted);text-align:right;margin-top:2px';
+      var ta=document.getElementById('task-note-input');if(ta)ta.after(lbl);
+    }
+    lbl.textContent=ts?'Last saved: '+ts:'';
+  };
+})();
+
+/* ── 131: Tooltip: show task title on checklist hover ────────── */
+(function(){
+  var tip=document.createElement('div');tip.id='task-hover-tip';
+  tip.style.cssText='position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:.68rem;color:var(--text);pointer-events:none;z-index:8000;display:none;max-width:220px;box-shadow:0 3px 14px rgba(0,0,0,.5);line-height:1.45';
+  document.body.appendChild(tip);
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');
+    if(!cb)return;
+    item.addEventListener('mouseenter',function(e){
+      var d=TASK_DETAILS[cb.id];if(!d)return;
+      tip.innerHTML='<strong>'+d.title+'</strong>'+(d.desc?'<br><span style="color:var(--muted);font-size:.62rem">'+d.desc.slice(0,70)+'</span>':'');
+      tip.style.display='block';
+      tip.style.left=Math.min(e.clientX+14,window.innerWidth-230)+'px';
+      tip.style.top=(e.clientY+14)+'px';
+    });
+    item.addEventListener('mousemove',function(e){
+      tip.style.left=Math.min(e.clientX+14,window.innerWidth-230)+'px';
+      tip.style.top=(e.clientY+14)+'px';
+    });
+    item.addEventListener('mouseleave',function(){tip.style.display='none';});
+  });
+})();
+
+/* ── 132: Keyboard shortcut: N key opens note for current task ─ */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='n'&&e.key!=='N')return;
+    var tg=e.target.tagName.toLowerCase();
+    if(tg==='input'||tg==='textarea'||tg==='select')return;
+    if(!_curTask)return;
+    var ta=document.getElementById('task-note-input');
+    if(ta){ta.focus();ta.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  });
+})();
+
+/* ── 133: Sidebar: show incomplete phase count ───────────────── */
+(function(){
+  function _updateIncompletePhaseCount(){
+    var total=0,incomplete=0;
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      total++;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      if(done<cbs.length)incomplete++;
+    });
+    var el=document.getElementById('phase-incomplete-count');
+    if(!el){
+      el=document.createElement('div');el.id='phase-incomplete-count';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px';
+      var dc=document.getElementById('done-count');if(dc)dc.parentNode.appendChild(el);
+    }
+    el.textContent=incomplete?incomplete+' phase'+(incomplete===1?'':'s')+' in progress':'';
+  }
+  _updateIncompletePhaseCount();
+  var _origUPPhCnt=updateProgress;
+  updateProgress=function(){_origUPPhCnt();_updateIncompletePhaseCount();};
+})();
+
+/* ── 134: Detail panel: show phase name as breadcrumb ────────── */
+(function(){
+  var _origShow9=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow9(taskId);
+    var item=document.querySelector('[onclick="showTaskDetail(\''+taskId+'\')"]');
+    var phBody=item&&item.closest('.phase-body');
+    var phHead=phBody&&phBody.previousElementSibling;
+    var phName=phHead?phHead.textContent.replace(/\d+\/\d+/g,'').replace(/[▶▼◀▲]/g,'').trim().slice(0,30):'';
+    var bc=document.getElementById('detail-breadcrumb');
+    if(!bc){
+      bc=document.createElement('div');bc.id='detail-breadcrumb';
+      bc.style.cssText='font-size:.6rem;color:var(--muted);margin-bottom:4px;padding:0 16px';
+      var hdr=document.getElementById('detail-icon');
+      if(hdr&&hdr.parentNode)hdr.parentNode.before(bc);
+    }
+    bc.textContent=phName?'Phase: '+phName:'';
+    bc.style.display=phName?'':'none';
+  };
+})();
+
+/* ── 135: Progress ring: show tooltip with exact count ───────── */
+(function(){
+  var rw=document.querySelector('.prog-ring-wrap,.ring-wrap');
+  if(!rw)return;
+  rw.style.cursor='pointer';
+  function _updateRingTip(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    rw.title=done+' of '+total+' tasks complete ('+Math.round(done/total*100)+'%)';
+  }
+  _updateRingTip();
+  var _origUPRingTip=updateProgress;
+  updateProgress=function(){_origUPRingTip();_updateRingTip();};
+})();
+
+
 </script></body></html>
