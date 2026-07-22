@@ -4571,4 +4571,182 @@ function _exportStateJSON(){
 })();
 
 
+/* ── 226: Phase: mark all tasks done button ─────────────────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+    var btn=document.createElement('button');
+    btn.textContent='Mark all';btn.title='Mark all tasks in this phase complete';
+    btn.style.cssText='font-size:.58rem;background:none;border:1px solid rgba(0,255,168,.3);color:var(--accent2);padding:1px 5px;border-radius:5px;cursor:pointer;margin-left:auto;display:block;float:right;vertical-align:middle;line-height:1.4';
+    btn.onclick=function(e){
+      e.stopPropagation();
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      var allDone=true;cbs.forEach(function(c){if(!c.checked)allDone=false;});
+      cbs.forEach(function(c){c.checked=!allDone;});
+      updateProgress();
+      _showToast(allDone?'Phase unchecked':'Phase complete!',allDone?'':'success',1800);
+    };
+    hd.appendChild(btn);
+  });
+})();
+
+/* ── 227: Chat: export conversation as text ─────────────────── */
+function _exportChat(){
+  var box=document.getElementById('chatbox');if(!box)return;
+  var lines=[];
+  box.querySelectorAll('.msg').forEach(function(el){
+    var who=el.classList.contains('user')?'You':el.classList.contains('ai')?'Agent':'System';
+    lines.push('['+who+'] '+(el.innerText||el.textContent||'').trim());
+    lines.push('');
+  });
+  if(!lines.length){_showToast('No messages to export','warn',1800);return;}
+  var blob=new Blob([lines.join('\n')],{type:'text/plain'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='onboarding-chat.txt';a.click();
+  _showToast('Chat exported','success',2000);
+}
+
+/* ── 228: Add chat export button ─────────────────────────────── */
+(function(){
+  var copyBtn=document.querySelector('[onclick="_clearChatHistory()"],.chat-clear-btn');
+  if(!copyBtn)return;
+  var btn=document.createElement('button');
+  btn.textContent='Export chat';
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 6px;border-radius:6px;cursor:pointer;margin-left:6px';
+  btn.onclick=_exportChat;
+  copyBtn.after(btn);
+})();
+
+/* ── 229: Scratch pad: persistent global session note ─────────── */
+(function(){
+  var tab=document.querySelector('.tab-btn[onclick*="chat"]');if(!tab)return;
+  var tabParent=tab.parentNode;
+  var scratchTab=document.createElement('button');
+  scratchTab.className='tab-btn';scratchTab.textContent='Pad';
+  scratchTab.style.fontSize='.68rem';
+  scratchTab.onclick=function(){showTab('scratch');};
+  tabParent.appendChild(scratchTab);
+  var tabContent=document.querySelector('#tab-chat');
+  if(!tabContent)return;
+  var scratchPanel=document.createElement('div');scratchPanel.id='tab-scratch';
+  scratchPanel.style.display='none';
+  scratchPanel.innerHTML='<div style="font-size:.68rem;color:var(--muted);margin-bottom:6px">Scratch pad <span style="font-size:.58rem">(auto-saved)</span></div>';
+  var ta=document.createElement('textarea');
+  ta.id='scratch-pad';ta.placeholder='Quick notes, reminders, anything...';
+  ta.style.cssText='width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-size:.7rem;min-height:200px;resize:vertical;line-height:1.5';
+  ta.value=localStorage.getItem('ob_scratch')||'';
+  ta.addEventListener('input',function(){localStorage.setItem('ob_scratch',ta.value);});
+  scratchPanel.appendChild(ta);
+  tabContent.parentNode.appendChild(scratchPanel);
+  var _origShowTab2=showTab;
+  showTab=function(name){
+    _origShowTab2(name);
+    scratchPanel.style.display=name==='scratch'?'':'none';
+    scratchTab.classList.toggle('active',name==='scratch');
+    if(name==='scratch')ta.focus();
+  };
+})();
+
+/* ── 230: Detail: step count in steps label ─────────────────── */
+(function(){
+  var _origShow28=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow28(taskId);
+    var d=TASK_DETAILS[taskId];if(!d)return;
+    var lbl=document.querySelector('.detail-steps-label,.steps-label');
+    if(!lbl)return;
+    var done=JSON.parse(localStorage.getItem('ob_steps_'+taskId)||'[]').length;
+    lbl.innerHTML='Steps <span style="font-size:.62rem;color:var(--muted);font-weight:400">('+done+'/'+d.steps.length+')</span>';
+  };
+})();
+
+/* ── 231: Toast queue: prevent stacking toasts ───────────────── */
+(function(){
+  var _origToast=_showToast;
+  var _queue=[];var _showing=false;
+  _showToast=function(msg,type,dur){
+    _queue.push({msg:msg,type:type,dur:dur||2800});
+    if(!_showing)_dequeueToast();
+  };
+  function _dequeueToast(){
+    if(!_queue.length){_showing=false;return;}
+    _showing=true;
+    var item=_queue.shift();
+    _origToast(item.msg,item.type,item.dur);
+    setTimeout(_dequeueToast,item.dur+400);
+  }
+})();
+
+/* ── 232: Sidebar: motivational quote on load ────────────────── */
+(function(){
+  var QUOTES=[
+    'Every expert was once a beginner.',
+    'The expert in anything was once a beginner.',
+    'One task at a time. You got this.',
+    'Progress, not perfection.',
+    'Small steps every day.',
+    'Safety first, always.',
+    'Ask questions. That is how you learn.',
+    'Your first 30 days set the tone.',
+  ];
+  if(localStorage.getItem('ob_quote_dismissed')==='1')return;
+  var q=QUOTES[new Date().getDay()%QUOTES.length];
+  var el=document.createElement('div');
+  el.style.cssText='font-size:.62rem;color:var(--muted);font-style:italic;text-align:center;padding:5px 8px;border-top:1px solid rgba(255,255,255,.05);margin-top:4px;line-height:1.45;position:relative';
+  el.textContent='"'+q+'"';
+  var x=document.createElement('button');x.textContent='x';
+  x.style.cssText='position:absolute;top:3px;right:4px;background:none;border:none;color:rgba(255,255,255,.2);cursor:pointer;font-size:.7rem;line-height:1';
+  x.onclick=function(){el.remove();localStorage.setItem('ob_quote_dismissed','1');};
+  el.appendChild(x);
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.prepend(el);
+})();
+
+/* ── 233: Checklist: total remaining tasks count badge ───────── */
+(function(){
+  function _updateRemainingBadge(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var left=0;cbs.forEach(function(c){if(!c.checked)left++;});
+    var el=document.getElementById('remaining-badge');
+    if(!el){
+      el=document.createElement('div');el.id='remaining-badge';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;font-weight:500';
+      var ph=document.getElementById('phase-summary-lbl')||document.getElementById('done-count');
+      if(ph)ph.parentNode.appendChild(el);
+    }
+    el.textContent=left?left+' task'+(left===1?'':'s')+' remaining':'All tasks complete!';
+    el.style.color=left?'var(--muted)':'var(--accent)';
+    el.style.fontWeight=left?'400':'700';
+  }
+  _updateRemainingBadge();
+  var _origUPRem=updateProgress;
+  updateProgress=function(){_origUPRem();_updateRemainingBadge();};
+})();
+
+/* ── 234: Detail: accessibility - aria-live for status ───────── */
+(function(){
+  var live=document.createElement('div');
+  live.setAttribute('aria-live','polite');live.setAttribute('aria-atomic','true');
+  live.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';
+  live.id='a11y-live';document.body.appendChild(live);
+  var _origTogDone3=toggleDetailDone;
+  toggleDetailDone=function(){
+    _origTogDone3();
+    var cb=_curTask&&document.getElementById(_curTask);
+    if(cb){
+      var d=TASK_DETAILS[_curTask];
+      live.textContent=(d?d.title:_curTask)+(cb.checked?' marked complete':' marked incomplete');
+    }
+  };
+})();
+
+/* ── 235: Final polish: smooth transitions on all buttons ────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='button{transition:opacity .15s,background .15s,border-color .15s,color .15s,transform .1s}'+
+    'button:active:not(:disabled){transform:scale(.96)}'+
+    'button:disabled{opacity:.45;cursor:not-allowed}'+
+    '.tab-btn.active{border-bottom-color:var(--accent)!important;color:var(--accent)!important}';
+  document.head.appendChild(st);
+})();
+
+
 </script></body></html>
