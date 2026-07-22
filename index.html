@@ -4238,4 +4238,162 @@ function _exportStateJSON(){
 })();
 
 
+/* ── 206: Detail: keyboard shortcut C to copy task ──────────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='c'&&e.key!=='C')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    if(!e.ctrlKey&&!e.metaKey){
+      var copyBtn=document.getElementById('detail-copy-btn');if(copyBtn)copyBtn.click();
+    }
+  });
+})();
+
+/* ── 207: Sidebar: countdown to end of first 30 days ─────────── */
+(function(){
+  var start=localStorage.getItem('ob_start');if(!start)return;
+  var end=new Date(start+'T00:00:00');end.setDate(end.getDate()+30);
+  var diff=Math.ceil((end-Date.now())/86400000);
+  if(diff<=0||diff>30)return;
+  var el=document.createElement('div');
+  el.style.cssText='font-size:.6rem;text-align:center;color:var(--gold);margin:2px 0;font-weight:600';
+  el.textContent=diff+' day'+(diff===1?'':'s')+' left in onboarding window';
+  el.title='First 30 days of onboarding';
+  var dc=document.getElementById('day-counter');if(dc)dc.after(el);
+})();
+
+/* ── 208: Resources tab: open-all button ────────────────────── */
+(function(){
+  var res=document.getElementById('tab-resources');if(!res)return;
+  var links=res.querySelectorAll('a[href]');if(links.length<2)return;
+  var btn=document.createElement('button');
+  btn.textContent='Open all links';
+  btn.style.cssText='font-size:.65rem;background:none;border:1px solid var(--border);color:var(--muted);padding:3px 9px;border-radius:6px;cursor:pointer;margin-bottom:8px;display:block';
+  btn.onclick=function(){
+    if(!confirm('Open all '+links.length+' resource links? This will open multiple tabs.'))return;
+    links.forEach(function(a,i){setTimeout(function(){window.open(a.href,'_blank');},i*300);});
+  };
+  res.prepend(btn);
+})();
+
+/* ── 209: Detail: task health indicator (note + steps done) ─── */
+(function(){
+  var _origShow23=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow23(taskId);
+    var d=TASK_DETAILS[taskId];if(!d)return;
+    var note=(localStorage.getItem('ob_note_'+taskId)||'').trim();
+    var steps=JSON.parse(localStorage.getItem('ob_steps_'+taskId)||'[]');
+    var score=0;
+    if(note.length>10)score++;
+    if(d.steps.length&&steps.length===d.steps.length)score++;
+    var cb=document.getElementById(taskId);
+    if(cb&&cb.checked)score++;
+    var labels=['Not started','In progress','Nearly done','Complete'];
+    var colors=['var(--muted)','var(--warn,#f0c453)','var(--accent2)','var(--accent)'];
+    var el=document.getElementById('detail-health');
+    if(!el){
+      el=document.createElement('span');el.id='detail-health';
+      el.style.cssText='font-size:.6rem;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:6px;border:1px solid;vertical-align:middle';
+      var dtitle=document.getElementById('detail-title');if(dtitle&&dtitle.parentNode)dtitle.parentNode.appendChild(el);
+    }
+    el.textContent=labels[score];el.style.color=colors[score];el.style.borderColor=colors[score];
+    el.style.background=colors[score].replace(')',', .1)').replace('var(','rgba(255,255,255,').replace(',','');
+  };
+})();
+
+/* ── 210: Chat: persist scroll position ─────────────────────── */
+(function(){
+  var box=document.getElementById('chatbox');if(!box)return;
+  var _origAppend4=appendMsg;
+  appendMsg=function(text,cls){
+    var el=_origAppend4(text,cls);
+    var atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;
+    if(atBottom)box.scrollTop=box.scrollHeight;
+    return el;
+  };
+})();
+
+/* ── 211: Sidebar: show total time for all phases collapsed ──── */
+(function(){
+  var el=document.getElementById('time-tally');if(!el)return;
+  var total=Object.values(TM).reduce(function(a,b){return a+b;},0);
+  var tip=document.createElement('span');tip.title='Total estimated onboarding time: '+fmtDur(total);
+  tip.style.cssText='font-size:.6rem;color:var(--muted);margin-left:4px;cursor:help';
+  tip.textContent='('+fmtDur(total)+' total)';
+  el.appendChild(tip);
+})();
+
+/* ── 212: Detail: prev/next keyboard state in status bar ─────── */
+(function(){
+  var sb=document.createElement('div');sb.id='detail-status-bar';
+  sb.style.cssText='font-size:.58rem;color:var(--muted);text-align:center;padding:3px;border-top:1px solid rgba(255,255,255,.05);margin-top:4px;display:none';
+  sb.innerHTML='&#8592; Prev &nbsp; &#8594; Next &nbsp; D=done &nbsp; E=export &nbsp; B=close &nbsp; N=note &nbsp; C=copy';
+  var dp=document.getElementById('task-detail-panel');
+  if(dp)dp.appendChild(sb);
+  var _origShow24=showTaskDetail;
+  showTaskDetail=function(taskId){_origShow24(taskId);sb.style.display='';};
+  var _origClose2=closeTaskDetail;
+  closeTaskDetail=function(){_origClose2();sb.style.display='none';};
+})();
+
+/* ── 213: Phase headers: accessible aria attributes ─────────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd,i){
+    hd.setAttribute('role','button');
+    hd.setAttribute('aria-expanded','true');
+    hd.setAttribute('aria-controls','phase-body-'+i);
+    var body=hd.nextElementSibling;
+    if(body){body.setAttribute('id','phase-body-'+i);body.setAttribute('role','region');}
+  });
+  var _origTogPhA=togglePhase;
+  togglePhase=function(id){
+    _origTogPhA(id);
+    var hd=document.querySelector('[onclick="togglePhase(\''+id+'\')"]');
+    var body=hd&&hd.nextElementSibling;
+    if(hd&&body){
+      var collapsed=body.style.display==='none';
+      hd.setAttribute('aria-expanded',collapsed?'false':'true');
+    }
+  };
+})();
+
+/* ── 214: Search: clear X button in search box ───────────────── */
+(function(){
+  var si=document.getElementById('searchInput');if(!si)return;
+  var wrap=si.parentNode;
+  var clr=document.createElement('button');
+  clr.innerHTML='&times;';clr.id='search-clear-x';
+  clr.style.cssText='position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;display:none;line-height:1;padding:0';
+  clr.onclick=function(){si.value='';searchTasks('');si.focus();clr.style.display='none';};
+  if(getComputedStyle(wrap).position!=='relative')wrap.style.position='relative';
+  wrap.appendChild(clr);
+  si.addEventListener('input',function(){clr.style.display=si.value?'block':'none';});
+})();
+
+/* ── 215: App load: restore last-viewed task on startup ──────── */
+(function(){
+  setTimeout(function(){
+    var last=localStorage.getItem('ob_last_task');
+    if(last&&TASK_DETAILS[last]){
+      var panel=document.getElementById('task-detail-panel');
+      if(!panel||panel.classList.contains('active'))return;
+      var banner=document.createElement('div');
+      banner.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:.68rem;z-index:2000;box-shadow:0 3px 14px rgba(0,0,0,.5);display:flex;gap:10px;align-items:center';
+      var d=TASK_DETAILS[last];
+      banner.innerHTML='<span style="color:var(--muted)">Continue where you left off?</span><strong style="color:var(--text)">'+(d.icon||'')+' '+d.title.slice(0,22)+'</strong>';
+      var yes=document.createElement('button');
+      yes.textContent='Open';yes.style.cssText='font-size:.65rem;background:rgba(0,255,168,.15);border:1px solid var(--accent);color:var(--accent);border-radius:5px;padding:2px 8px;cursor:pointer';
+      yes.onclick=function(){banner.remove();showTaskDetail(last);};
+      var no=document.createElement('button');
+      no.textContent='Dismiss';no.style.cssText='font-size:.65rem;background:none;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:2px 8px;cursor:pointer';
+      no.onclick=function(){banner.remove();};
+      banner.appendChild(yes);banner.appendChild(no);
+      document.body.appendChild(banner);
+      setTimeout(function(){if(banner.parentNode)banner.remove();},8000);
+    }
+  },1500);
+})();
+
+
 </script></body></html>
