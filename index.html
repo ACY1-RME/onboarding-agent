@@ -2452,4 +2452,185 @@ updateProgress=function(){
 })();
 
 
+/* ── 116: Task note: character limit warning ────────────────── */
+(function(){
+  var _origSave=_saveTaskNote;
+  var noteArea=document.getElementById('task-note-input');
+  if(!noteArea)return;
+  var warn=document.createElement('div');
+  warn.style.cssText='font-size:.6rem;color:var(--warn,#f0c453);margin-top:2px;display:none';
+  noteArea.after(warn);
+  noteArea.addEventListener('input',function(){
+    var len=noteArea.value.length;
+    if(len>900){warn.style.display='';warn.textContent=(1000-len)+' chars remaining';}
+    else{warn.style.display='none';}
+  });
+})();
+
+/* ── 117: Sidebar footer: version + build date ───────────────── */
+(function(){
+  var ft=document.querySelector('.sidebar-footer,.app-footer');
+  if(!ft)return;
+  var vspan=document.createElement('div');
+  vspan.style.cssText='font-size:.55rem;color:rgba(255,255,255,.2);text-align:center;margin-top:4px';
+  vspan.textContent='ACY1 Onboarding v2  \u00B7  2025';
+  ft.appendChild(vspan);
+})();
+
+/* ── 118: Chat: show message count badge on tab ─────────────── */
+(function(){
+  var _msgCount=0;
+  var _chatActive=false;
+  function _updateChatBadge(){
+    var tab=document.querySelector('.tab-btn[onclick*="chat"]');
+    if(!tab)return;
+    var badge=tab.querySelector('.chat-badge');
+    if(!badge){badge=document.createElement('span');badge.className='chat-badge';
+      badge.style.cssText='display:inline-block;background:var(--accent);color:#000;font-size:.55rem;font-weight:700;border-radius:8px;padding:0 4px;margin-left:4px;vertical-align:middle';
+      tab.appendChild(badge);}
+    if(!_chatActive&&_msgCount>0){badge.textContent=_msgCount;badge.style.display='';}
+    else{badge.style.display='none';}
+  }
+  var _origSendChat=sendMsg;
+  sendMsg=async function(){
+    await _origSendChat();
+    if(!_chatActive){_msgCount++;_updateChatBadge();}
+  };
+  var _origShowTab=showTab;
+  showTab=function(name){
+    _origShowTab(name);
+    if(name==='chat'){_chatActive=true;_msgCount=0;}else{_chatActive=false;}
+    _updateChatBadge();
+  };
+})();
+
+/* ── 119: Detail panel: link count summary ──────────────────── */
+(function(){
+  var _origShow5=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow5(taskId);
+    var d=TASK_DETAILS[taskId];if(!d)return;
+    var lnkHead=document.getElementById('detail-links-label');
+    if(!lnkHead)return;
+    var cnt=d.links?d.links.length:0;
+    lnkHead.innerHTML='Links'+(cnt?'<span style="font-size:.62rem;color:var(--muted);margin-left:5px;font-weight:400">('+cnt+')</span>':'');
+  };
+})();
+
+/* ── 120: Smooth open animation for detail panel ─────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes slideInDetail{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}'+
+    '#task-detail-panel.active{animation:slideInDetail .22s cubic-bezier(.22,1,.36,1)}';
+  document.head.appendChild(st);
+})();
+
+/* ── 121: Search: highlight matched phase headers ───────────── */
+(function(){
+  var _origSrc3=searchTasks;
+  searchTasks=function(q){
+    _origSrc3(q);
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      hd.style.opacity='1';
+    });
+    if(!q)return;
+    var ql=q.toLowerCase();
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body)return;
+      var vis=false;
+      body.querySelectorAll('.task-item').forEach(function(it){if(it.style.display!=='none')vis=true;});
+      hd.style.opacity=vis?'1':'0.35';
+    });
+  };
+})();
+
+/* ── 122: Note textarea: auto-resize on input ───────────────── */
+(function(){
+  var ta=document.getElementById('task-note-input');
+  if(!ta)return;
+  ta.style.overflowY='hidden';
+  ta.style.resize='none';
+  function _resize(){
+    ta.style.height='auto';
+    ta.style.height=Math.min(ta.scrollHeight,200)+'px';
+  }
+  ta.addEventListener('input',_resize);
+  _resize();
+})();
+
+/* ── 123: Phase completion: auto-collapse on finish ────────── */
+(function(){
+  var _origUPAutoCollapse=updateProgress;
+  updateProgress=function(){
+    _origUPAutoCollapse();
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      if(done===cbs.length&&localStorage.getItem('ob_autocollapse')==='1'){
+        body.style.display='none';
+        localStorage.setItem('ob_ph_'+body.id,'closed');
+        var hd=body.previousElementSibling;
+        if(hd){hd.classList.add('collapsed');var cv=hd.querySelector('.ph-chevron');if(cv)cv.innerHTML='&#9658;';}
+      }
+    });
+  };
+  var sb=document.querySelector('.search-wrap');
+  if(!sb)return;
+  var btn=document.createElement('button');
+  btn.className='hide-done-btn';btn.style.fontSize='.62rem';
+  btn.id='autocollapse-btn';
+  var _ac=localStorage.getItem('ob_autocollapse')==='1';
+  btn.textContent=_ac?'Auto-collapse: ON':'Auto-collapse: OFF';
+  btn.title='Auto-collapse completed phases';
+  btn.onclick=function(){
+    _ac=!_ac;localStorage.setItem('ob_autocollapse',_ac?'1':'0');
+    btn.textContent=_ac?'Auto-collapse: ON':'Auto-collapse: OFF';
+    _showToast('Auto-collapse '+(_ac?'on':'off'),'',1800);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 124: Detail panel: step completion checkboxes ─────────── */
+(function(){
+  var _origShow6=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow6(taskId);
+    var d=TASK_DETAILS[taskId];if(!d)return;
+    var steps=document.querySelectorAll('#detail-steps .detail-step');
+    var key='ob_steps_'+taskId;
+    var saved=JSON.parse(localStorage.getItem(key)||'[]');
+    steps.forEach(function(step,i){
+      if(step.querySelector('.step-cb'))return;
+      var cb=document.createElement('input');cb.type='checkbox';cb.className='step-cb';
+      cb.style.cssText='margin-right:6px;accent-color:var(--accent);cursor:pointer;vertical-align:middle';
+      cb.checked=saved.indexOf(i)>=0;
+      if(cb.checked)step.style.opacity='0.55';
+      cb.addEventListener('change',function(){
+        var cur=JSON.parse(localStorage.getItem(key)||'[]');
+        if(cb.checked){if(cur.indexOf(i)<0)cur.push(i);step.style.opacity='0.55';}
+        else{cur=cur.filter(function(x){return x!==i;});step.style.opacity='1';}
+        localStorage.setItem(key,JSON.stringify(cur));
+      });
+      step.prepend(cb);
+    });
+  };
+})();
+
+/* ── 125: Checklist: long-press on mobile to open detail ─────── */
+(function(){
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var timer=null;
+    item.addEventListener('touchstart',function(e){
+      timer=setTimeout(function(){
+        var cb=item.querySelector('input[type=checkbox]');
+        if(cb)showTaskDetail(cb.id);
+      },600);
+    });
+    item.addEventListener('touchend',function(){clearTimeout(timer);});
+    item.addEventListener('touchmove',function(){clearTimeout(timer);});
+  });
+})();
+
+
 </script></body></html>
