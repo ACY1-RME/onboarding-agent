@@ -11120,4 +11120,238 @@ function _exportChat(){
   window.updateProgress=function(){_origUP525&&_origUP525();setTimeout(applyDeps,100);};
 })();
 </script>
+<script>
+/* imp526: reading time estimate for task descriptions */
+(function(){
+  var _origSD526=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD526&&_origSD526(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_readTime526"))return;
+      var descEl=panel.querySelector(".task-desc,.detail-desc,.description-text");
+      if(!descEl)return;
+      var words=(descEl.textContent||"").trim().split(/\s+/).length;
+      var mins=Math.max(1,Math.ceil(words/200));
+      var el=document.createElement("div");
+      el.id="_readTime526";
+      el.style.cssText="font-size:0.65rem;opacity:0.45;margin-bottom:4px;";
+      el.textContent="\uD83D\uDCD6 "+mins+" min read";
+      descEl.parentNode.insertBefore(el,descEl);
+    },90);
+  };
+})();
+
+/* imp527: task search with regex support (prefix with /) */
+(function(){
+  var si=null;
+  function regexSearch(){
+    si=si||document.getElementById("search-input")||document.getElementById("searchInput");
+    if(!si)return;
+    var q=si.value||"";
+    if(!q.startsWith("/"))return;
+    var pattern=q.slice(1);
+    try{
+      var re=new RegExp(pattern,"i");
+      document.querySelectorAll(".task-row,.ob-task-row").forEach(function(row){
+        var id=row.dataset.id||row.dataset.taskId;
+        var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+        var text=(td&&td.name||id)+" "+(td&&td.description||"");
+        row.style.display=re.test(text)?"":"none";
+      });
+    }catch(e){}
+  }
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var input=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(input)input.addEventListener("input",function(){if(input.value.startsWith("/"))regexSearch();});
+    },600);
+  });
+})();
+
+/* imp528: recently completed tasks sidebar widget */
+(function(){
+  var KEY="ob_recent_done";
+  function logDone(id){
+    var arr=JSON.parse(localStorage.getItem(KEY)||"[]").filter(function(x){return x.id!==id;});
+    arr.unshift({id:id,time:Date.now()});
+    if(arr.length>8)arr=arr.slice(0,8);
+    localStorage.setItem(KEY,JSON.stringify(arr));
+  }
+  function buildWidget(){
+    var el=document.getElementById("_recentDoneWidget");
+    var arr=JSON.parse(localStorage.getItem(KEY)||"[]");
+    if(!arr.length)return;
+    if(!el){
+      el=document.createElement("div");
+      el.id="_recentDoneWidget";
+      el.style.cssText="margin:8px 0;padding:8px;background:var(--panel);border-radius:8px;border:1px solid var(--border);";
+      var h=document.createElement("div");
+      h.style.cssText="font-size:0.7rem;font-weight:600;color:var(--accent2);margin-bottom:6px;";
+      h.textContent="Recently Completed";
+      el.appendChild(h);
+      var sidebar=document.querySelector(".sidebar,.left-panel,#leftPanel");
+      if(sidebar)sidebar.appendChild(el);
+    }
+    var list=el.querySelector("._rdList");
+    if(list)list.remove();
+    list=document.createElement("div");
+    list.className="_rdList";
+    arr.slice(0,5).forEach(function(item){
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[item.id];
+      var name=(td&&td.name)||item.id;
+      var ago=Math.round((Date.now()-item.time)/60000);
+      var row=document.createElement("div");
+      row.style.cssText="font-size:0.68rem;padding:2px 0;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;";
+      row.innerHTML="\u2713 "+name+"<span style='opacity:0.45;margin-left:4px;'>"+ago+"m ago</span>";
+      row.onclick=function(){showTaskDetail&&showTaskDetail(item.id);};
+      list.appendChild(row);
+    });
+    el.appendChild(list);
+  }
+  var _origTD528=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD528&&_origTD528();
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(task&&task.done){logDone(id);buildWidget();}
+  };
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildWidget,1000);});
+})();
+
+/* imp529: phase ETA badge per phase header */
+(function(){
+  function phaseETA(){
+    var la=window._la||[];
+    var KEY="ob_done_times";
+    var times=JSON.parse(localStorage.getItem(KEY)||"[]");
+    if(times.length<3)return;
+    var diffs=[];for(var i=1;i<times.length;i++)diffs.push(times[i]-times[i-1]);
+    var avgMs=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
+    var phases={};
+    la.forEach(function(t){var ph=t.phase||"Other";if(!phases[ph])phases[ph]=0;if(!t.done)phases[ph]++;});
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(el){
+      var ph=el.dataset.phase||el.textContent.replace(/\(.*?\)/g,"").trim();
+      var rem=phases[ph];
+      if(!rem)return;
+      if(el.querySelector("._phETA"))return;
+      var eta=document.createElement("span");
+      eta.className="_phETA";
+      var mins=Math.round(rem*avgMs/60000);
+      eta.textContent=" ~"+(mins<60?mins+"m":Math.round(mins/60)+"h");
+      eta.style.cssText="font-size:0.62rem;opacity:0.5;margin-left:4px;";
+      el.appendChild(eta);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(phaseETA,1200);});
+  var _origUP529=window.updateProgress;
+  window.updateProgress=function(){_origUP529&&_origUP529();setTimeout(phaseETA,200);};
+})();
+
+/* imp530: quick-note modal with keyboard shortcut Alt+N */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(!e.altKey||e.key!=="n")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    var id=window._curTask;
+    if(id){
+      var note=prompt("Quick note for task "+id+":", localStorage.getItem("ob_note_"+id)||"");
+      if(note!==null){
+        localStorage.setItem("ob_note_"+id,note);
+        _saveTaskNote&&_saveTaskNote(id,note);
+        _showToast("Note saved","success",1200);
+      }
+    } else {
+      var gNote=prompt("General note (saved to session):", sessionStorage.getItem("ob_gen_note")||"");
+      if(gNote!==null)sessionStorage.setItem("ob_gen_note",gNote);
+    }
+  });
+})();
+
+/* imp531: completed phases collapse automatically */
+(function(){
+  var KEY="ob_collapse_done_phases";
+  if(!localStorage.getItem(KEY))localStorage.setItem(KEY,"1");
+  function collapseCompletePhases(){
+    if(localStorage.getItem(KEY)!=="1")return;
+    var la=window._la||[];
+    var phases={};
+    la.forEach(function(t){var ph=t.phase||"Other";if(!phases[ph])phases[ph]={d:0,n:0};phases[ph].n++;if(t.done)phases[ph].d++;});
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(el){
+      var ph=el.dataset.phase||el.textContent.replace(/\(.*?\)/g,"").trim();
+      if(!phases[ph])return;
+      if(phases[ph].d===phases[ph].n){
+        var content=el.parentElement&&el.parentElement.querySelector(".phase-content,.phase-tasks");
+        if(content&&content.style.display!=="none"){el.click&&el.click();}
+      }
+    });
+  }
+  var _origUP531=window.updateProgress;
+  window.updateProgress=function(){_origUP531&&_origUP531();setTimeout(collapseCompletePhases,300);};
+})();
+
+/* imp532: smooth progress bar fill animation on page load */
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var bars=document.querySelectorAll(".progress-fill,.progress-bar-fill,[role='progressbar']");
+      bars.forEach(function(bar){
+        var target=bar.style.width;
+        bar.style.transition="none";
+        bar.style.width="0%";
+        setTimeout(function(){bar.style.transition="width 1.2s cubic-bezier(0.4,0,0.2,1)";bar.style.width=target;},100);
+      });
+    },400);
+  });
+})();
+
+/* imp533: note spell-check toggle */
+(function(){
+  var _origSD533=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD533&&_origSD533(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_spellToggle"))return;
+      var ta=panel.querySelector("textarea");
+      if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="_spellToggle";
+      btn.style.cssText="font-size:0.65rem;padding:2px 8px;border-radius:8px;background:var(--panel);border:1px solid var(--border);cursor:pointer;margin-bottom:3px;color:var(--accent2);";
+      var on=ta.spellcheck!==false;
+      function update(){btn.textContent=on?"\u2713 Spell-check ON":"\u2713 Spell-check OFF";ta.spellcheck=on;}
+      update();
+      btn.onclick=function(){on=!on;update();};
+      ta.parentNode.insertBefore(btn,ta);
+    },90);
+  };
+})();
+
+/* imp534: hover shimmer on task row cards */
+(function(){
+  var st=document.createElement("style");
+  st.textContent=".task-row:hover,.ob-task-row:hover{background-image:linear-gradient(120deg,transparent 30%,rgba(0,255,168,0.04) 50%,transparent 70%)!important;background-size:200%!important;animation:rowShimmer 0.6s ease!important;}@keyframes rowShimmer{from{background-position:200% 0}to{background-position:-200% 0}}";
+  document.head.appendChild(st);
+})();
+
+/* imp535: offline indicator banner */
+(function(){
+  var banner=null;
+  function updateOnline(){
+    if(navigator.onLine){if(banner){banner.remove();banner=null;}}
+    else{
+      if(!banner){
+        banner=document.createElement("div");
+        banner.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#e05c5c;color:#fff;text-align:center;font-size:0.78rem;padding:4px;";
+        banner.textContent="\u26A0\uFE0F You are offline. Changes are saved locally.";
+        document.body.appendChild(banner);
+      }
+    }
+  }
+  window.addEventListener("online",updateOnline);
+  window.addEventListener("offline",updateOnline);
+  document.addEventListener("DOMContentLoaded",updateOnline);
+})();
+</script>
 </script></body></html>
