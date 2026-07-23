@@ -5463,4 +5463,170 @@ function _exportChat(){
 })();
 
 
+/* ── 276: Progress: ETA shown as calendar date ──────────────── */
+(function(){
+  function _calETA(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    if(!done||done===total)return;
+    var start=localStorage.getItem('ob_start');if(!start)return;
+    var startMs=new Date(start+'T00:00:00').getTime();
+    var elapsed=Math.max(1,Date.now()-startMs);
+    var rate=done/elapsed;
+    var remaining=total-done;
+    var etaMs=Date.now()+remaining/rate;
+    var etaDate=new Date(etaMs);
+    var opts={month:'short',day:'numeric'};
+    var el=document.getElementById('eta-date-lbl');
+    if(!el){
+      el=document.createElement('div');el.id='eta-date-lbl';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px';
+      var ef=document.getElementById('est-finish-date');if(ef)ef.after(el);
+    }
+    el.textContent='Est. done by '+etaDate.toLocaleDateString(undefined,opts);
+  }
+  _calETA();
+  var _origUP276=updateProgress;
+  updateProgress=function(){_origUP276();_calETA();};
+})();
+
+/* ── 277: Detail: open task in fullscreen panel ─────────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='#task-detail-panel.fullscreen{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:9999!important;border-radius:0!important;max-width:none!important}'+
+    '#task-detail-panel.fullscreen .detail-body{max-height:calc(100vh - 120px)!important}';
+  document.head.appendChild(st);
+  var btn=document.createElement('button');btn.id='detail-fullscreen-btn';
+  btn.innerHTML='\u26F6';btn.title='Toggle fullscreen (Z)';
+  btn.style.cssText='background:none;border:none;color:var(--muted);font-size:.9rem;cursor:pointer;padding:2px 5px;margin-left:auto';
+  btn.onclick=function(){
+    var p=document.getElementById('task-detail-panel');
+    p.classList.toggle('fullscreen');
+    btn.innerHTML=p.classList.contains('fullscreen')?'\u2715':'\u26F6';
+  };
+  var hdr=document.querySelector('.detail-header,.detail-hdr,.detail-sticky-hdr');
+  if(hdr)hdr.appendChild(btn);
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='z'&&e.key!=='Z')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    btn.click();
+  });
+})();
+
+/* ── 278: Checklist: show total count in section header ─────── */
+(function(){
+  var cl=document.querySelector('.checklist');if(!cl)return;
+  var totalAll=cl.querySelectorAll('input[type=checkbox]').length;
+  var hdr=document.querySelector('.checklist-header,.checklist-title');
+  if(!hdr)return;
+  var cnt=hdr.querySelector('.cl-total');
+  if(!cnt){cnt=document.createElement('span');cnt.className='cl-total';
+    cnt.style.cssText='font-size:.65rem;font-weight:400;color:var(--muted);margin-left:6px';
+    cnt.textContent='('+totalAll+' tasks)';hdr.appendChild(cnt);}
+})();
+
+/* ── 279: Detail: visual step completion percentage ─────────── */
+(function(){
+  var _origShow279=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow279(taskId);
+    var d=TASK_DETAILS[taskId];if(!d||!d.steps.length)return;
+    var saved=JSON.parse(localStorage.getItem('ob_steps_'+taskId)||'[]');
+    var pct=Math.round(saved.length/d.steps.length*100);
+    var el=document.getElementById('step-pct-lbl');
+    if(!el){
+      el=document.createElement('span');el.id='step-pct-lbl';
+      el.style.cssText='font-size:.6rem;color:var(--muted);margin-left:6px';
+      var fill=document.getElementById('step-prog-fill');
+      var bar=document.getElementById('step-prog-bar');
+      if(bar)bar.after(el);
+    }
+    el.textContent=pct?pct+'% steps done':'';
+    el.style.color=pct===100?'var(--accent)':'var(--muted)';
+  };
+})();
+
+/* ── 280: Sidebar: toggle note panel visibility ─────────────── */
+(function(){
+  var noteSection=document.querySelector('.note-section,.notes-panel');
+  if(!noteSection)return;
+  var collapsed=localStorage.getItem('ob_notes_collapsed')==='1';
+  noteSection.style.display=collapsed?'none':'';
+  var btn=document.createElement('button');
+  btn.style.cssText='background:none;border:none;font-size:.65rem;color:var(--muted);cursor:pointer;padding:2px 4px;display:flex;align-items:center;gap:3px;width:100%';
+  btn.innerHTML='Notes <span id="notes-chev">'+(collapsed?'&#9658;':'&#9660;')+'</span>';
+  btn.onclick=function(){
+    collapsed=!collapsed;
+    localStorage.setItem('ob_notes_collapsed',collapsed?'1':'0');
+    noteSection.style.display=collapsed?'none':'';
+    document.getElementById('notes-chev').innerHTML=collapsed?'&#9658;':'&#9660;';
+  };
+  noteSection.before(btn);
+})();
+
+/* ── 281: App: service worker registration for offline use ───── */
+(function(){
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      if(!regs.length)console.log('[OB] No SW registered (offline mode not active).');
+      else console.log('[OB] SW active: offline capable.');
+    });
+  }
+})();
+
+/* ── 282: Detail: keyboard shortcut I for task info toast ────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='i'&&e.key!=='I')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    if(!_curTask)return;
+    var d=TASK_DETAILS[_curTask];if(!d)return;
+    var tm=TM[_curTask]||0;
+    var note=(localStorage.getItem('ob_note_'+_curTask)||'').trim();
+    var steps=JSON.parse(localStorage.getItem('ob_steps_'+_curTask)||'[]');
+    var info=[d.title,tm?'Time: '+fmtDur(tm):'',note?'Has notes':'No notes',d.steps.length?steps.length+'/'+d.steps.length+' steps done':'No steps'].filter(Boolean).join(' \u00B7 ');
+    _showToast(info,'',3500);
+  });
+})();
+
+/* ── 283: Phase headers: right-click to mark all/unmark all ──── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+    hd.addEventListener('contextmenu',function(e){
+      e.preventDefault();
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      var allDone=true;cbs.forEach(function(c){if(!c.checked)allDone=false;});
+      if(confirm((allDone?'Unmark':'Mark')+' all tasks in this phase?')){
+        cbs.forEach(function(c){c.checked=!allDone;});
+        updateProgress();
+      }
+    });
+  });
+})();
+
+/* ── 284: Sidebar: compact user info bar ─────────────────────── */
+(function(){
+  var name=localStorage.getItem('ob_name')||'';
+  var role=localStorage.getItem('ob_role')||'';
+  if(!name)return;
+  var info=document.getElementById('user-info-bar');
+  if(!info){
+    info=document.createElement('div');info.id='user-info-bar';
+    info.style.cssText='font-size:.62rem;color:var(--muted);text-align:center;padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    var nm=document.querySelector('.user-name');if(nm)nm.after(info);
+  }
+  var roleLabel=role==='mhe'?' \u00B7 MHE':role==='ar'?' \u00B7 AR':'';
+  info.textContent=name+roleLabel;
+})();
+
+/* ── 285: Task step hover: show step number prominently ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.detail-step:hover .step-num{transform:scale(1.15);box-shadow:0 0 0 3px rgba(0,255,168,.25)}'+
+    '.step-num{transition:transform .15s,box-shadow .15s}';
+  document.head.appendChild(st);
+})();
+
+
 </script></body></html>
