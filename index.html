@@ -6077,4 +6077,182 @@ function _exportChat(){
 })();
 
 
+/* ── 316: Checklist: "random task" button for variety ───────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var btn=document.createElement('button');btn.className='hide-done-btn';
+  btn.style.fontSize='.62rem';btn.textContent='\uD83C\uDFB2 Random';btn.title='Open a random incomplete task';
+  btn.onclick=function(){
+    var cbs=Array.from(document.querySelectorAll('.checklist input[type=checkbox]')).filter(function(c){return !c.checked;});
+    if(!cbs.length){_showToast('All tasks complete!','success',2000);return;}
+    var pick=cbs[Math.floor(Math.random()*cbs.length)];
+    showTaskDetail(pick.id);
+    _showToast('Random pick: '+(TASK_DETAILS[pick.id]?TASK_DETAILS[pick.id].title:pick.id),'',2200);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 317: Detail: show days since task was completed ────────── */
+(function(){
+  var _origShow317=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow317(taskId);
+    var ts=localStorage.getItem('ob_done_ts_'+taskId);
+    var cb=document.getElementById(taskId);
+    if(!ts||!cb||!cb.checked)return;
+    var days=Math.floor((Date.now()-Number(ts))/86400000);
+    var dd=document.getElementById('detail-done-date');
+    if(dd&&days>0)dd.textContent='Completed '+days+' day'+(days===1?'':'s')+' ago';
+  };
+})();
+
+/* ── 318: Phase headers: time invested in phase ─────────────── */
+(function(){
+  function _phaseInvested(){
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var invested=0;
+      body.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+        if(cb.checked)invested+=(TM[cb.id]||0);
+      });
+      var hd=body.previousElementSibling;if(!hd)return;
+      var el=hd.querySelector('.ph-invested');
+      if(!el){el=document.createElement('span');el.className='ph-invested';
+        el.style.cssText='font-size:.58rem;color:var(--accent2);margin-left:4px;font-weight:400';hd.appendChild(el);}
+      el.textContent=invested?'\u2713 '+fmtDur(invested):'';
+    });
+  }
+  _phaseInvested();
+  var _origUP318=updateProgress;
+  updateProgress=function(){_origUP318();_phaseInvested();};
+})();
+
+/* ── 319: Checklist: double-click task label to open detail ──── */
+(function(){
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var lbl=item.querySelector('.task-label');if(!lbl)return;
+    var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+    lbl.style.cursor='pointer';lbl.title='Double-click to open detail';
+    lbl.addEventListener('dblclick',function(e){e.stopPropagation();showTaskDetail(cb.id);});
+  });
+})();
+
+/* ── 320: App: show "unsaved changes" indicator ─────────────── */
+(function(){
+  var _dirty=false;
+  var ind=document.createElement('div');ind.id='unsaved-dot';
+  ind.style.cssText='width:7px;height:7px;border-radius:50%;background:var(--warn,#f0c453);position:fixed;top:10px;right:10px;display:none;z-index:9999;animation:flashGreen 1s ease infinite';
+  ind.title='Unsaved changes';document.body.appendChild(ind);
+  var ta=document.getElementById('task-note-input');
+  if(ta){
+    ta.addEventListener('input',function(){_dirty=true;ind.style.display='';});
+  }
+  var _origSave320=_saveTaskNote;
+  _saveTaskNote=function(id,text){_origSave320(id,text);_dirty=false;ind.style.display='none';};
+  document.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==='s'){if(_dirty&&_curTask){_saveTaskNote(_curTask,ta?ta.value:'');_showToast('Saved','success',1200);}}
+  });
+})();
+
+/* ── 321: Chat: format bold **text** in AI responses ─────────── */
+(function(){
+  var _origAppend6=appendMsg;
+  appendMsg=function(text,cls){
+    if(cls==='ai'&&typeof text==='string'){
+      text=text
+        .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+        .replace(/^- (.+)$/gm,'<li style="margin:2px 0 2px 12px">$1</li>');
+    }
+    return _origAppend6(text,cls);
+  };
+})();
+
+/* ── 322: Sidebar: export progress snapshot image (canvas) ───── */
+(function(){
+  var btn=document.createElement('button');
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 7px;border-radius:6px;cursor:pointer;margin:2px 4px';
+  btn.textContent='Snapshot';btn.title='Save a progress snapshot image';
+  btn.onclick=function(){
+    var canvas=document.createElement('canvas');canvas.width=320;canvas.height=160;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#06120c';ctx.fillRect(0,0,320,160);
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var pct=total?Math.round(done/total*100):0;
+    ctx.fillStyle='#00ffa8';ctx.font='bold 48px sans-serif';ctx.textAlign='center';
+    ctx.fillText(pct+'%',160,70);
+    ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='14px sans-serif';
+    ctx.fillText(done+' / '+total+' tasks complete',160,95);
+    ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='11px sans-serif';
+    ctx.fillText('ACY1 Onboarding \u00B7 '+(localStorage.getItem('ob_name')||''),160,115);
+    ctx.fillText(new Date().toLocaleDateString(),160,132);
+    var link=document.createElement('a');link.download='onboarding-progress.png';
+    link.href=canvas.toDataURL();link.click();
+    _showToast('Snapshot saved','success',2000);
+  };
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(btn);
+})();
+
+/* ── 323: Detail: highlight search term in steps too ─────────── */
+(function(){
+  var _origSearch6=searchTasks;
+  searchTasks=function(q){
+    _origSearch6(q);
+    if(!q)return;
+    var ql=q.toLowerCase();
+    document.querySelectorAll('#detail-steps .detail-step').forEach(function(step){
+      var spans=step.querySelectorAll('span:not(.step-num)');
+      spans.forEach(function(sp){
+        if(sp.dataset.origText===undefined)sp.dataset.origText=sp.textContent;
+        var orig=sp.dataset.origText;
+        var idx=orig.toLowerCase().indexOf(ql);
+        if(idx>=0){sp.innerHTML=orig.slice(0,idx)+'<mark class="hl">'+orig.slice(idx,idx+ql.length)+'</mark>'+orig.slice(idx+ql.length);}
+        else sp.textContent=orig;
+      });
+    });
+  };
+})();
+
+/* ── 324: Phase: mini heatmap dot per task (done=green) ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.ph-dot-row{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto;align-items:center}'+
+    '.ph-dot{width:6px;height:6px;border-radius:1px;transition:background .3s}'+
+    '.ph-dot.done{background:var(--accent)}.ph-dot.undone{background:rgba(255,255,255,.12)}';
+  document.head.appendChild(st);
+  function _renderDots(){
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      var row=hd.querySelector('.ph-dot-row');
+      if(!row){row=document.createElement('div');row.className='ph-dot-row';hd.appendChild(row);}
+      row.innerHTML='';
+      cbs.forEach(function(cb){
+        var dot=document.createElement('span');dot.className='ph-dot '+(cb.checked?'done':'undone');
+        row.appendChild(dot);
+      });
+    });
+  }
+  _renderDots();
+  var _origUP324=updateProgress;
+  updateProgress=function(){_origUP324();_renderDots();};
+})();
+
+/* ── 325: Checklist: visual done/total fraction on header ─────── */
+(function(){
+  function _updateHeaderFraction(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var hdr=document.querySelector('.checklist-header,.checklist-title');if(!hdr)return;
+    var fr=hdr.querySelector('.hdr-fraction');
+    if(!fr){fr=document.createElement('span');fr.className='hdr-fraction';
+      fr.style.cssText='font-size:.62rem;color:var(--muted);font-weight:400;margin-left:6px';hdr.appendChild(fr);}
+    fr.textContent=done+'/'+total;fr.style.color=done===total?'var(--accent)':'var(--muted)';
+  }
+  _updateHeaderFraction();
+  var _origUP325=updateProgress;
+  updateProgress=function(){_origUP325();_updateHeaderFraction();};
+})();
+
+
 </script></body></html>
