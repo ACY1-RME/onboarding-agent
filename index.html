@@ -20785,4 +20785,237 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 971-980 */
+(function(){
+
+/* 971 – Note character frequency heatbar */
+(function(){
+  var _oSD971=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD971.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob971-cfreq"))return;
+      var el=document.createElement("div");el.id="ob971-cfreq";
+      el.style.cssText="display:flex;gap:1px;margin-top:3px;height:4px;border-radius:2px;overflow:hidden;opacity:.3;";
+      ta.parentNode.insertBefore(el,ta.nextSibling);
+      function update(){
+        var text=ta.value;var buckets=new Array(26).fill(0);
+        for(var i=0;i<text.length;i++){var c=text.charCodeAt(i);if(c>=97&&c<=122)buckets[c-97]++;}
+        var max=Math.max.apply(null,buckets)||1;
+        el.innerHTML=buckets.map(function(b){
+          var pct=Math.round(b/max*100);
+          return "<div style='flex:1;background:var(--accent);opacity:"+(pct/100)+";'></div>";
+        }).join("");
+      }
+      ta.addEventListener("input",update);update();
+    },200);
+  };
+})();
+
+/* 972 – Weekly goal tracker (set tasks/week target) */
+(function(){
+  var KEY="ob_weekly_goal";
+  var goal=parseInt(localStorage.getItem(KEY)||"5");
+  var el=document.createElement("div");
+  el.id="ob972-goal";
+  el.style.cssText="position:fixed;top:50px;right:16px;font-size:.7rem;opacity:.5;cursor:pointer;z-index:750;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:3px 8px;";
+  el.title="Weekly goal — click to change";
+  document.body.appendChild(el);
+  function getThisWeekDone(){
+    if(!window.TM)return 0;
+    var weekAgo=Date.now()-7*86400000;
+    return Object.values(window.TM).filter(function(t){
+      var ts=localStorage.getItem("ob_done_ts_"+t.id);
+      return ts&&new Date(ts).getTime()>weekAgo;
+    }).length;
+  }
+  function update(){
+    var done=getThisWeekDone();
+    el.textContent="\uD83C\uDFAF "+done+"/"+goal+" this week";
+    el.style.color=done>=goal?"var(--accent)":"var(--muted)";
+  }
+  el.addEventListener("click",function(){
+    var n=parseInt(prompt("Weekly task goal:",goal));
+    if(!isNaN(n)&&n>0){goal=n;localStorage.setItem(KEY,n);update();}
+  });
+  var _orig972=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig972.apply(this,arguments);setTimeout(update,100);};
+  setTimeout(update,1500);
+})();
+
+/* 973 – Task card swipe right = unflag (touch) */
+(function(){
+  function attachRight(card){
+    if(card.dataset.ob973)return;card.dataset.ob973="1";
+    var startX=null;
+    card.addEventListener("touchstart",function(e){startX=e.touches[0].clientX;},{passive:true});
+    card.addEventListener("touchend",function(e){
+      if(startX===null)return;
+      var dx=e.changedTouches[0].clientX-startX;
+      if(dx>60){
+        var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+        localStorage.removeItem("ob_flag_"+id);
+        if(typeof window.updateProgress==="function")window.updateProgress();
+        if(typeof window._showToast==="function")window._showToast("Flag cleared","info",1500);
+      }
+      startX=null;
+    },{passive:true});
+  }
+  var _orig973=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig973.apply(this,arguments);setTimeout(function(){document.querySelectorAll(".task-card,.ob-task").forEach(attachRight);},200);};
+  setTimeout(function(){document.querySelectorAll(".task-card,.ob-task").forEach(attachRight);},1600);
+})();
+
+/* 974 – Phase stats popup */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob974-popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;min-width:260px;z-index:9500;box-shadow:0 8px 32px rgba(0,0,0,.6);}" +
+    "#ob974-popup h3{margin:0 0 12px;font-size:.9rem;color:var(--accent);}" +
+    "#ob974-popup table{width:100%;border-collapse:collapse;font-size:.78rem;}" +
+    "#ob974-popup td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.06);}" +
+    "#ob974-close{float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;}";
+  document.head.appendChild(css);
+  var popup=document.createElement("div");popup.id="ob974-popup";
+  document.body.appendChild(popup);
+  var btn=document.createElement("button");
+  btn.id="ob974-btn";
+  btn.style.cssText="position:fixed;bottom:196px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\uD83D\uDCCA Phase Stats";
+  btn.addEventListener("click",function(){
+    if(!window.TM)return;
+    var phases={};
+    Object.values(window.TM).forEach(function(t){
+      if(!t.phase)return;
+      if(!phases[t.phase])phases[t.phase]={total:0,done:0,est:0};
+      phases[t.phase].total++;phases[t.phase].est+=parseInt(localStorage.getItem("ob_est_"+t.id)||"30");
+      if(localStorage.getItem("ob_done_"+t.id)==="1")phases[t.phase].done++;
+    });
+    var rows=Object.keys(phases).map(function(p){
+      var d=phases[p];var pct=Math.round(d.done/d.total*100);
+      return "<tr><td>"+p+"</td><td>"+d.done+"/"+d.total+"</td><td>"+pct+"%</td><td>"+Math.round(d.est/60)+"h</td></tr>";
+    }).join("");
+    popup.innerHTML="<button id='ob974-close'>\u00D7</button><h3>Phase Statistics</h3><table><tr style='opacity:.5'><td>Phase</td><td>Done</td><td>%</td><td>Est</td></tr>"+rows+"</table>";
+    document.getElementById("ob974-close").addEventListener("click",function(){popup.style.display="none";});
+    popup.style.display="block";
+  });
+  document.body.appendChild(btn);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")popup.style.display="none";});
+})();
+
+/* 975 – Task note word wrap toggle */
+(function(){
+  var _oSD975=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD975.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob975-wrap"))return;
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="ob975-wrap";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      var wrapped=true;
+      btn.textContent="Wrap";btn.title="Toggle text wrap";
+      btn.addEventListener("click",function(){
+        wrapped=!wrapped;
+        ta.style.whiteSpace=wrapped?"pre-wrap":"pre";
+        ta.style.overflowX=wrapped?"hidden":"auto";
+        btn.style.color=wrapped?"var(--muted)":"var(--accent)";
+      });
+      ta.parentNode.insertBefore(btn,ta.nextSibling);
+    },300);
+  };
+})();
+
+/* 976 – Chat: /rate command to rate current task difficulty */
+(function(){
+  var _oSM976=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp){
+      var val=inp.value.trim();
+      var m=val.match(/^\/rate\s+([1-5])$/);
+      if(m){
+        var n=parseInt(m[1]);var id=window._curTask;
+        if(id){
+          localStorage.setItem("ob_diff_"+id,n);
+          var stars="\u2605".repeat(n)+"\u2606".repeat(5-n);
+          if(typeof window.appendMsg==="function")window.appendMsg("Difficulty rated: "+stars,"bot");
+          inp.value="";return;
+        }
+      }
+    }
+    _oSM976.apply(this,arguments);
+  };
+})();
+
+/* 977 – Note tab stops (2-space per Tab) already in 885 — add indent block */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key==="}"&&e.target.id==="task-note"){
+      // Auto-dedent: no-op placeholder for future
+    }
+  });
+  // Re-purpose: Ctrl+] indent selected lines
+  document.addEventListener("keydown",function(e){
+    if(!((e.ctrlKey||e.metaKey)&&(e.key==="]"||e.key==="[")))return;
+    var ta=document.activeElement;if(!ta||ta.id!=="task-note")return;
+    var s=ta.selectionStart,end=ta.selectionEnd;
+    var text=ta.value;
+    var before=text.substring(0,s),block=text.substring(s,end),after=text.substring(end);
+    var lines=block.split("\n");
+    if(e.key==="]"){lines=lines.map(function(l){return "  "+l;});}
+    else{lines=lines.map(function(l){return l.startsWith("  ")?l.substring(2):l;});}
+    var rep=lines.join("\n");
+    ta.value=before+rep+after;
+    ta.selectionStart=s;ta.selectionEnd=s+rep.length;
+    ta.dispatchEvent(new Event("input"));
+    e.preventDefault();
+  });
+})();
+
+/* 978 – Smart complete detection (all deps done) */
+(function(){
+  var _orig978=window.toggleDetailDone||function(){};
+  window.toggleDetailDone=function(){
+    _orig978.apply(this,arguments);
+    var id=window._curTask;if(!id||!window.TM)return;
+    if(localStorage.getItem("ob_done_"+id)!=="1")return;
+    var blocked=Object.values(window.TM).filter(function(t){
+      var deps=JSON.parse(localStorage.getItem("ob_deps_"+t.id)||"[]");
+      return deps.indexOf(id)!==-1&&localStorage.getItem("ob_done_"+t.id)!=="1";
+    });
+    if(blocked.length>0){
+      setTimeout(function(){
+        if(typeof window._showToast==="function")window._showToast("\uD83D\uDD13 "+blocked.length+" task(s) now unblocked!","success",4000);
+      },500);
+    }
+  };
+})();
+
+/* 979 – Keyboard: Ctrl+W close task detail */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="w"){
+      var det=document.getElementById("task-detail")||document.getElementById("task-detail-panel");
+      if(det&&det.style.display!=="none"){
+        e.preventDefault();
+        if(typeof window.closeTaskDetail==="function")window.closeTaskDetail();
+      }
+    }
+  });
+})();
+
+/* 980 – Milestone toast: 980 */
+(function(){
+  if(localStorage.getItem("ob_imp980_shown"))return;
+  localStorage.setItem("ob_imp980_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDE80 980 — 20 away from 1000!","success",5000);
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+  },4000);
+})();
+
+})();
+</script>
 </script></body></html>
