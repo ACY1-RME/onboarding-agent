@@ -7027,4 +7027,204 @@ function _exportChat(){
 })();
 
 
+/* ── 366: Detail: floating action bar on scroll ─────────────── */
+(function(){
+  var fab2=document.createElement('div');fab2.id='detail-fab-bar';
+  fab2.style.cssText='position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--border);padding:5px 10px;display:none;gap:6px;flex-wrap:wrap;align-items:center;z-index:15';
+  var doneBtn2=document.createElement('button');
+  doneBtn2.style.cssText='font-size:.68rem;background:rgba(0,255,168,.12);border:1px solid var(--accent);color:var(--accent);padding:3px 10px;border-radius:6px;cursor:pointer;flex:1';
+  doneBtn2.textContent='Mark done';
+  doneBtn2.onclick=function(){toggleDetailDone&&toggleDetailDone();};
+  var noteBtn2=document.createElement('button');
+  noteBtn2.style.cssText='font-size:.68rem;background:none;border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:6px;cursor:pointer';
+  noteBtn2.textContent='\u270F Note';
+  noteBtn2.onclick=function(){var ta=document.getElementById('task-note-input');if(ta){ta.scrollIntoView({behavior:'smooth',block:'nearest'});ta.focus();}};
+  fab2.appendChild(doneBtn2);fab2.appendChild(noteBtn2);
+  var db=document.querySelector('.detail-body');if(db){db.appendChild(fab2);}
+  var _origShow366=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow366(taskId);
+    setTimeout(function(){
+      var db2=document.querySelector('.detail-body');if(!db2)return;
+      db2.addEventListener('scroll',function(){
+        fab2.style.display=db2.scrollTop>80?'flex':'none';
+      },{passive:true});
+    },100);
+  };
+})();
+
+/* ── 367: Sidebar: "total tasks by phase" breakdown chart ─────── */
+(function(){
+  var el=document.createElement('canvas');el.id='phase-breakdown-chart';
+  el.width=160;el.height=40;
+  el.style.cssText='display:block;margin:4px auto;border-radius:3px;opacity:.7';
+  el.title='Task completion by phase';
+  var sc=document.getElementById('ob-score');if(sc)sc.before(el);
+  function _drawBreakdown(){
+    var phases=[];
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      if(cbs.length)phases.push({done:done,total:cbs.length});
+    });
+    if(!phases.length)return;
+    var ctx=el.getContext('2d');ctx.clearRect(0,0,160,40);
+    var w=Math.floor(160/phases.length)-2;
+    phases.forEach(function(ph,i){
+      var x=i*(w+2);var pct=ph.done/ph.total;var h=Math.max(2,Math.round(pct*34));
+      ctx.fillStyle='rgba(255,255,255,.06)';ctx.fillRect(x,2,w,34);
+      ctx.fillStyle=pct===1?'var(--accent)':pct>0.5?'var(--accent2)':'rgba(0,196,126,.35)';
+      ctx.fillRect(x,36-h,w,h);
+    });
+  }
+  _drawBreakdown();
+  var _origUP367=updateProgress;
+  updateProgress=function(){_origUP367();_drawBreakdown();};
+})();
+
+/* ── 368: Checklist: pinned tasks always on top ─────────────── */
+(function(){
+  function _applyPinned(){
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var items=Array.from(body.querySelectorAll('.task-item'));
+      items.filter(function(i){
+        var cb=i.querySelector('input[type=checkbox]');
+        return cb&&localStorage.getItem('ob_pin_'+cb.id)==='1';
+      }).forEach(function(i){body.prepend(i);});
+    });
+  }
+  var st=document.createElement('style');
+  st.textContent='.task-item.task-pinned{border-top:2px solid rgba(240,196,83,.5)!important;background:rgba(240,196,83,.04)!important}';
+  document.head.appendChild(st);
+  function _togglePin(id){
+    var pinned=localStorage.getItem('ob_pin_'+id)==='1';
+    if(pinned)localStorage.removeItem('ob_pin_'+id);
+    else localStorage.setItem('ob_pin_'+id,'1');
+    var item=document.querySelector('[onclick="showTaskDetail(\''+id+'\')"]');
+    if(item)item.classList.toggle('task-pinned',!pinned);
+    _applyPinned();
+    _showToast(pinned?'Unpinned':'Pinned to top','',1500);
+  }
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+    if(localStorage.getItem('ob_pin_'+cb.id)==='1')item.classList.add('task-pinned');
+    var menu=document.getElementById('task-ctx-menu');
+    if(menu){
+      item.addEventListener('contextmenu',function(){
+        setTimeout(function(){
+          if(menu.querySelector('.pin-item'))return;
+          var li=document.createElement('div');
+          li.className='pin-item';
+          li.style.cssText='padding:6px 14px;cursor:pointer;font-size:.72rem;color:var(--text);transition:background .15s';
+          li.onmouseenter=function(){li.style.background='rgba(0,255,168,.07)';};
+          li.onmouseleave=function(){li.style.background='';};
+          var pinned=localStorage.getItem('ob_pin_'+cb.id)==='1';
+          li.textContent=pinned?'Unpin task':'Pin to top';
+          li.onclick=function(){menu.style.display='none';_togglePin(cb.id);};
+          menu.appendChild(li);
+        },10);
+      });
+    }
+  });
+  _applyPinned();
+})();
+
+/* ── 369: Detail: show note age (e.g. "note from 3d ago") ─────── */
+(function(){
+  var _origShow369=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow369(taskId);
+    var ts=localStorage.getItem('ob_note_ts_'+taskId);
+    var tsl=document.getElementById('note-ts-lbl');
+    if(tsl&&ts){
+      var age=Date.now()-new Date(ts).getTime();
+      var rel=age<3600000?Math.round(age/60000)+'m ago':age<86400000?Math.round(age/3600000)+'h ago':Math.round(age/86400000)+'d ago';
+      tsl.textContent='Note saved '+rel;
+    }
+  };
+})();
+
+/* ── 370: App: welcome name greeting update on open ─────────── */
+(function(){
+  var name=localStorage.getItem('ob_name');if(!name)return;
+  var hdr=document.querySelector('.sidebar-header,.header-title,.app-header h1');
+  if(!hdr)return;
+  var greeting=document.createElement('div');
+  greeting.style.cssText='font-size:.65rem;color:var(--muted);font-style:italic;margin-top:1px';
+  greeting.textContent='Welcome, '+name.split(' ')[0]+'!';
+  if(!hdr.querySelector('.welcome-greeting')){{greeting.className='welcome-greeting';hdr.appendChild(greeting);}}
+})();
+
+/* ── 371: Checklist: keyboard shortcut M to mark current done ── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='m'&&e.key!=='M')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    if(_curTask){toggleDetailDone&&toggleDetailDone();}
+  });
+})();
+
+/* ── 372: Detail: visual step icons based on type ───────────── */
+(function(){
+  var _origShow372=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow372(taskId);
+    document.querySelectorAll('#detail-steps .detail-step').forEach(function(step){
+      var text=(step.textContent||'').toLowerCase();
+      var numSpan=step.querySelector('.step-num');if(!numSpan)return;
+      if(step.dataset.iconized)return;
+      step.dataset.iconized='1';
+      var icon=text.includes('ask')||text.includes('contact')||text.includes('speak')?'\uD83D\uDCAC':
+               text.includes('open')||text.includes('navigate')||text.includes('login')?'\uD83D\uDD17':
+               text.includes('sign')||text.includes('submit')||text.includes('complete')?'\u270F\uFE0F':
+               text.includes('read')||text.includes('review')||text.includes('check')?'\uD83D\uDCCB':
+               text.includes('download')||text.includes('install')?'\u2B07\uFE0F':'';
+      if(icon){var ic=document.createElement('span');ic.style.cssText='font-size:.7rem;margin-right:3px;vertical-align:middle';ic.textContent=icon;numSpan.after(ic);}
+    });
+  };
+})();
+
+/* ── 373: Phase: "quickstart" button opens first 3 tasks ─────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd,i){
+    if(i>0)return;
+    var body=hd.nextElementSibling;if(!body)return;
+    var btn=document.createElement('button');
+    btn.textContent='\u25B6 Start';btn.title='Open first incomplete task in this phase';
+    btn.style.cssText='font-size:.6rem;background:rgba(0,255,168,.12);border:1px solid rgba(0,255,168,.3);color:var(--accent);padding:2px 7px;border-radius:6px;cursor:pointer;margin-left:6px;vertical-align:middle';
+    btn.onclick=function(e){
+      e.stopPropagation();
+      var first=null;
+      body.querySelectorAll('input[type=checkbox]').forEach(function(cb){if(!first&&!cb.checked)first=cb.id;});
+      if(first)showTaskDetail(first);else _showToast('Phase complete!','success',1500);
+    };
+    hd.appendChild(btn);
+  });
+})();
+
+/* ── 374: Chat: auto-focus input after bot responds ─────────── */
+(function(){
+  var _origAppend8=appendMsg;
+  appendMsg=function(text,cls){
+    var el=_origAppend8(text,cls);
+    if(cls==='ai'){
+      setTimeout(function(){
+        var inp=document.getElementById('chatInput');if(inp)inp.focus();
+      },100);
+    }
+    return el;
+  };
+})();
+
+/* ── 375: App: final quality pass — ensure updateProgress runs ─ */
+(function(){
+  setTimeout(function(){
+    if(typeof updateProgress==='function'){
+      updateProgress();
+      console.log('[OB] updateProgress() called on init — 375 improvements active');
+    }
+  },500);
+})();
+
+
 </script></body></html>
