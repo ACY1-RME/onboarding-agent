@@ -20402,4 +20402,214 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 951-960 */
+(function(){
+
+/* 951 – Confetti rain on opening (first ever visit) */
+(function(){
+  if(localStorage.getItem("ob_first_visit_done"))return;
+  localStorage.setItem("ob_first_visit_done","1");
+  setTimeout(function(){
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+    if(typeof window._showToast==="function")window._showToast("\uD83C\uDF89 Welcome to your onboarding dashboard!","success",5000);
+  },1500);
+})();
+
+/* 952 – Total notes character count badge */
+(function(){
+  var el=document.createElement("div");
+  el.id="ob952-total";
+  el.style.cssText="position:fixed;bottom:44px;left:10px;font-size:.62rem;opacity:.3;z-index:700;pointer-events:none;";
+  document.body.appendChild(el);
+  function update(){
+    if(!window.TM)return;
+    var total=Object.values(window.TM).reduce(function(acc,t){return acc+(localStorage.getItem("ob_note_"+t.id)||"").length;},0);
+    el.textContent=total>0?total.toLocaleString()+" note chars":"";
+  }
+  var _orig952=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig952.apply(this,arguments);setTimeout(update,100);};
+  setTimeout(update,4600);
+})();
+
+/* 953 – Task card mini progress bar (steps done) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob953-bar{height:2px;border-radius:1px;background:rgba(255,255,255,.07);margin-top:4px;overflow:hidden;}" +
+    ".ob953-fill{height:100%;background:var(--accent);border-radius:1px;transition:width .3s;}";
+  document.head.appendChild(css);
+  function attachMicroBars(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      if(card.querySelector(".ob953-bar"))return;
+      var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+      var steps=td&&td.steps?td.steps:[];if(!steps.length)return;
+      var done=steps.filter(function(_,i){return localStorage.getItem("ob_step_"+id+"_"+i)==="1";}).length;
+      var pct=Math.round(done/steps.length*100);
+      var bar=document.createElement("div");bar.className="ob953-bar";
+      var fill=document.createElement("div");fill.className="ob953-fill";fill.style.width=pct+"%";
+      bar.appendChild(fill);card.appendChild(bar);
+    });
+  }
+  var _orig953=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig953.apply(this,arguments);setTimeout(attachMicroBars,200);};
+  setTimeout(attachMicroBars,4700);
+})();
+
+/* 954 – Note append-only mode (no editing past content) */
+(function(){
+  var _oSD954=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD954.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob954-append"))return;
+      var btn=document.createElement("button");
+      btn.id="ob954-append";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      var appendMode=localStorage.getItem("ob_append_"+id)==="1";
+      btn.textContent=appendMode?"\uD83D\uDD12 Append":"\uD83D\uDCDD Append Mode";
+      btn.title="Append-only mode: go to end on click";
+      btn.addEventListener("click",function(){
+        appendMode=!appendMode;
+        localStorage.setItem("ob_append_"+id,appendMode?"1":"0");
+        btn.textContent=appendMode?"\uD83D\uDD12 Append Off":"\uD83D\uDCDD Append Mode";
+        if(appendMode){ta.selectionStart=ta.selectionEnd=ta.value.length;ta.focus();}
+      });
+      ta.parentNode.insertBefore(btn,ta);
+      if(appendMode){
+        ta.addEventListener("click",function(){ta.selectionStart=ta.selectionEnd=ta.value.length;});
+      }
+    },290);
+  };
+})();
+
+/* 955 – Live task count in tab title */
+(function(){
+  function updateCount(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+    var base=document.title.replace(/^\[\d+\/\d+\]\s*/,"").replace(/^\[\d+%\]\s*/,"");
+    document.title="["+done+"/"+tasks.length+"] "+base;
+  }
+  var _orig955=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig955.apply(this,arguments);setTimeout(updateCount,100);};
+  setTimeout(updateCount,4800);
+})();
+
+/* 956 – Chat: /flag command to flag current task */
+(function(){
+  var _oSM956=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp){
+      var val=inp.value.trim();
+      if(val.startsWith("/flag")){
+        var color=val.substring(5).trim()||"red";
+        var valid=["red","yellow","green","none"];
+        if(valid.indexOf(color)===-1)color="red";
+        var id=window._curTask;
+        if(id){
+          localStorage.setItem("ob_flag_"+id,color);
+          if(typeof window.updateProgress==="function")window.updateProgress();
+          if(typeof window.appendMsg==="function")window.appendMsg("Flagged "+color,"bot");
+          inp.value="";return;
+        }
+      }
+    }
+    _oSM956.apply(this,arguments);
+  };
+})();
+
+/* 957 – Animated stat counters (count up) */
+(function(){
+  function countUp(el,target,dur){
+    var start=0,step=Math.ceil(target/(dur/30));
+    var t=setInterval(function(){
+      start=Math.min(start+step,target);
+      el.textContent=start;
+      if(start>=target)clearInterval(t);
+    },30);
+  }
+  var _orig957=window.updateProgress||function(){};
+  window.updateProgress=function(){
+    _orig957.apply(this,arguments);
+    setTimeout(function(){
+      var els=document.querySelectorAll(".stat-number,.stat-value,.ob-stat:not([data-animated])");
+      els.forEach(function(el){
+        var n=parseInt(el.textContent);
+        if(isNaN(n)||n<2)return;
+        el.dataset.animated="1";
+        countUp(el,n,600);
+      });
+    },100);
+  };
+})();
+
+/* 958 – Note import from clipboard */
+(function(){
+  var _oSD958=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD958.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob958-paste"))return;
+      var btn=document.createElement("button");
+      btn.id="ob958-paste";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent="\uD83D\uDCCB Paste";btn.title="Paste clipboard into note";
+      btn.addEventListener("click",function(){
+        navigator.clipboard.readText().then(function(text){
+          if(!text.trim())return;
+          var ta=document.getElementById("task-note");if(!ta)return;
+          var s=ta.selectionStart;
+          ta.value=ta.value.substring(0,s)+text+ta.value.substring(s);
+          ta.selectionStart=ta.selectionEnd=s+text.length;
+          ta.dispatchEvent(new Event("input"));
+          if(typeof window._showToast==="function")window._showToast("Pasted "+text.length+" chars","info",2000);
+        }).catch(function(){});
+      });
+      var ta2=document.getElementById("task-note");
+      if(ta2)ta2.parentNode.insertBefore(btn,ta2.nextSibling);
+    },295);
+  };
+})();
+
+/* 959 – Phase unlock animation when previous phase is 100% */
+(function(){
+  var shown={};
+  var _orig959=window.updateProgress||function(){};
+  window.updateProgress=function(){
+    _orig959.apply(this,arguments);
+    if(!window.TM)return;
+    var phases={};
+    Object.values(window.TM).forEach(function(t){
+      if(!t.phase)return;
+      if(!phases[t.phase])phases[t.phase]={total:0,done:0};
+      phases[t.phase].total++;
+      if(localStorage.getItem("ob_done_"+t.id)==="1")phases[t.phase].done++;
+    });
+    var keys=Object.keys(phases);
+    keys.forEach(function(p,i){
+      if(i===0)return;
+      var prev=phases[keys[i-1]];
+      if(prev&&prev.done===prev.total&&prev.total>0&&!shown[p]){
+        shown[p]=true;
+        if(typeof window._showToast==="function")window._showToast("\uD83D\uDD13 Phase "+p+" unlocked!","success",3500);
+      }
+    });
+  };
+})();
+
+/* 960 – Milestone toast: 960 */
+(function(){
+  if(localStorage.getItem("ob_imp960_shown"))return;
+  localStorage.setItem("ob_imp960_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDE4C 960 — approaching 1000!","success",5000);
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+  },6000);
+})();
+
+})();
+</script>
 </script></body></html>
