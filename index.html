@@ -16318,4 +16318,245 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 761-770 */
+(function(){
+
+/* 761 – Task priority badge (P1/P2/P3 cycling) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob761-badge{display:inline-block;font-size:.62rem;padding:1px 6px;border-radius:10px;font-weight:700;cursor:pointer;margin-left:6px;vertical-align:middle;}" +
+    ".ob761-p1{background:#ff4444;color:#fff;}.ob761-p2{background:var(--warn,#f0c453);color:#000;}.ob761-p3{background:var(--border,#2a4035);color:var(--muted,#7a9f8a);}";
+  document.head.appendChild(css);
+  function getPri(id){return localStorage.getItem("ob_pri_"+id)||"p3";}
+  function setPri(id,p){localStorage.setItem("ob_pri_"+id,p);}
+  function cyclePri(id){
+    var map={p3:"p1",p1:"p2",p2:"p3"};
+    var np=map[getPri(id)]||"p3";
+    setPri(id,np);return np;
+  }
+  function labelPri(p){return{p1:"P1",p2:"P2",p3:"P3"}[p]||"P3";}
+  function attachBadges(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;
+      if(!id||card.querySelector(".ob761-badge"))return;
+      var p=getPri(id);
+      var b=document.createElement("span");
+      b.className="ob761-badge ob761-"+p;
+      b.textContent=labelPri(p);
+      b.dataset.tid=id;
+      b.title="Click to cycle priority";
+      b.addEventListener("click",function(e){
+        e.stopPropagation();
+        var np=cyclePri(id);
+        b.className="ob761-badge ob761-"+np;
+        b.textContent=labelPri(np);
+      });
+      var title=card.querySelector(".task-title,.task-name,h3,h4");
+      if(title)title.appendChild(b);else card.appendChild(b);
+    });
+  }
+  var _orig761=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig761.apply(this,arguments);setTimeout(attachBadges,100);};
+  setTimeout(attachBadges,1500);
+})();
+
+/* 762 – Floating action button: quick add task note */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob762-fab{position:fixed;bottom:72px;right:20px;width:44px;height:44px;border-radius:50%;background:var(--accent2,#00c47e);border:none;color:#000;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:780;display:none;transition:transform .15s;}" +
+    "#ob762-fab:hover{transform:scale(1.1);}";
+  document.head.appendChild(css);
+  var fab=document.createElement("button");
+  fab.id="ob762-fab";fab.title="Quick note";fab.textContent="\u270F";
+  document.body.appendChild(fab);
+  var _oSD762=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD762.apply(this,arguments);
+    fab.style.display="block";
+    fab.onclick=function(){
+      var ta=document.getElementById("task-note");
+      if(ta){ta.focus();ta.scrollIntoView({behavior:"smooth",block:"center"});}
+    };
+  };
+  var _oClose762=window.closeTaskDetail||function(){};
+  window.closeTaskDetail=function(){_oClose762.apply(this,arguments);fab.style.display="none";};
+})();
+
+/* 763 – Step completion confetti burst */
+(function(){
+  document.addEventListener("click",function(e){
+    var cb=e.target.closest("input[type=checkbox]");
+    if(!cb)return;
+    if(!cb.checked)return;
+    var x=e.clientX,y=e.clientY;
+    for(var i=0;i<12;i++){
+      var d=document.createElement("div");
+      d.style.cssText="position:fixed;left:"+x+"px;top:"+y+"px;width:6px;height:6px;border-radius:50%;z-index:9999;pointer-events:none;";
+      d.style.background=["#00ffa8","#f0c453","#ff7eb3","#7eb8ff"][i%4];
+      var angle=Math.random()*Math.PI*2;var dist=40+Math.random()*60;
+      var dx=Math.cos(angle)*dist,dy=Math.sin(angle)*dist;
+      d.style.transition="transform .6s ease-out, opacity .6s";
+      document.body.appendChild(d);
+      requestAnimationFrame(function(dd,ddx,ddy){return function(){
+        dd.style.transform="translate("+ddx+"px,"+ddy+"px)";
+        dd.style.opacity="0";
+      };}(d,dx,dy));
+      setTimeout(function(dd){return function(){dd.remove();};}(d),650);
+    }
+  });
+})();
+
+/* 764 – Offline indicator banner */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob764-offline{display:none;position:fixed;top:0;left:0;right:0;background:#ff4444;color:#fff;text-align:center;font-size:.8rem;padding:5px 0;z-index:10000;}";
+  document.head.appendChild(css);
+  var banner=document.createElement("div");
+  banner.id="ob764-offline";
+  banner.textContent="\u26a0 You are offline. Notes saved locally.";
+  document.body.appendChild(banner);
+  function update(){banner.style.display=navigator.onLine?"none":"block";}
+  window.addEventListener("online",update);
+  window.addEventListener("offline",update);
+  update();
+})();
+
+/* 765 – Task note character trend sparkline */
+(function(){
+  var _oSD765=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD765.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");
+      if(!ta)return;
+      var key="ob_note_lens_"+id;
+      var lens=JSON.parse(localStorage.getItem(key)||"[]");
+      var can=document.createElement("canvas");
+      can.id="ob765-spark";can.width=120;can.height=24;
+      can.style.cssText="margin-top:4px;opacity:.5;display:block;";
+      ta.parentNode.insertBefore(can,ta.nextSibling.nextSibling||ta.nextSibling);
+      function drawSpark(){
+        if(lens.length<2)return;
+        var ctx2=can.getContext("2d");
+        ctx2.clearRect(0,0,120,24);
+        var max=Math.max.apply(null,lens)||1;
+        ctx2.beginPath();ctx2.strokeStyle="#00ffa8";ctx2.lineWidth=1.5;
+        lens.forEach(function(v,i){
+          var x=i/(lens.length-1)*120;var y=24-(v/max*22);
+          i===0?ctx2.moveTo(x,y):ctx2.lineTo(x,y);
+        });
+        ctx2.stroke();
+      }
+      drawSpark();
+      ta.addEventListener("blur",function(){
+        lens.push(ta.value.length);
+        if(lens.length>20)lens.shift();
+        localStorage.setItem(key,JSON.stringify(lens));
+        drawSpark();
+      });
+    },200);
+  };
+})();
+
+/* 766 – Auto-resize textarea for notes */
+(function(){
+  function autoResize(el){
+    el.style.height="auto";
+    el.style.height=Math.max(80,el.scrollHeight)+"px";
+  }
+  function attach(){
+    var ta=document.getElementById("task-note");
+    if(!ta||ta.dataset.ob766)return;
+    ta.dataset.ob766="1";
+    ta.style.overflow="hidden";ta.style.resize="none";
+    ta.addEventListener("input",function(){autoResize(ta);});
+    autoResize(ta);
+  }
+  var _oSD766=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){_oSD766.apply(this,arguments);setTimeout(attach,150);};
+})();
+
+/* 767 – Quick emoji insert in note */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob767-emojis{display:none;gap:4px;flex-wrap:wrap;margin-top:4px;}" +
+    "#ob767-emojis button{background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:1rem;padding:2px 5px;line-height:1.2;}" +
+    "#ob767-emojis button:hover{background:var(--panel);}";
+  document.head.appendChild(css);
+  var emojis=["\u2705","\u2757","\u23F3","\u270D","\u1F4CC","\u1F4A1","\u1F517","\u2B50","\u1F6A7","\u26A0"];
+  function attach(){
+    var ta=document.getElementById("task-note");
+    if(!ta||document.getElementById("ob767-emojis"))return;
+    var row=document.createElement("div");
+    row.id="ob767-emojis";row.style.display="flex";
+    emojis.forEach(function(em){
+      var btn=document.createElement("button");btn.textContent=em;btn.type="button";
+      btn.title="Insert "+em;
+      btn.addEventListener("click",function(){
+        var s=ta.selectionStart,e=ta.selectionEnd;
+        ta.value=ta.value.substring(0,s)+em+ta.value.substring(e);
+        ta.selectionStart=ta.selectionEnd=s+em.length;ta.focus();
+        ta.dispatchEvent(new Event("input"));
+      });
+      row.appendChild(btn);
+    });
+    ta.parentNode.insertBefore(row,ta);
+  }
+  var _oSD767=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){_oSD767.apply(this,arguments);setTimeout(attach,200);};
+})();
+
+/* 768 – Phase task count badge */
+(function(){
+  function refreshCounts(){
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(h){
+      var ph=h.closest(".phase-block")||h.closest("[data-phase]");
+      if(!ph)return;
+      var phId=ph.dataset.phase||ph.id;
+      if(!window.TM)return;
+      var tasks=Object.values(window.TM).filter(function(t){return t.phase===phId;});
+      if(!tasks.length)return;
+      var total=tasks.length;
+      var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+      var el=h.querySelector(".ob768-count");
+      if(!el){el=document.createElement("span");el.className="ob768-count";
+        el.style.cssText="font-size:.7rem;opacity:.5;margin-left:8px;";h.appendChild(el);}
+      el.textContent=done+"/"+total;
+    });
+  }
+  var _orig768=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig768.apply(this,arguments);setTimeout(refreshCounts,80);};
+  setTimeout(refreshCounts,1600);
+})();
+
+/* 769 – Tab keyboard navigation between note fields */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Tab")return;
+    var active=document.activeElement;
+    if(!active)return;
+    var focusable=Array.from(document.querySelectorAll(
+      "#task-detail input:not([disabled]),#task-detail textarea:not([disabled]),#task-detail button:not([disabled]),#task-detail a[href]"
+    )).filter(function(el){return el.offsetParent!==null;});
+    if(focusable.length<2)return;
+    var idx=focusable.indexOf(active);
+    if(idx===-1)return;
+    e.preventDefault();
+    var next=e.shiftKey?focusable[(idx-1+focusable.length)%focusable.length]:focusable[(idx+1)%focusable.length];
+    next.focus();
+  });
+})();
+
+/* 770 – Milestone toast: 770 */
+(function(){
+  if(localStorage.getItem("ob_imp770_shown"))return;
+  localStorage.setItem("ob_imp770_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\u26A1 770 improvements — no signs of stopping!","success",4500);
+  },3500);
+})();
+
+})();
+</script>
 </script></body></html>
