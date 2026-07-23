@@ -15423,4 +15423,234 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp721: task completion sparkle animation */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="@keyframes sparkle{0%{transform:scale(0) rotate(0deg);opacity:1}100%{transform:scale(1.5) rotate(180deg);opacity:0}}._sparkle{position:fixed;pointer-events:none;z-index:9999;font-size:1.2rem;animation:sparkle 0.6s ease forwards;}";
+  document.head.appendChild(st);
+  var _origTD721=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD721&&_origTD721();
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(!(task&&task.done))return;
+    var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+    if(!row)return;
+    var rect=row.getBoundingClientRect();
+    ["\u2728","\u2B50","\uD83D\uDCAB"].forEach(function(emoji,i){
+      var el=document.createElement("div");
+      el.className="_sparkle";
+      el.textContent=emoji;
+      el.style.left=(rect.left+Math.random()*rect.width)+"px";
+      el.style.top=(rect.top+Math.random()*rect.height)+"px";
+      el.style.animationDelay=(i*0.12)+"s";
+      document.body.appendChild(el);
+      setTimeout(function(){el.remove();},800);
+    });
+  };
+})();
+
+/* imp722: task quick-done from list row (without opening detail) */
+(function(){
+  function addQuickDoneBtns(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row||row.querySelector("._qdBtn"))return;
+      var btn=document.createElement("button");
+      btn.className="_qdBtn";
+      btn.title=t.done?"Mark undone":"Mark done";
+      btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:50%;width:18px;height:18px;font-size:0.65rem;cursor:pointer;flex-shrink:0;margin-right:4px;line-height:1;color:var(--accent);";
+      btn.textContent=t.done?"\u2713":"\u25CB";
+      btn.onclick=function(e){
+        e.stopPropagation();
+        t.done=!t.done;
+        btn.textContent=t.done?"\u2713":"\u25CB";
+        updateProgress&&updateProgress();
+        _showToast&&_showToast(t.done?"Done!":"Undone","info",600);
+      };
+      row.insertBefore(btn,row.querySelector("._bulkCb")?row.querySelector("._bulkCb").nextSibling:row.firstChild);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(addQuickDoneBtns,900);});
+  var _origUP722=window.updateProgress;
+  window.updateProgress=function(){_origUP722&&_origUP722();setTimeout(addQuickDoneBtns,150);};
+})();
+
+/* imp723: phase progress percentage in page title */
+(function(){
+  var _origUP723=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP723&&_origUP723();
+    setTimeout(function(){
+      var la=window._la||[];
+      if(!la.length)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var pct=Math.round(done/la.length*100);
+      var base=document.title.replace(/\[\d+\/\d+\] /,"").replace(/^\d+% /,"");
+      document.title=pct+"% "+base;
+    },90);
+  };
+})();
+
+/* imp724: task list group by phase toggle */
+(function(){
+  var grouped=false;
+  var originalOrder=[];
+  var btn=document.createElement("button");
+  btn.id="_groupByPhase";
+  btn.style.cssText="font-size:0.65rem;padding:2px 10px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:var(--panel);color:var(--text);margin-left:4px;";
+  btn.textContent="Group by phase";
+  btn.onclick=function(){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list)return;
+    var rows=Array.from(list.querySelectorAll(".task-row,.ob-task-row"));
+    if(!grouped){
+      originalOrder=rows.map(function(r){return r.dataset.id||r.dataset.taskId;});
+      var la=window._la||[];
+      var phases=Array.from(new Set(la.map(function(t){return t.phase||"Other";})));
+      phases.forEach(function(ph){
+        rows.filter(function(r){
+          var id=r.dataset.id||r.dataset.taskId;
+          var t=la.find(function(x){return x.id===id;});
+          return (t&&(t.phase||"Other"))===ph;
+        }).forEach(function(r){list.appendChild(r);});
+      });
+      grouped=true;btn.style.background="var(--accent)";btn.style.color="#000";btn.textContent="Ungroup";
+    } else {
+      originalOrder.forEach(function(id){var r=list.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");if(r)list.appendChild(r);});
+      grouped=false;btn.style.background="var(--panel)";btn.style.color="var(--text)";btn.textContent="Group by phase";
+    }
+  };
+  document.addEventListener("DOMContentLoaded",function(){
+    var sortH=document.getElementById("_sortHeader");
+    if(sortH)sortH.appendChild(btn);
+    else{var list=document.getElementById("task-list")||document.querySelector(".task-list");if(list)list.parentNode.insertBefore(btn,list);}
+  });
+})();
+
+/* imp725: visual cue when all tasks in a phase are done (phase header turns green) */
+(function(){
+  var st=document.createElement("style");
+  st.textContent=".phase-header.phase-all-done,.phase-title.phase-all-done{background:rgba(0,255,168,0.08)!important;border-left:3px solid var(--accent)!important;transition:all 0.4s;}";
+  document.head.appendChild(st);
+  function markCompletedPhases(){
+    var la=window._la||[];
+    var phases={};
+    la.forEach(function(t){var ph=t.phase||"Other";if(!phases[ph])phases[ph]={d:0,n:0};phases[ph].n++;if(t.done)phases[ph].d++;});
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(el){
+      var ph=el.dataset.phase||el.textContent.replace(/[\uD800-\uDFFF]|\(.*?\)|\d+\/\d+|\d+%|~\d+[mh]/g,"").trim();
+      if(phases[ph]&&phases[ph].d===phases[ph].n)el.classList.add("phase-all-done");
+      else el.classList.remove("phase-all-done");
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(markCompletedPhases,900);});
+  var _origUP725=window.updateProgress;
+  window.updateProgress=function(){_origUP725&&_origUP725();setTimeout(markCompletedPhases,120);};
+})();
+
+/* imp726: chat command /clear clears task filters */
+(function(){
+  var _origSM726=window.sendMsg;
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.getElementById("chatInput");
+    var val=(inp&&inp.value||"").trim();
+    if(val==="/clear-filters"){
+      document.querySelectorAll(".task-row,.ob-task-row").forEach(function(r){r.style.display="";});
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(si){si.value="";si.dispatchEvent(new Event("input"));}
+      _showToast&&_showToast("Filters cleared","info",1200);
+      if(inp)inp.value="";
+      return;
+    }
+    _origSM726&&_origSM726();
+  };
+})();
+
+/* imp727: note encryption toggle (ROT13 obfuscation for privacy) */
+(function(){
+  function rot13(s){return s.replace(/[a-zA-Z]/g,function(c){var b=c.charCodeAt(0),base=b<91?65:97;return String.fromCharCode(((b-base+13)%26)+base);});}
+  var _origSD727=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD727&&_origSD727(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_encToggle727"))return;
+      var ta=panel.querySelector("textarea");
+      if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="_encToggle727";
+      btn.style.cssText="font-size:0.62rem;padding:1px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--border);cursor:pointer;color:var(--muted,#888);margin-bottom:2px;";
+      var obfuscated=false;
+      btn.textContent="\uD83D\uDD12 Obfuscate";
+      btn.onclick=function(){
+        obfuscated=!obfuscated;
+        ta.value=rot13(ta.value);
+        btn.textContent=obfuscated?"\uD83D\uDD13 Reveal":"\uD83D\uDD12 Obfuscate";
+      };
+      ta.parentNode.insertBefore(btn,ta);
+    },93);
+  };
+})();
+
+/* imp728: show total time budget vs logged across all tasks */
+(function(){
+  function budgetSummary(){
+    var totalBudget=0;var totalLogged=0;
+    (window._la||[]).forEach(function(t){
+      var b=parseInt(localStorage.getItem("ob_budget_"+t.id)||"0");
+      var logs=JSON.parse(localStorage.getItem("ob_log_"+t.id)||"[]");
+      var logged=logs.reduce(function(a,b2){return a+b2.m;},0);
+      totalBudget+=b;totalLogged+=logged;
+    });
+    if(!totalBudget&&!totalLogged)return;
+    var el=document.getElementById("_budgetSummary728");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_budgetSummary728";
+      el.style.cssText="font-size:0.7rem;opacity:0.5;margin:3px 0;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    var diff=totalLogged-totalBudget;
+    var color=diff>0?"#e05c5c":diff<-10?"var(--accent)":"var(--gold)";
+    if(el)el.innerHTML="\u23F1\uFE0F "+totalLogged+"m logged / "+totalBudget+"m budget <span style='color:"+color+"'>"+(diff>0?"+":"")+diff+"m</span>";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(budgetSummary,1000);});
+  var _origTD728=window.toggleDetailDone;
+  window.toggleDetailDone=function(){_origTD728&&_origTD728();setTimeout(budgetSummary,100);};
+})();
+
+/* imp729: quick add task from chat (/add <phase>: <name>) */
+(function(){
+  var _origSM729=window.sendMsg;
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.getElementById("chatInput");
+    var val=(inp&&inp.value||"").trim();
+    var m=val.match(/^\/add\s+([^:]+):\s*(.+)$/i);
+    if(m){
+      var phid=m[1].trim();var taskName=m[2].trim();
+      var id="custom_"+Date.now();
+      var existing=JSON.parse(localStorage.getItem("ob_ctasks_"+phid)||"[]");
+      existing.push({id:id,name:taskName,done:false});
+      localStorage.setItem("ob_ctasks_"+phid,JSON.stringify(existing));
+      _showToast&&_showToast("Added \""+taskName+"\" to "+phid,"success",2000);
+      if(inp)inp.value="";
+      updateProgress&&updateProgress();
+      return;
+    }
+    _origSM729&&_origSM729();
+  };
+})();
+
+/* imp730: 730-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp730_shown")){
+    localStorage.setItem("ob_imp730_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDCA5 730! Absolutely elite.","info",3000);},2400);
+  }
+})();
+</script>
 </script></body></html>
