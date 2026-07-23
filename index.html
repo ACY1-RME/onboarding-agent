@@ -19416,4 +19416,221 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 901-910 */
+(function(){
+
+/* 901 – Task card swipe left = mark done (touch) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob901-swipe{transition:transform .2s,opacity .2s;}" +
+    ".ob901-swiped{transform:translateX(-60px) !important;opacity:.5;}";
+  document.head.appendChild(css);
+  function attachSwipe(card){
+    if(card.dataset.ob901)return;
+    card.dataset.ob901="1";card.classList.add("ob901-swipe");
+    var startX=null;
+    card.addEventListener("touchstart",function(e){startX=e.touches[0].clientX;},{passive:true});
+    card.addEventListener("touchend",function(e){
+      if(startX===null)return;
+      var dx=e.changedTouches[0].clientX-startX;
+      if(dx<-60){
+        var id=card.dataset.id||card.dataset.taskId;
+        if(id){
+          card.classList.add("ob901-swiped");
+          setTimeout(function(){
+            localStorage.setItem("ob_done_"+id,"1");
+            card.classList.remove("ob901-swiped");
+            if(typeof window.updateProgress==="function")window.updateProgress();
+            if(typeof window._showToast==="function")window._showToast("\u2705 Swiped done!","success",1800);
+          },250);
+        }
+      }
+      startX=null;
+    },{passive:true});
+  }
+  function attach(){document.querySelectorAll(".task-card,.ob-task").forEach(attachSwipe);}
+  var _orig901=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig901.apply(this,arguments);setTimeout(attach,200);};
+  setTimeout(attach,3700);
+})();
+
+/* 902 – Full-screen mode toggle */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob902-fs";
+  btn.style.cssText="position:fixed;top:8px;right:290px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:800;";
+  btn.textContent="\u26F6 Fullscreen";btn.title="Toggle fullscreen";
+  btn.addEventListener("click",function(){
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(function(){});
+      btn.textContent="\u2715 Exit FS";
+    } else{
+      document.exitFullscreen();btn.textContent="\u26F6 Fullscreen";
+    }
+  });
+  document.addEventListener("fullscreenchange",function(){
+    if(!document.fullscreenElement)btn.textContent="\u26F6 Fullscreen";
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 903 – Inline note preview on task card (first line) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob903-preview{font-size:.68rem;opacity:.4;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90%;pointer-events:none;}";
+  document.head.appendChild(css);
+  function attachPreviews(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+      var note=localStorage.getItem("ob_note_"+id)||"";
+      var firstLine=note.trim().split("\n")[0];if(!firstLine)return;
+      var el=card.querySelector(".ob903-preview");
+      if(!el){el=document.createElement("div");el.className="ob903-preview";card.appendChild(el);}
+      el.textContent=firstLine.substring(0,60);
+    });
+  }
+  var _orig903=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig903.apply(this,arguments);setTimeout(attachPreviews,200);};
+  setTimeout(attachPreviews,3800);
+})();
+
+/* 904 – Notes word cloud (floating tag display) */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob904-wc";
+  btn.style.cssText="position:fixed;bottom:130px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\u2601 Word Cloud";btn.title="Show top words across all notes";
+  var overlay=null;
+  btn.addEventListener("click",function(){
+    if(overlay){overlay.remove();overlay=null;return;}
+    if(!window.TM)return;
+    var all="";
+    Object.values(window.TM).forEach(function(t){all+=" "+(localStorage.getItem("ob_note_"+t.id)||"");});
+    var words=all.toLowerCase().match(/[a-z]{4,}/g)||[];
+    var freq={};words.forEach(function(w){freq[w]=(freq[w]||0)+1;});
+    var top=Object.keys(freq).sort(function(a,b){return freq[b]-freq[a];}).slice(0,20);
+    overlay=document.createElement("div");
+    overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9800;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;padding:40px;cursor:pointer;";
+    overlay.innerHTML=top.map(function(w){
+      var size=.8+freq[w]*0.15;
+      return "<span style='font-size:"+size+"rem;color:var(--accent);opacity:"+(0.4+freq[w]*0.06)+";'>"+w+"</span>";
+    }).join("");
+    overlay.addEventListener("click",function(){overlay.remove();overlay=null;});
+    document.body.appendChild(overlay);
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 905 – Pomodoro auto-log to note */
+(function(){
+  var _orig905=window.updateProgress||function(){};
+  var lastPom=parseInt(localStorage.getItem("ob_pom_count")||"0");
+  setInterval(function(){
+    var curr=parseInt(localStorage.getItem("ob_pom_count")||"0");
+    if(curr>lastPom){
+      lastPom=curr;
+      var id=window._curTask;
+      if(id){
+        var note=localStorage.getItem("ob_note_"+id)||"";
+        var stamp="\n[Pom "+curr+" "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+"] worked on this task";
+        localStorage.setItem("ob_note_"+id,note+stamp);
+        var ta=document.getElementById("task-note");
+        if(ta&&ta.id==="task-note")ta.value=note+stamp;
+      }
+    }
+  },10000);
+})();
+
+/* 906 – Keyboard: Alt+D mark task done without modal */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.altKey&&e.key==="d"){
+      e.preventDefault();
+      var id=window._curTask;
+      if(!id){
+        // Try to find focused task
+        var card=document.querySelector(".task-card.focused,.task-card:focus,.ob-task:focus");
+        if(card)id=card.dataset.id||card.dataset.taskId;
+      }
+      if(id){
+        var was=localStorage.getItem("ob_done_"+id)==="1";
+        localStorage.setItem("ob_done_"+id,was?"0":"1");
+        if(typeof window.updateProgress==="function")window.updateProgress();
+        if(typeof window._showToast==="function")window._showToast(was?"Unmarked: task re-opened":"Marked done!","success",2000);
+      }
+    }
+  });
+})();
+
+/* 907 – Phase task list reorder (drag handle) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob907-handle{cursor:grab;font-size:.8rem;opacity:.3;padding:0 4px;flex-shrink:0;user-select:none;}" +
+    ".ob907-handle:hover{opacity:.7;}" +
+    ".ob907-dragging{opacity:.5;border:1px dashed var(--accent) !important;}";
+  document.head.appendChild(css);
+  function attachHandles(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      if(card.querySelector(".ob907-handle"))return;
+      var h=document.createElement("span");h.className="ob907-handle";h.textContent="\u22EE";h.title="Drag to reorder";
+      card.draggable=true;
+      card.style.display="flex";card.prepend(h);
+      card.addEventListener("dragstart",function(){card.classList.add("ob907-dragging");});
+      card.addEventListener("dragend",function(){card.classList.remove("ob907-dragging");});
+      card.addEventListener("dragover",function(e){e.preventDefault();});
+      card.addEventListener("drop",function(e){
+        e.preventDefault();
+        var parent=card.parentNode;
+        var dragging=document.querySelector(".ob907-dragging");
+        if(dragging&&dragging!==card&&parent.contains(dragging)){
+          parent.insertBefore(dragging,card);
+        }
+      });
+    });
+  }
+  var _orig907=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig907.apply(this,arguments);setTimeout(attachHandles,220);};
+  setTimeout(attachHandles,3900);
+})();
+
+/* 908 – Task card double-click to open detail */
+(function(){
+  document.addEventListener("dblclick",function(e){
+    var card=e.target.closest(".task-card,.ob-task");if(!card)return;
+    var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+    if(typeof window.showTaskDetail==="function")window.showTaskDetail(id);
+  });
+})();
+
+/* 909 – Motivational header banner (random tip) */
+(function(){
+  var tips=[
+    "Tip: Use /help in chat for all commands.",
+    "Tip: Press ? for the keyboard shortcut cheat sheet.",
+    "Tip: Right-click tasks for quick actions.",
+    "Tip: Double-click a task title to rename it locally.",
+    "Tip: Voice dictate into notes with the mic button.",
+    "Tip: Alt+1-9 jumps directly to a phase."
+  ];
+  var el=document.createElement("div");
+  el.id="ob909-tip";
+  el.style.cssText="position:fixed;top:0;left:0;right:0;background:rgba(0,255,168,.05);border-bottom:1px solid rgba(0,255,168,.12);padding:3px 12px;font-size:.68rem;color:var(--accent);opacity:.7;z-index:8900;text-align:center;cursor:pointer;";
+  el.title="Click to dismiss";
+  el.textContent=tips[Math.floor(Math.random()*tips.length)];
+  el.addEventListener("click",function(){el.remove();});
+  setTimeout(function(){document.body.appendChild(el);setTimeout(function(){if(el.parentNode)el.remove();},10000);},4000);
+})();
+
+/* 910 – Milestone toast: 910 */
+(function(){
+  if(localStorage.getItem("ob_imp910_shown"))return;
+  localStorage.setItem("ob_imp910_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83C\uDFC4 910 — surfing the improvement wave!","success",4500);
+  },6500);
+})();
+
+})();
+</script>
 </script></body></html>
