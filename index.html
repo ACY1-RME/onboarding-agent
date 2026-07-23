@@ -9373,4 +9373,225 @@ function _exportChat(){
 })();
 
 
+/* ── 456: B key goes back to last-viewed task ───────────────────────────── */
+(function(){
+  var history456=[];
+  var _origSD456=showTaskDetail;
+  showTaskDetail=function(id){
+    if(history456[history456.length-1]!==id)history456.push(id);
+    if(history456.length>10)history456.shift();
+    _origSD456(id);
+  };
+  document.addEventListener("keydown",function(e){
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.isContentEditable)return;
+    if((e.key==="b"||e.key==="B")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+      e.preventDefault();
+      if(history456.length<2){_showToast("No previous task","info",1500);return;}
+      var prev=history456[history456.length-2];
+      history456.pop();
+      _origSD456(prev);
+      _showToast("\u{1F519} Back to previous task","info",1200);
+    }
+  });
+})();
+
+/* ── 457: auto-detect task type icon badge ──────────────────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  var TYPES=[
+    {kws:["meeting","meet","attend","orientation"],icon:"\u{1F4C5}"},
+    {kws:["sign","signature","form","complete form","fill out"],icon:"\u{1F4DD}"},
+    {kws:["read","review","study","policy","handbook"],icon:"\u{1F4D6}"},
+    {kws:["call","contact","phone","email","reach out"],icon:"\u{1F4DE}"},
+    {kws:["training","learn","course","module","watch"],icon:"\u{1F393}"},
+    {kws:["badge","id","access","card","scan","setup"],icon:"\u{1F512}"},
+  ];
+  Object.keys(TASK_DETAILS).forEach(function(id){
+    var t=TASK_DETAILS[id];
+    var text=((t.title||"")+" "+(t.description||t.desc||"")).toLowerCase();
+    var matched=null;
+    TYPES.some(function(type){return type.kws.some(function(kw){if(text.indexOf(kw)>=0){matched=type;return true;}return false;});});
+    if(!matched)return;
+    var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+    if(!row||row.querySelector(".type-icon"))return;
+    var icon=document.createElement("span");
+    icon.className="type-icon";
+    icon.textContent=matched.icon;
+    icon.title="Type: "+matched.kws[0];
+    icon.style.cssText="font-size:12px;margin-right:4px;flex-shrink:0;";
+    row.prepend(icon);
+  });
+})();
+
+/* ── 458: step-completion mini-bar on task rows ─────────────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  Object.keys(TASK_DETAILS).forEach(function(id){
+    var t=TASK_DETAILS[id];
+    var steps=t.steps||[];
+    if(!steps.length)return;
+    var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+    if(!row||row.querySelector(".step-bar"))return;
+    var saved=JSON.parse(localStorage.getItem("ob_steps_"+id)||"[]");
+    var doneSteps=saved.filter(Boolean).length;
+    var pct=Math.round(doneSteps/steps.length*100);
+    var wrap=document.createElement("div");
+    wrap.className="step-bar";
+    wrap.style.cssText="height:2px;background:var(--border);border-radius:1px;margin-top:2px;";
+    var fill=document.createElement("div");
+    fill.style.cssText="height:100%;width:"+pct+"%;background:var(--accent2);border-radius:1px;transition:width .3s;";
+    fill.title=doneSteps+"/"+steps.length+" steps done";
+    wrap.appendChild(fill);
+    row.appendChild(wrap);
+  });
+})();
+
+/* ── 459: grid/list view toggle for task rows ───────────────────────────── */
+(function(){
+  if(document.getElementById("gridToggleBtn"))return;
+  var s=document.createElement("style");
+  s.textContent=".grid-view .task-row,.grid-view [data-task-id]{display:inline-flex!important;vertical-align:top;width:calc(50% - 8px);margin:4px;border:1px solid var(--border);border-radius:8px;flex-direction:column;box-sizing:border-box;min-height:60px;}.grid-view .phase-tasks,.grid-view .phase-content{display:flex;flex-wrap:wrap;}";
+  document.head.appendChild(s);
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var btn=document.createElement("button");
+  btn.id="gridToggleBtn";
+  btn.textContent="\u22F9";
+  btn.title="Toggle grid/list view";
+  btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:14px;cursor:pointer;opacity:.7;";
+  var gridOn=false;
+  btn.onclick=function(){
+    gridOn=!gridOn;
+    var checklist=document.querySelector(".checklist-panel,#checklistPanel,#checklist,.main-content");
+    if(checklist)checklist.classList.toggle("grid-view",gridOn);
+    btn.style.opacity=gridOn?"1":".7";
+    btn.style.color=gridOn?"var(--accent)":"";
+    _showToast(gridOn?"\u22F9 Grid view":"\u2630 List view","info",1200);
+  };
+  hdr.appendChild(btn);
+})();
+
+/* ── 460: dim other tasks when detail is open ───────────────────────────── */
+(function(){
+  var dimStyle=document.createElement("style");
+  dimStyle.id="dimStyle";
+  dimStyle.textContent=".detail-open-dim .task-row:not(.detail-active),.detail-open-dim [data-task-id]:not(.detail-active){opacity:.4;transition:opacity .2s;}";
+  document.head.appendChild(dimStyle);
+  var _origSD460=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD460(id);
+    var cl=document.querySelector(".checklist-panel,#checklistPanel,.main-content");
+    if(!cl)return;
+    cl.classList.add("detail-open-dim");
+    cl.querySelectorAll(".detail-active").forEach(function(r){r.classList.remove("detail-active");});
+    var row=cl.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+    if(row)row.classList.add("detail-active");
+  };
+  var _origClose460=typeof closeTaskDetail==="function"?closeTaskDetail:null;
+  if(_origClose460){
+    closeTaskDetail=function(){
+      _origClose460();
+      var cl=document.querySelector(".checklist-panel,#checklistPanel,.main-content");
+      if(cl)cl.classList.remove("detail-open-dim");
+    };
+  }
+})();
+
+/* ── 461: AI responses use stored user name ─────────────────────────────── */
+(function(){
+  var _origAppMsg461=typeof appendMsg==="function"?appendMsg:null;
+  if(!_origAppMsg461)return;
+  appendMsg=function(text,cls){
+    if(cls==="bot"){
+      var name=localStorage.getItem("ob_name")||"";
+      if(name&&(text.startsWith("Hi!")||text.startsWith("Hello")||text.length<60)){
+        text=text.replace(/^(Hi!?|Hello)/,"Hi "+name.split(" ")[0]+"!");
+      }
+    }
+    _origAppMsg461(text,cls);
+  };
+})();
+
+/* ── 462: note age display in detail panel ──────────────────────────────── */
+(function(){
+  var _origSD462=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD462(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel||panel.querySelector("#noteTsLine"))return;
+      var ts=parseInt(localStorage.getItem("ob_note_ts_"+id)||"0",10);
+      if(!ts)return;
+      var ago=Date.now()-ts;
+      var str=ago<60000?"just now":ago<3600000?Math.round(ago/60000)+"m ago":ago<86400000?Math.round(ago/3600000)+"h ago":Math.round(ago/86400000)+"d ago";
+      var line=document.createElement("div");
+      line.id="noteTsLine";
+      line.style.cssText="font-size:10px;color:var(--muted);margin:2px 0 4px;";
+      line.textContent="\u{1F4DD} Note last saved: "+str;
+      var noteArea=panel.querySelector("#taskNote");
+      if(noteArea&&noteArea.parentElement)noteArea.parentElement.insertBefore(line,noteArea);
+    },90);
+  };
+})();
+
+/* ── 463: soft glow on in-progress phase ────────────────────────────────── */
+(function(){
+  var s=document.createElement("style");
+  s.textContent=".phase-in-progress{box-shadow:0 0 0 1px rgba(0,255,168,.25),0 0 12px rgba(0,255,168,.08)!important;border-radius:6px;}";
+  document.head.appendChild(s);
+  var _origUP463=typeof updateProgress==="function"?updateProgress:null;
+  function highlightActive(){
+    document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph){
+      ph.classList.remove("phase-in-progress");
+      var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+      var doneC=Array.from(rows).filter(function(r){var id=r.dataset.id||r.dataset.taskId;return id&&localStorage.getItem("ob_"+id)==="done";}).length;
+      if(doneC>0&&doneC<rows.length)ph.classList.add("phase-in-progress");
+    });
+  }
+  if(_origUP463){updateProgress=function(){_origUP463();setTimeout(highlightActive,100);};}
+  setTimeout(highlightActive,600);
+})();
+
+/* ── 464: overdue tasks flag in browser tab title ───────────────────────── */
+(function(){
+  var _origUP464=typeof updateProgress==="function"?updateProgress:null;
+  if(!_origUP464)return;
+  updateProgress=function(){
+    _origUP464();
+    setTimeout(function(){
+      var today=new Date().toISOString().slice(0,10);
+      var hasOverdue=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{}).some(function(id){
+        var due=localStorage.getItem("ob_due_"+id);
+        return due&&due<today&&localStorage.getItem("ob_"+id)!=="done";
+      });
+      var base=document.title.replace(/^\(!\) /,"");
+      document.title=hasOverdue?"(!) "+base:base;
+    },150);
+  };
+})();
+
+/* ── 465: export current progress state to clipboard JSON ───────────────── */
+(function(){
+  if(document.getElementById("exportStateBtn"))return;
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var btn=document.createElement("button");
+  btn.id="exportStateBtn";
+  btn.title="Export progress state to clipboard as JSON";
+  btn.textContent="\u{1F4E4} Export";
+  btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;opacity:.7;";
+  btn.onclick=function(){
+    var state={};
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.startsWith("ob_"))state[k]=localStorage.getItem(k);
+    }
+    navigator.clipboard.writeText(JSON.stringify(state,null,2)).then(function(){
+      _showToast("\u{1F4E4} "+Object.keys(state).length+" keys copied","info",2000);
+    }).catch(function(){_showToast("Copy failed","warn");});
+  };
+  hdr.appendChild(btn);
+})();
+
+
 </script></body></html>
