@@ -6255,4 +6255,219 @@ function _exportChat(){
 })();
 
 
+/* ── 326: Sidebar: add "today's tasks" quick-list ───────────── */
+(function(){
+  var today=new Date().toLocaleDateString();
+  function _todayTasks(){
+    var tasks=[];
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      var ts=localStorage.getItem('ob_done_ts_'+cb.id);
+      if(ts&&new Date(Number(ts)).toLocaleDateString()===today)tasks.push(cb.id);
+    });
+    var el=document.getElementById('today-tasks-panel');
+    if(!el){
+      el=document.createElement('div');el.id='today-tasks-panel';
+      el.style.cssText='margin:4px 0;padding:0';
+      var hdr=document.createElement('div');
+      hdr.style.cssText='font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px;font-weight:600';
+      hdr.textContent='Completed today';
+      var topList=document.getElementById('top-tasks-list');
+      if(topList){topList.after(hdr);hdr.after(el);}
+    }
+    el.innerHTML='';
+    if(!tasks.length){el.innerHTML='<div style="font-size:.62rem;color:var(--muted);padding:2px 4px">Nothing yet today</div>';return;}
+    tasks.slice(0,5).forEach(function(id){
+      var d=TASK_DETAILS[id];if(!d)return;
+      var row=document.createElement('div');
+      row.style.cssText='font-size:.62rem;color:var(--accent2);padding:2px 4px;display:flex;align-items:center;gap:4px;cursor:pointer;border-radius:4px;transition:background .15s';
+      row.innerHTML='<span style="font-size:.65rem">\u2705</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(d.icon||'')+' '+d.title+'</span>';
+      row.onmouseenter=function(){row.style.background='rgba(0,255,168,.06)';};
+      row.onmouseleave=function(){row.style.background='';};
+      row.onclick=function(){showTaskDetail(id);};
+      el.appendChild(row);
+    });
+    if(tasks.length>5){var m=document.createElement('div');m.style.cssText='font-size:.6rem;color:var(--muted);padding:2px 4px';m.textContent='+'+(tasks.length-5)+' more today';el.appendChild(m);}
+  }
+  _todayTasks();
+  var _origUP326=updateProgress;
+  updateProgress=function(){_origUP326();_todayTasks();};
+})();
+
+/* ── 327: Detail: tag the task with a color label ───────────── */
+(function(){
+  var COLORS=['','#ff6b6b','#f0c453','#00ffa8','#4ea8ff','#cc88ff'];
+  var LABELS=['None','Red','Yellow','Green','Blue','Purple'];
+  var _origShow327=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow327(taskId);
+    var ar=document.querySelector('.detail-ask-row');
+    if(!ar||ar.querySelector('#detail-tag-sel'))return;
+    var sel=document.createElement('select');sel.id='detail-tag-sel';
+    sel.title='Color tag this task';
+    sel.style.cssText='font-size:.62rem;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:1px 4px;cursor:pointer;margin-left:4px';
+    LABELS.forEach(function(lbl,i){
+      var opt=document.createElement('option');opt.value=COLORS[i];opt.textContent=lbl;
+      opt.style.background='var(--panel)';
+      sel.appendChild(opt);
+    });
+    var saved=localStorage.getItem('ob_tag_'+taskId)||'';
+    sel.value=saved;
+    _applyTag(taskId,saved);
+    sel.onchange=function(){
+      localStorage.setItem('ob_tag_'+taskId,sel.value);
+      _applyTag(taskId,sel.value);
+    };
+    ar.appendChild(sel);
+  };
+  function _applyTag(id,color){
+    var item=document.querySelector('[onclick="showTaskDetail(\''+id+'\')"]');
+    if(!item)return;
+    item.style.borderRight=color?'3px solid '+color:'';
+  }
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+    var color=localStorage.getItem('ob_tag_'+cb.id)||'';
+    if(color)item.style.borderRight='3px solid '+color;
+  });
+})();
+
+/* ── 328: Chat: message reactions (thumbs up/down) ───────────── */
+(function(){
+  var _origAppend7=appendMsg;
+  appendMsg=function(text,cls){
+    var el=_origAppend7(text,cls);
+    if(cls==='ai'&&el&&typeof text==='string'&&text.length>10){
+      var reacts=document.createElement('div');
+      reacts.style.cssText='display:flex;gap:5px;margin-top:3px';
+      ['\uD83D\uDC4D','\uD83D\uDC4E'].forEach(function(emoji){
+        var btn=document.createElement('button');btn.textContent=emoji;
+        btn.style.cssText='background:none;border:1px solid var(--border);border-radius:8px;padding:1px 5px;cursor:pointer;font-size:.75rem;transition:background .15s';
+        btn.onclick=function(){
+          btn.style.background='rgba(0,255,168,.15)';
+          btn.style.borderColor='var(--accent)';
+          reacts.querySelectorAll('button').forEach(function(b){if(b!==btn)b.disabled=true;});
+        };
+        reacts.appendChild(btn);
+      });
+      el.appendChild(reacts);
+    }
+    return el;
+  };
+})();
+
+/* ── 329: App: announce progress % on screen readers ─────────── */
+(function(){
+  var _origUP329=updateProgress;
+  updateProgress=function(){
+    _origUP329();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var pct=total?Math.round(done/total*100):0;
+    var live=document.getElementById('a11y-live');
+    if(live&&pct%25===0&&pct>0){live.textContent=pct+'% of onboarding complete';}
+  };
+})();
+
+/* ── 330: Detail: show phase position (e.g. "Phase 2 of 6") ─── */
+(function(){
+  var _origShow330=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow330(taskId);
+    var item=document.querySelector('[onclick="showTaskDetail(\''+taskId+'\')"]');
+    var phBody=item&&item.closest('.phase-body');
+    if(!phBody)return;
+    var allBodies=Array.from(document.querySelectorAll('.phase-body'));
+    var idx=allBodies.indexOf(phBody);
+    var el=document.getElementById('detail-phase-pos');
+    if(!el){
+      el=document.createElement('span');el.id='detail-phase-pos';
+      el.style.cssText='font-size:.6rem;color:var(--muted);margin-left:8px';
+      var bc=document.getElementById('detail-breadcrumb');if(bc)bc.appendChild(el);
+    }
+    el.textContent=idx>=0?'(phase '+(idx+1)+' of '+allBodies.length+')':'';
+  };
+})();
+
+/* ── 331: Checklist: show current filter summary bar ────────── */
+(function(){
+  var bar=document.createElement('div');bar.id='filter-summary';
+  bar.style.cssText='font-size:.6rem;color:var(--muted);padding:2px 8px;display:none;background:rgba(0,255,168,.05);border-bottom:1px solid rgba(0,255,168,.1)';
+  var cl=document.querySelector('.checklist');if(cl)cl.before(bar);
+  function _updateFilterBar(msg){
+    if(msg){bar.style.display='';bar.textContent=msg;}
+    else{bar.style.display='none';}
+  }
+  var _origSrc7=searchTasks;
+  searchTasks=function(q){_origSrc7(q);_updateFilterBar(q?'Search: "'+q+'"':'');};
+})();
+
+/* ── 332: Phase: show task icons in collapsed view ───────────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+    var icons=[];
+    body.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      var d=TASK_DETAILS[cb.id];if(d&&d.icon&&icons.indexOf(d.icon)<0)icons.push(d.icon);
+    });
+    if(!icons.length)return;
+    var sp=document.createElement('span');sp.className='ph-icons';
+    sp.style.cssText='font-size:.65rem;margin-left:6px;opacity:.5';
+    sp.textContent=icons.slice(0,4).join('');
+    var phTime=hd.querySelector('.ph-time');
+    if(phTime)phTime.after(sp);else hd.appendChild(sp);
+  });
+})();
+
+/* ── 333: App: notify on long idle (30 min no interaction) ──── */
+(function(){
+  var _lastAction=Date.now();
+  var IDLE_MS=30*60*1000;
+  var _notified=false;
+  ['click','keydown','touchstart'].forEach(function(ev){
+    document.addEventListener(ev,function(){_lastAction=Date.now();_notified=false;},{passive:true});
+  });
+  setInterval(function(){
+    if(!_notified&&Date.now()-_lastAction>IDLE_MS){
+      _notified=true;
+      _showToast('Still there? Come back and check off some tasks!','',4000);
+    }
+  },60000);
+})();
+
+/* ── 334: Detail: swipe between tasks on mobile ─────────────── */
+(function(){
+  var panel=document.getElementById('task-detail-panel');if(!panel)return;
+  var _tsx=0,_tsy=0;
+  panel.addEventListener('touchstart',function(e){_tsx=e.touches[0].clientX;_tsy=e.touches[0].clientY;},{passive:true});
+  panel.addEventListener('touchend',function(e){
+    var dx=e.changedTouches[0].clientX-_tsx;
+    var dy=Math.abs(e.changedTouches[0].clientY-_tsy);
+    if(Math.abs(dx)>60&&dy<40){
+      if(dx<0&&typeof _navDetailTask==='function')_navDetailTask(1);
+      if(dx>0&&typeof _navDetailTask==='function')_navDetailTask(-1);
+    }
+  },{passive:true});
+})();
+
+/* ── 335: Sidebar: daily check-in streak calendar ───────────── */
+(function(){
+  var today=new Date();
+  var el=document.createElement('div');el.id='streak-calendar';
+  el.style.cssText='display:flex;gap:2px;margin:4px 8px;flex-wrap:wrap';
+  el.title='Last 14 days activity';
+  for(var i=13;i>=0;i--){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var key='ob_day_'+d.toLocaleDateString();
+    var cnt=parseInt(localStorage.getItem(key)||'0',10);
+    var dot=document.createElement('div');
+    dot.style.cssText='width:8px;height:8px;border-radius:2px;cursor:default;title='+d.toLocaleDateString();
+    dot.title=d.toLocaleDateString()+': '+cnt+' tasks';
+    var intensity=cnt===0?'rgba(255,255,255,.07)':cnt<3?'rgba(0,255,168,.2)':cnt<6?'rgba(0,255,168,.5)':'var(--accent)';
+    dot.style.background=intensity;
+    el.appendChild(dot);
+  }
+  var sc=document.getElementById('session-time');if(sc)sc.after(el);
+})();
+
+
 </script></body></html>
