@@ -19027,4 +19027,174 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 881-890 */
+(function(){
+
+/* 881 – Task note character rainbow on milestone */
+(function(){
+  var _oSD881=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD881.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var milestones=[100,250,500,1000];var hit={};
+      ta.addEventListener("input",function(){
+        var n=ta.value.length;
+        milestones.forEach(function(m){
+          if(n>=m&&!hit[m]){hit[m]=true;
+            if(typeof window._showToast==="function")window._showToast("\uD83C\uDF89 "+m+" chars in this note!","success",2500);
+          }
+        });
+      });
+    },200);
+  };
+})();
+
+/* 882 – Ctrl+Home / Ctrl+End scroll shortcuts */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(!e.ctrlKey&&!e.metaKey)return;
+    if(e.key==="Home"){e.preventDefault();window.scrollTo({top:0,behavior:"smooth"});}
+    if(e.key==="End"){e.preventDefault();window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});}
+  });
+})();
+
+/* 883 – Task note insert date/time stamp */
+(function(){
+  var _oSD883=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD883.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob883-ts"))return;
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="ob883-ts";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent="\uD83D\uDCC5 Date";btn.title="Insert current date/time into note";
+      btn.addEventListener("click",function(){
+        var s=ta.selectionStart;
+        var stamp=new Date().toLocaleString()+": ";
+        ta.value=ta.value.substring(0,s)+stamp+ta.value.substring(s);
+        ta.selectionStart=ta.selectionEnd=s+stamp.length;
+        ta.focus();ta.dispatchEvent(new Event("input"));
+      });
+      ta.parentNode.insertBefore(btn,ta);
+    },230);
+  };
+})();
+
+/* 884 – Smooth page load animation */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="@keyframes ob884-fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}" +
+    "body{animation:ob884-fadein .4s ease;}";
+  document.head.appendChild(css);
+})();
+
+/* 885 – Keyboard: Tab in note inserts 2 spaces */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Tab")return;
+    var ta=document.activeElement;if(!ta||ta.id!=="task-note")return;
+    e.preventDefault();
+    var s=ta.selectionStart,end=ta.selectionEnd;
+    ta.value=ta.value.substring(0,s)+"  "+ta.value.substring(end);
+    ta.selectionStart=ta.selectionEnd=s+2;
+    ta.dispatchEvent(new Event("input"));
+  });
+})();
+
+/* 886 – Per-task notes export (all tasks) */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob886-allnotes";
+  btn.style.cssText="position:fixed;bottom:108px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\uD83D\uDCE6 All Notes";btn.title="Export all task notes to text file";
+  btn.addEventListener("click",function(){
+    if(!window.TM)return;
+    var lines=[];
+    Object.values(window.TM).forEach(function(t){
+      var note=localStorage.getItem("ob_note_"+t.id)||"";
+      if(!note.trim())return;
+      lines.push("# "+t.title);lines.push(note);lines.push("");
+    });
+    if(!lines.length){if(typeof window._showToast==="function")window._showToast("No notes to export","info",2000);return;}
+    var blob=new Blob([lines.join("\n")],{type:"text/plain"});
+    var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download="onboarding_notes_"+new Date().toISOString().substring(0,10)+".txt";
+    a.click();URL.revokeObjectURL(a.href);
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 887 – Celebration confetti shape variety */
+(function(){
+  var _oLC=window._launchConfetti||function(){};
+  window._launchConfetti887=function(){
+    var colors=["#00ffa8","#f0c453","#ff7eb3","#7eb8ff","#ffffff","#ff6b6b"];
+    for(var i=0;i<30;i++){
+      var p=document.createElement("div");
+      var isCircle=Math.random()>0.5;
+      var size=6+Math.random()*8;
+      p.style.cssText="position:fixed;left:"+(20+Math.random()*60)+"%;top:-20px;width:"+size+"px;height:"+size+"px;border-radius:"+(isCircle?"50%":"2px")+";z-index:9999;pointer-events:none;";
+      p.style.background=colors[Math.floor(Math.random()*colors.length)];
+      p.style.transform="rotate("+(Math.random()*360)+"deg)";
+      document.body.appendChild(p);
+      var dur=1.5+Math.random();
+      p.style.transition="top "+dur+"s linear, opacity "+dur+"s, transform "+dur+"s";
+      requestAnimationFrame(function(pp,d){return function(){
+        pp.style.top=(60+Math.random()*50)+"vh";
+        pp.style.opacity="0";
+        pp.style.transform="rotate("+(360+Math.random()*360)+"deg)";
+        setTimeout(function(){pp.remove();},d*1000+100);
+      };}(p,dur));
+    }
+  };
+  window._launchConfetti=function(){_oLC.apply(this,arguments);window._launchConfetti887();};
+})();
+
+/* 888 – Lucky triple-8 milestone (777 style) */
+(function(){
+  if(localStorage.getItem("ob_imp888_shown"))return;
+  localStorage.setItem("ob_imp888_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\u2728 888 — triple luck! Keep going!","success",5000);
+    if(typeof window._launchConfetti887==="function")window._launchConfetti887();
+  },3000);
+})();
+
+/* 889 – Task note word goal tracker */
+(function(){
+  var GOAL=100;
+  var _oSD889=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD889.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob889-wg"))return;
+      var el=document.createElement("div");el.id="ob889-wg";
+      el.style.cssText="font-size:.65rem;margin-top:2px;opacity:.45;";
+      ta.parentNode.insertBefore(el,ta.nextSibling);
+      function upd(){
+        var w=ta.value.trim()?ta.value.trim().split(/\s+/).length:0;
+        var pct=Math.min(100,Math.round(w/GOAL*100));
+        el.textContent=w+"/"+GOAL+" word goal ("+pct+"%)";
+        el.style.color=pct>=100?"var(--accent)":"";
+      }
+      ta.addEventListener("input",upd);upd();
+    },190);
+  };
+})();
+
+/* 890 – Milestone toast: 890 */
+(function(){
+  if(localStorage.getItem("ob_imp890_shown"))return;
+  localStorage.setItem("ob_imp890_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDCA1 890 — bright ideas keep flowing!","success",4500);
+  },6200);
+})();
+
+})();
+</script>
 </script></body></html>
