@@ -19197,4 +19197,223 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 891-900 */
+(function(){
+
+/* 891 – Task difficulty star rating */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob891-stars{display:inline-flex;gap:2px;margin-left:6px;}" +
+    ".ob891-star{font-size:.9rem;cursor:pointer;opacity:.3;transition:opacity .15s;}" +
+    ".ob891-star.on{opacity:1;}" +
+    ".ob891-star:hover,.ob891-star:hover~.ob891-star{opacity:.6;}";
+  document.head.appendChild(css);
+  var _oSD891=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD891.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob891-stars"))return;
+      var wrap=document.createElement("div");wrap.id="ob891-stars";wrap.className="ob891-stars";
+      wrap.style.cssText="display:flex;gap:3px;margin-top:6px;align-items:center;";
+      var label=document.createElement("span");
+      label.style.cssText="font-size:.72rem;opacity:.5;margin-right:4px;";label.textContent="Difficulty:";
+      wrap.appendChild(label);
+      var saved=parseInt(localStorage.getItem("ob_diff_"+id)||"0");
+      for(var i=1;i<=5;i++){
+        var s=document.createElement("span");s.className="ob891-star"+(i<=saved?" on":"");
+        s.textContent="\u2605";s.dataset.v=i;
+        s.addEventListener("click",function(){
+          var v=parseInt(this.dataset.v);
+          localStorage.setItem("ob_diff_"+id,v);
+          wrap.querySelectorAll(".ob891-star").forEach(function(st){
+            st.classList.toggle("on",parseInt(st.dataset.v)<=v);
+          });
+        });
+        wrap.appendChild(s);
+      }
+      var det=document.getElementById("task-detail-body")||document.getElementById("task-detail");
+      if(det)det.appendChild(wrap);
+    },220);
+  };
+})();
+
+/* 892 – Motivational quote on task completion */
+(function(){
+  var quotes=[
+    "Progress, not perfection!",
+    "One step closer to your best day one.",
+    "Keep going — you are building something great.",
+    "Every task done is a skill earned.",
+    "The secret is to start. You already did!",
+    "Small wins compound into big results.",
+    "You are figuring it out. That is the job.",
+    "Another one down — well done!"
+  ];
+  var _orig892=window.toggleDetailDone||function(){};
+  window.toggleDetailDone=function(){
+    _orig892.apply(this,arguments);
+    var id=window._curTask;
+    if(id&&localStorage.getItem("ob_done_"+id)==="1"){
+      var q=quotes[Math.floor(Math.random()*quotes.length)];
+      setTimeout(function(){
+        if(typeof window._showToast==="function")window._showToast(q,"info",4000);
+      },600);
+    }
+  };
+})();
+
+/* 893 – Task heat-score display in detail */
+(function(){
+  var _oSD893=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD893.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob893-heat"))return;
+      var pri=localStorage.getItem("ob_pri_"+id)||"p3";
+      var flag=localStorage.getItem("ob_flag_"+id)||"none";
+      var diff=parseInt(localStorage.getItem("ob_diff_"+id)||"0");
+      var heat=(pri==="p1"?10:pri==="p2"?5:2)+(flag!=="none"?5:0)+diff*2;
+      if(heat<5)return;
+      var el=document.createElement("div");el.id="ob893-heat";
+      el.style.cssText="display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:4px;margin-top:4px;";
+      el.style.background=heat>15?"rgba(255,68,68,.15)":heat>8?"rgba(240,196,83,.15)":"rgba(0,255,168,.1)";
+      el.style.color=heat>15?"#ff4444":heat>8?"var(--gold,#f0c453)":"var(--accent)";
+      el.innerHTML="\uD83D\uDD25 Heat: "+heat;el.title="Combined priority+flag+difficulty score";
+      var det=document.getElementById("task-detail-body")||document.getElementById("task-detail");
+      if(det)det.appendChild(el);
+    },240);
+  };
+})();
+
+/* 894 – Note lock (read-only mode) */
+(function(){
+  var _oSD894=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD894.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob894-lock"))return;
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var locked=localStorage.getItem("ob_locked_"+id)==="1";
+      if(locked)ta.readOnly=true;
+      var btn=document.createElement("button");
+      btn.id="ob894-lock";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent=locked?"\uD83D\uDD13 Unlock":"\uD83D\uDD12 Lock";btn.title="Lock/unlock note editing";
+      btn.addEventListener("click",function(){
+        locked=!locked;
+        localStorage.setItem("ob_locked_"+id,locked?"1":"0");
+        ta.readOnly=locked;
+        btn.textContent=locked?"\uD83D\uDD13 Unlock":"\uD83D\uDD12 Lock";
+        if(typeof window._showToast==="function")window._showToast(locked?"Note locked":"Note unlocked","info",1800);
+      });
+      ta.parentNode.insertBefore(btn,ta);
+    },250);
+  };
+})();
+
+/* 895 – Daily progress chart (line over 7 days) */
+(function(){
+  var el=document.createElement("canvas");
+  el.id="ob895-chart";el.width=120;el.height=36;
+  el.style.cssText="position:fixed;bottom:50px;left:50%;transform:translateX(-50%);z-index:706;opacity:.5;pointer-events:none;cursor:default;";
+  el.title="Tasks completed over last 7 days";
+  document.body.appendChild(el);
+  function draw(){
+    var days=[];
+    for(var i=6;i>=0;i--){
+      var d=new Date();d.setDate(d.getDate()-i);var key=d.toDateString();var count=0;
+      if(window.TM)Object.values(window.TM).forEach(function(t){
+        var ts=localStorage.getItem("ob_done_ts_"+t.id);
+        if(ts&&new Date(ts).toDateString()===key)count++;
+      });
+      days.push(count);
+    }
+    var max=Math.max.apply(null,days)||1;
+    var ctx=el.getContext("2d");
+    ctx.clearRect(0,0,120,36);
+    ctx.beginPath();ctx.strokeStyle="#00ffa8";ctx.lineWidth=1.5;
+    days.forEach(function(v,i){
+      var x=i/(days.length-1)*118+1;var y=34-(v/max*30);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+  var _orig895=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig895.apply(this,arguments);setTimeout(draw,120);};
+  setTimeout(draw,3600);
+})();
+
+/* 896 – Task note preview in tooltip on card hover */
+(function(){
+  var tip=document.getElementById("ob848-tip")||document.querySelector(".ob848-tip");
+  if(!tip)return;
+  document.addEventListener("mouseover",function(e){
+    var card=e.target.closest(".task-card,.ob-task");if(!card)return;
+    var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+    var note=localStorage.getItem("ob_note_"+id)||"";
+    if(note.trim().length>0){
+      tip.textContent=note.substring(0,120)+(note.length>120?"...":"");
+      tip.style.opacity="1";
+    }
+  });
+})();
+
+/* 897 – Animated progress ring pulse when a task is completed */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="@keyframes ob897-pop{0%{transform:scale(1)}40%{transform:scale(1.4)}70%{transform:scale(.9)}100%{transform:scale(1)}}";
+  document.head.appendChild(css);
+  var _orig897=window.toggleDetailDone||function(){};
+  window.toggleDetailDone=function(){
+    _orig897.apply(this,arguments);
+    var id=window._curTask;if(!id)return;
+    var ring=document.querySelector("[data-id='"+id+"'] .ob829-ring svg");
+    if(ring){ring.style.animation="none";requestAnimationFrame(function(){ring.style.animation="ob897-pop .4s";});}
+  };
+})();
+
+/* 898 – Ctrl+A select all in note */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="a"&&document.activeElement&&document.activeElement.id==="task-note"){
+      e.stopPropagation();
+      // Let native Ctrl+A work — just prevent any list-select behavior
+    }
+  });
+})();
+
+/* 899 – Pre-900 countdown animation */
+(function(){
+  if(localStorage.getItem("ob_imp899_shown"))return;
+  localStorage.setItem("ob_imp899_shown","1");
+  var el=document.createElement("div");
+  el.style.cssText="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:2.5rem;font-weight:900;color:var(--accent);z-index:10001;pointer-events:none;opacity:0;text-shadow:0 0 40px var(--accent);";
+  document.body.appendChild(el);
+  var nums=["3","2","1","\uD83D\uDE80 900!"];var i=0;
+  function tick(){
+    if(i>=nums.length){el.remove();return;}
+    el.textContent=nums[i];el.style.opacity="1";el.style.transform="translate(-50%,-50%) scale(1)";el.style.transition="none";
+    setTimeout(function(){el.style.transition="opacity .4s, transform .4s";el.style.opacity="0";el.style.transform="translate(-50%,-50%) scale(1.5)";i++;setTimeout(tick,500);},700);
+  }
+  setTimeout(tick,3000);
+})();
+
+/* 900 – MILESTONE: 900 improvements! */
+(function(){
+  if(localStorage.getItem("ob_imp900_shown"))return;
+  localStorage.setItem("ob_imp900_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83C\uDF89\uD83D\uDE80\uD83C\uDF89 900 IMPROVEMENTS — LEGENDARY!","success",8000);
+    if(typeof window._launchConfetti==="function"){
+      window._launchConfetti();
+      setTimeout(window._launchConfetti,600);
+      setTimeout(window._launchConfetti,1200);
+      setTimeout(window._launchConfetti,1800);
+    }
+  },5000);
+})();
+
+})();
+</script>
 </script></body></html>
