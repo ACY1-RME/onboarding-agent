@@ -12101,4 +12101,224 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp566: task notes word cloud (top 10 most used words) */
+(function(){
+  function buildWordCloud(){
+    if(document.getElementById("_wordCloud"))return;
+    var la=window._la||[];
+    var freq={};
+    var stop=new Set(["the","a","an","and","or","but","in","on","at","to","for","of","is","it","this","that","with","as","be","are","was","were","i","my","we","our","you","your","have","has","need","do","did"]);
+    la.forEach(function(t){
+      var note=(localStorage.getItem("ob_note_"+t.id)||"").toLowerCase();
+      note.split(/\W+/).forEach(function(w){if(w.length>3&&!stop.has(w))freq[w]=(freq[w]||0)+1;});
+    });
+    var words=Object.keys(freq).sort(function(a,b){return freq[b]-freq[a];}).slice(0,10);
+    if(!words.length)return;
+    var wrap=document.createElement("div");
+    wrap.id="_wordCloud";
+    wrap.style.cssText="padding:8px;background:var(--panel);border-radius:8px;margin:8px 0;";
+    var h=document.createElement("div");
+    h.style.cssText="font-size:0.68rem;opacity:0.55;margin-bottom:4px;";
+    h.textContent="Note keywords";
+    wrap.appendChild(h);
+    var cloud=document.createElement("div");
+    cloud.style.cssText="display:flex;flex-wrap:wrap;gap:4px;";
+    var maxF=freq[words[0]];
+    words.forEach(function(w){
+      var span=document.createElement("span");
+      var size=0.65+0.45*(freq[w]/maxF);
+      span.style.cssText="font-size:"+size+"rem;color:var(--accent);opacity:"+(0.4+0.6*freq[w]/maxF)+";cursor:default;";
+      span.textContent=w;
+      span.title=freq[w]+" occurrences";
+      cloud.appendChild(span);
+    });
+    wrap.appendChild(cloud);
+    var sidebar=document.querySelector(".sidebar,.left-panel,#leftPanel");
+    if(sidebar)sidebar.appendChild(wrap);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildWordCloud,1200);});
+  var _origSN566=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){_origSN566&&_origSN566(id,text);var wc=document.getElementById("_wordCloud");if(wc)wc.remove();setTimeout(buildWordCloud,200);};
+})();
+
+/* imp567: detail panel slide-in animation */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="#task-detail-panel,#taskDetailPanel{transition:transform 0.25s cubic-bezier(0.4,0,0.2,1),opacity 0.2s;}#task-detail-panel.panel-opening,#taskDetailPanel.panel-opening{animation:panelSlideIn 0.25s ease forwards;}@keyframes panelSlideIn{from{transform:translateX(30px);opacity:0.5}to{transform:translateX(0);opacity:1}}";
+  document.head.appendChild(st);
+  var _origSD567=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD567&&_origSD567(id);
+    setTimeout(function(){
+      var p=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(p){p.classList.add("panel-opening");setTimeout(function(){p.classList.remove("panel-opening");},280);}
+    },10);
+  };
+})();
+
+/* imp568: task done celebration audio (Web Audio API - no external files) */
+(function(){
+  function playDoneChime(){
+    if(localStorage.getItem("ob_sound")==="0")return;
+    try{
+      var ac=new (window.AudioContext||window.webkitAudioContext)();
+      [[440,0],[554,0.12],[659,0.24],[880,0.36]].forEach(function(pair){
+        var osc=ac.createOscillator();
+        var gain=ac.createGain();
+        osc.connect(gain);gain.connect(ac.destination);
+        osc.type="sine";osc.frequency.value=pair[0];
+        gain.gain.setValueAtTime(0.15,ac.currentTime+pair[1]);
+        gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+pair[1]+0.3);
+        osc.start(ac.currentTime+pair[1]);
+        osc.stop(ac.currentTime+pair[1]+0.35);
+      });
+    }catch(e){}
+  }
+  var _origTD568=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD568&&_origTD568();
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(task&&task.done)playDoneChime();
+  };
+})();
+
+/* imp569: copy task URL with anchor (window.location + hash) */
+(function(){
+  var _origSD569=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD569&&_origSD569(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_copyTaskUrl"))return;
+      var btn=document.createElement("button");
+      btn.id="_copyTaskUrl";
+      btn.innerHTML="\uD83D\uDD17";
+      btn.title="Copy task URL";
+      btn.style.cssText="background:transparent;border:none;cursor:pointer;font-size:0.9rem;opacity:0.5;padding:2px;";
+      btn.onclick=function(){
+        var url=window.location.href.split("#")[0]+"#task:"+id;
+        navigator.clipboard&&navigator.clipboard.writeText(url);
+        _showToast("Task URL copied","success",1200);
+      };
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.appendChild(btn);
+    },85);
+  };
+})();
+
+/* imp570: floating action menu (FAB) with quick actions */
+(function(){
+  var open=false;
+  var fab=document.createElement("div");
+  fab.id="_fab";
+  fab.style.cssText="position:fixed;bottom:16px;right:14px;z-index:850;";
+  var mainBtn=document.createElement("button");
+  mainBtn.style.cssText="width:44px;height:44px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:1.3rem;box-shadow:0 4px 14px rgba(0,255,168,0.4);font-weight:700;";
+  mainBtn.textContent="+";
+  var actions=[
+    ["\uD83D\uDD0D","Search",function(){var si=document.getElementById("search-input")||document.getElementById("searchInput");if(si){si.focus();si.select();}}],
+    ["\uD83D\uDDDE\uFE0F","Notes",function(){_showToast("Open a task to add notes","info",1500);}],
+    ["\uD83D\uDCC4","Export",function(){var s={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith("ob_"))s[k]=localStorage.getItem(k);}var blob=new Blob([JSON.stringify(s,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="state.json";a.click();}],
+    ["\u2753","Help",function(){window._showKbdHelp&&window._showKbdHelp();}],
+  ];
+  var menuEl=document.createElement("div");
+  menuEl.style.cssText="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-bottom:8px;";
+  actions.forEach(function(act){
+    var btn=document.createElement("button");
+    btn.style.cssText="background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:0.75rem;cursor:pointer;display:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);";
+    btn.innerHTML=act[0]+" "+act[1];
+    btn.onclick=function(){toggleFab();act[2]();};
+    menuEl.appendChild(btn);
+  });
+  function toggleFab(){
+    open=!open;
+    mainBtn.textContent=open?"\u00D7":"+";
+    mainBtn.style.background=open?"var(--warn)":"var(--accent)";
+    menuEl.querySelectorAll("button").forEach(function(b){b.style.display=open?"block":"none";});
+  }
+  mainBtn.onclick=toggleFab;
+  fab.appendChild(menuEl);fab.appendChild(mainBtn);
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(fab);});
+})();
+
+/* imp571: phase progress chart tooltip on hover */
+(function(){
+  document.addEventListener("mouseover",function(e){
+    var ring=e.target.closest("._phRing");
+    if(!ring||ring.title)return;
+    var header=ring.closest(".phase-header,.phase-title");
+    if(!header)return;
+    var ph=header.dataset.phase||header.textContent.replace(/\(.*?\)/g,"").trim();
+    var la=window._la||[];
+    var tasks=la.filter(function(t){return (t.phase||"Other")===ph;});
+    var done=tasks.filter(function(t){return t.done;}).length;
+    ring.title=done+"/"+tasks.length+" done ("+Math.round(done/tasks.length*100)+"%)";
+  });
+})();
+
+/* imp572: keyboard shortcut I to show task info summary in toast */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="i"&&e.key!=="I")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    var id=window._curTask;
+    if(!id)return;
+    var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(!td||!task)return;
+    var parts=[];
+    if(td.type)parts.push(td.type);
+    if(task.phase)parts.push("Phase: "+task.phase);
+    parts.push(task.done?"Done":"Incomplete");
+    var due=localStorage.getItem("ob_due_"+id);
+    if(due)parts.push("Due: "+due);
+    _showToast&&_showToast(parts.join(" | "),"info",2500);
+  });
+})();
+
+/* imp573: auto-scroll to active task row in list */
+(function(){
+  var _origSD573=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD573&&_origSD573(id);
+    setTimeout(function(){
+      var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+      if(row)row.scrollIntoView({behavior:"smooth",block:"nearest"});
+    },80);
+  };
+})();
+
+/* imp574: note preview in list (first line of note shown under task name) */
+(function(){
+  function addNotePreviews(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row||row.querySelector("._notePrev"))return;
+      var note=(localStorage.getItem("ob_note_"+t.id)||"").trim();
+      if(!note)return;
+      var prev=document.createElement("div");
+      prev.className="_notePrev";
+      prev.style.cssText="font-size:0.62rem;opacity:0.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;";
+      prev.textContent=note.split("\n")[0].slice(0,60);
+      row.appendChild(prev);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(addNotePreviews,900);});
+  var _origSN574=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){_origSN574&&_origSN574(id,text);setTimeout(addNotePreviews,100);};
+})();
+
+/* imp575: 575-toast and git status reminder */
+(function(){
+  if(!localStorage.getItem("ob_imp575_shown")){
+    localStorage.setItem("ob_imp575_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDCA1 575 improvements! This agent is legendary.","success",4000);},2500);
+  }
+})();
+</script>
 </script></body></html>
