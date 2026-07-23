@@ -15166,4 +15166,261 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp711: task dependency chain visualizer — show what unlocks after this task */
+(function(){
+  var _origSD711=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD711&&_origSD711(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_depChain711"))return;
+      var td=window.TASK_DETAILS||{};
+      var unlocks=Object.keys(td).filter(function(k){return td[k].requires===id;});
+      if(!unlocks.length)return;
+      var wrap=document.createElement("div");
+      wrap.id="_depChain711";
+      wrap.style.cssText="margin:6px 0;font-size:0.7rem;";
+      var h=document.createElement("div");
+      h.style.cssText="opacity:0.55;margin-bottom:3px;";h.textContent="Unlocks:";
+      wrap.appendChild(h);
+      unlocks.forEach(function(uid){
+        var name=(td[uid]&&td[uid].name)||uid;
+        var chip=document.createElement("span");
+        chip.style.cssText="display:inline-block;padding:1px 8px;border-radius:10px;background:rgba(0,255,168,0.1);border:1px solid var(--accent2);font-size:0.65rem;margin-right:4px;cursor:pointer;";
+        chip.textContent="\u2192 "+name;
+        chip.onclick=function(){showTaskDetail&&showTaskDetail(uid);};
+        wrap.appendChild(chip);
+      });
+      var h2=panel.querySelector("h2,h3,.detail-title");
+      if(h2)h2.parentNode.insertBefore(wrap,h2.nextSibling);
+    },95);
+  };
+})();
+
+/* imp712: floating note pad (global scratch pad, not tied to any task) */
+(function(){
+  var KEY="ob_scratch_pad";
+  var open=false;
+  var btn=document.createElement("button");
+  btn.id="_scratchBtn";
+  btn.innerHTML="\uD83D\uDDD2\uFE0F";
+  btn.title="Scratch pad";
+  btn.style.cssText="position:fixed;bottom:288px;right:50px;z-index:800;width:32px;height:32px;border-radius:50%;background:var(--panel);border:1px solid var(--border);cursor:pointer;font-size:0.9rem;";
+  var pad=document.createElement("div");
+  pad.style.cssText="position:fixed;bottom:330px;right:50px;z-index:801;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px;width:240px;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.5);";
+  var ta=document.createElement("textarea");
+  ta.value=localStorage.getItem(KEY)||"";
+  ta.placeholder="Global scratch pad...";
+  ta.style.cssText="width:100%;min-height:100px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px;font-size:0.75rem;resize:vertical;";
+  ta.addEventListener("input",function(){localStorage.setItem(KEY,ta.value);});
+  pad.appendChild(ta);
+  btn.onclick=function(){open=!open;pad.style.display=open?"block":"none";if(open)ta.focus();};
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);document.body.appendChild(pad);});
+})();
+
+/* imp713: task steps as interactive checklist with progress bar */
+(function(){
+  var _origSD713=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD713&&_origSD713(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var wrap=document.getElementById("_stepChecklist");
+      if(!wrap)return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+      if(!td||!td.steps||!td.steps.length)return;
+      if(wrap.querySelector("._stepBar713"))return;
+      var KEY="ob_step_done_"+id;
+      var done=Object.values(JSON.parse(localStorage.getItem(KEY)||"{}")).filter(Boolean).length;
+      var pct=Math.round(done/td.steps.length*100);
+      var barWrap=document.createElement("div");
+      barWrap.style.cssText="height:3px;background:var(--border);border-radius:2px;margin-bottom:4px;overflow:hidden;";
+      var fill=document.createElement("div");
+      fill.className="_stepBar713";
+      fill.style.cssText="height:100%;background:var(--accent);width:"+pct+"%;transition:width 0.3s;";
+      barWrap.appendChild(fill);
+      wrap.insertBefore(barWrap,wrap.firstChild);
+      wrap.querySelectorAll("input[type='checkbox']").forEach(function(cb){
+        var old=cb.onchange;
+        cb.onchange=function(){
+          if(old)old.call(cb);
+          var doneNow=Object.values(JSON.parse(localStorage.getItem(KEY)||"{}")).filter(Boolean).length;
+          fill.style.width=Math.round(doneNow/td.steps.length*100)+"%";
+        };
+      });
+    },200);
+  };
+})();
+
+/* imp714: task notes sentiment (emoji based on tone) */
+(function(){
+  var positiveWords=["done","completed","great","good","excellent","easy","clear","understand","learned","ready","nice","perfect","love","enjoy","helpful"];
+  var negativeWords=["stuck","blocked","confused","hard","difficult","issue","problem","error","fail","unclear","frustrated","broken","need help","not sure","missing"];
+  function getSentiment(text){
+    var low=text.toLowerCase();
+    var pos=positiveWords.filter(function(w){return low.includes(w);}).length;
+    var neg=negativeWords.filter(function(w){return low.includes(w);}).length;
+    if(neg>pos)return "\uD83D\uDE1F";
+    if(pos>neg)return "\uD83D\uDE04";
+    return "\uD83D\uDE10";
+  }
+  var _origSD714=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD714&&_origSD714(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var ta=panel.querySelector("textarea");
+      if(!ta||ta.dataset._sentiment)return;
+      ta.dataset._sentiment="1";
+      var el=document.createElement("span");
+      el.style.cssText="font-size:1rem;margin-left:6px;transition:all 0.3s;";
+      function update(){el.textContent=ta.value.trim().length>10?getSentiment(ta.value):"";}
+      update();
+      ta.addEventListener("input",update);
+      var counter=ta.parentNode.querySelector("._noteReadTime,._charWarn");
+      if(counter)counter.parentNode.insertBefore(el,counter.nextSibling);
+      else ta.parentNode.insertBefore(el,ta.nextSibling);
+    },93);
+  };
+})();
+
+/* imp715: per-task estimated time field (manual entry) */
+(function(){
+  var _origSD715=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD715&&_origSD715(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_estTime715"))return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+      var existing=localStorage.getItem("ob_est_"+id)||(td&&td.estimatedTime)||"";
+      var wrap=document.createElement("div");
+      wrap.id="_estTime715";
+      wrap.style.cssText="display:flex;align-items:center;gap:6px;font-size:0.7rem;margin:3px 0;";
+      wrap.innerHTML="<span style='opacity:0.5;'>\u23F0 Est:</span>";
+      var inp=document.createElement("input");
+      inp.type="text";inp.placeholder="e.g. 20 min";inp.value=existing;
+      inp.style.cssText="flex:1;padding:2px 6px;border-radius:6px;background:var(--panel);color:var(--text);border:1px solid var(--border);font-size:0.68rem;";
+      inp.onchange=function(){localStorage.setItem("ob_est_"+id,inp.value);};
+      wrap.appendChild(inp);
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.parentNode.insertBefore(wrap,h.nextSibling);
+    },94);
+  };
+})();
+
+/* imp716: show resource link count in stats */
+(function(){
+  function resourceStats(){
+    var total=0;
+    var visited=0;
+    (window._la||[]).forEach(function(t){
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      var res=(td&&td.resources&&td.resources.length)||0;
+      total+=res;
+      var v=JSON.parse(localStorage.getItem("ob_visited_res_"+t.id)||"[]").length;
+      visited+=Math.min(v,res);
+    });
+    if(!total)return;
+    var el=document.getElementById("_resStat716");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_resStat716";
+      el.style.cssText="font-size:0.7rem;opacity:0.5;margin:3px 0;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    if(el)el.textContent="\uD83D\uDD17 "+visited+"/"+total+" resources opened";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(resourceStats,1000);});
+  var _origUP716=window.updateProgress;
+  window.updateProgress=function(){_origUP716&&_origUP716();setTimeout(resourceStats,100);};
+})();
+
+/* imp717: phase unlock animation when phase becomes available */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="@keyframes phaseUnlock{0%{opacity:0.3;transform:scale(0.97)}100%{opacity:1;transform:scale(1)}}._phase-unlocked{animation:phaseUnlock 0.4s ease forwards;}";
+  document.head.appendChild(st);
+  var lastPhaseState={};
+  var _origUP717=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP717&&_origUP717();
+    setTimeout(function(){
+      var la=window._la||[];
+      var phases={};
+      la.forEach(function(t){var ph=t.phase||"Other";if(!phases[ph])phases[ph]={d:0,n:0};phases[ph].n++;if(t.done)phases[ph].d++;});
+      Object.keys(phases).forEach(function(ph){
+        var allDone=phases[ph].d===phases[ph].n;
+        var wasDone=lastPhaseState[ph];
+        if(allDone&&!wasDone){
+          document.querySelectorAll(".phase-header[data-phase='"+ph+"'],.phase-title[data-phase='"+ph+"']").forEach(function(el){
+            el.classList.add("_phase-unlocked");
+            setTimeout(function(){el.classList.remove("_phase-unlocked");},500);
+          });
+        }
+        lastPhaseState[ph]=allDone;
+      });
+    },100);
+  };
+})();
+
+/* imp718: task note link preview card on hover */
+(function(){
+  var linkCard=null;
+  function getLinkCard(){
+    if(!linkCard){linkCard=document.createElement("div");linkCard.style.cssText="position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.7rem;z-index:9999;max-width:220px;opacity:0;transition:opacity 0.15s;";document.body.appendChild(linkCard);}
+    return linkCard;
+  }
+  document.addEventListener("mouseover",function(e){
+    var a=e.target.closest("a[href^='http']");
+    if(!a)return;
+    var c=getLinkCard();
+    var domain="";try{domain=new URL(a.href).hostname;}catch(ex){}
+    c.innerHTML="<b>"+a.textContent.slice(0,50)+"</b>"+(domain?"<br><span style='opacity:0.5;font-size:0.62rem;'>"+domain+"</span>":"");
+    c.style.opacity="1";
+  });
+  document.addEventListener("mousemove",function(e){if(!linkCard||linkCard.style.opacity==="0")return;linkCard.style.left=(e.clientX+14)+"px";linkCard.style.top=(e.clientY-8)+"px";});
+  document.addEventListener("mouseout",function(e){if(e.target.closest("a[href^='http']")&&!e.relatedTarget){if(linkCard)linkCard.style.opacity="0";}});
+})();
+
+/* imp719: onboarding completion certificate generator */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="_certBtn";
+  btn.innerHTML="\uD83C\uDF93 Certificate";
+  btn.style.cssText="position:fixed;bottom:504px;left:14px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:0.7rem;cursor:pointer;opacity:0.65;";
+  btn.onclick=function(){
+    var la=window._la||[];
+    var done=la.filter(function(t){return t.done;}).length;
+    var pct=la.length?Math.round(done/la.length*100):0;
+    var name=localStorage.getItem("ob_user_name")||"New Team Member";
+    var html="<!DOCTYPE html><html><head><title>Onboarding Certificate</title></head><body style='font-family:Georgia,serif;text-align:center;padding:60px;background:#f9f7f0;'>"
+      +"<div style='border:6px double #00aa66;padding:40px;border-radius:8px;max-width:600px;margin:auto;'>"
+      +"<div style='font-size:1.2rem;color:#00aa66;letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;'>Certificate of Achievement</div>"
+      +"<div style='font-size:2.2rem;font-weight:700;margin:16px 0;'>"+name+"</div>"
+      +"<div style='font-size:1rem;color:#555;'>has successfully completed</div>"
+      +"<div style='font-size:1.4rem;font-weight:600;margin:12px 0;'>ACY1 RME Onboarding Program</div>"
+      +"<div style='font-size:0.9rem;color:#777;'>"+done+" of "+la.length+" tasks completed ("+pct+"%) &bull; "+new Date().toLocaleDateString()+"</div>"
+      +"<div style='margin-top:30px;color:#00aa66;font-size:1.5rem;'>&#10022; ACY1 RME Team &#10022;</div>"
+      +"</div></body></html>";
+    var w=window.open("","_blank","width=700,height=500");
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  };
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);});
+})();
+
+/* imp720: 720-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp720_shown")){
+    localStorage.setItem("ob_imp720_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83C\uDFC6 720! Crushing it.","success",3000);},2200);
+  }
+})();
+</script>
 </script></body></html>
