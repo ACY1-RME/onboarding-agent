@@ -7816,4 +7816,235 @@ function _exportChat(){
 })();
 
 
+/* ── 396: auto-save feedback in note textarea ───────────────────────────── */
+(function(){
+  document.addEventListener("focusin",function(e){
+    var ta=e.target;
+    if(!ta||ta.tagName!=="TEXTAREA"||ta.id!=="taskNote"||ta._sfInited)return;
+    ta._sfInited=true;
+    var sf=document.createElement("span");
+    sf.style.cssText="font-size:10px;color:var(--accent);display:block;text-align:right;margin-top:2px;opacity:0;transition:opacity .3s;";
+    if(ta.parentElement)ta.parentElement.insertBefore(sf,ta.nextSibling);
+    var tmr=null;
+    ta.addEventListener("input",function(){
+      sf.textContent="saving\u2026";sf.style.opacity="1";
+      clearTimeout(tmr);
+      tmr=setTimeout(function(){
+        sf.textContent="\u2713 Saved";
+        setTimeout(function(){sf.style.opacity="0";},1500);
+      },800);
+    });
+  });
+})();
+
+/* ── 397: up/down arrow key navigation in checklist ─────────────────────── */
+(function(){
+  var _selRow=null;
+  function hlRow(row){
+    if(_selRow)_selRow.style.outline="";
+    _selRow=row;
+    if(row){row.style.outline="1px solid var(--accent)";row.scrollIntoView({block:"nearest"});}
+  }
+  document.addEventListener("keydown",function(e){
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.isContentEditable)return;
+    var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+    if(panel&&panel.offsetParent!==null&&panel.style.display!=="none")return;
+    var rows=Array.from(document.querySelectorAll(".task-row,[data-task-id]")).filter(function(r){return r.offsetParent!==null;});
+    if(!rows.length)return;
+    var idx=_selRow?rows.indexOf(_selRow):-1;
+    if(e.key==="ArrowDown"){e.preventDefault();hlRow(rows[Math.min(idx+1,rows.length-1)]);}
+    else if(e.key==="ArrowUp"){e.preventDefault();hlRow(rows[Math.max(idx-1,0)]);}
+    else if(e.key==="Enter"&&_selRow){
+      e.preventDefault();
+      var id=_selRow.dataset.id||_selRow.dataset.taskId;
+      if(id&&typeof showTaskDetail==="function")showTaskDetail(id);
+    }
+  });
+})();
+
+/* ── 398: F key focus mode (hide chat) ───────────────────────────────────── */
+(function(){
+  var focused=false;
+  document.addEventListener("keydown",function(e){
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.isContentEditable)return;
+    if((e.key==="f"||e.key==="F")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+      e.preventDefault();
+      focused=!focused;
+      var chat=document.querySelector(".chat-panel,#chatPanel,#chatSection");
+      if(chat)chat.style.display=focused?"none":"";
+      _showToast(focused?"\u{1F3AF} Focus mode on":"\u{1F4AC} Chat visible","info",1500);
+    }
+  });
+})();
+
+/* ── 399: visited-link checkmark on resource links ─────────────────────── */
+(function(){
+  function hashUrl(u){return u.split("").reduce(function(h,c){return(h*31+c.charCodeAt(0))|0;},0);}
+  function paintVisited(container){
+    (container||document).querySelectorAll(".resource-link a,.link-item a,a[href^='http']").forEach(function(a){
+      var h=hashUrl(a.href||"");
+      if(localStorage.getItem("ob_rvisit_"+h)==="1"&&!a.querySelector(".vis-chk")){
+        var chk=document.createElement("span");
+        chk.className="vis-chk";
+        chk.textContent=" \u2713";
+        chk.style.cssText="color:var(--accent);font-size:10px;";
+        a.appendChild(chk);
+      }
+    });
+  }
+  document.addEventListener("click",function(e){
+    var a=e.target.closest("a[href^='http']");
+    if(!a)return;
+    var h=hashUrl(a.href);
+    localStorage.setItem("ob_rvisit_"+h,"1");
+    if(!a.querySelector(".vis-chk")){
+      var chk=document.createElement("span");
+      chk.className="vis-chk";
+      chk.textContent=" \u2713";
+      chk.style.cssText="color:var(--accent);font-size:10px;";
+      a.appendChild(chk);
+    }
+  });
+  var _origSD399=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD399(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(panel)paintVisited(panel);
+    },100);
+  };
+})();
+
+/* ── 400: 400-improvement milestone easter egg ───────────────────────────── */
+(function(){
+  if(localStorage.getItem("ob_imp400_shown"))return;
+  localStorage.setItem("ob_imp400_shown","1");
+  setTimeout(function(){
+    _showToast("\u{1F389} 400 improvements reached! This onboarding agent has come a long way.","info",6000);
+    if(typeof _launchConfetti==="function")_launchConfetti();
+  },2000);
+})();
+
+/* ── 401: compact stats summary line under checklist header ─────────────── */
+(function(){
+  var _origUP401=typeof updateProgress==="function"?updateProgress:null;
+  if(!_origUP401)return;
+  updateProgress=function(){
+    _origUP401();
+    var cs=document.getElementById("compactStats");
+    var hdr=document.querySelector(".checklist-header,#checklistHeader");
+    if(!hdr)return;
+    var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+    if(!tasks.length)return;
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+    var pct=Math.round(done/tasks.length*100);
+    if(!cs){
+      cs=document.createElement("div");
+      cs.id="compactStats";
+      cs.style.cssText="font-size:11px;color:var(--muted);padding:2px 4px;margin-top:2px;";
+      hdr.insertAdjacentElement("afterend",cs);
+    }
+    cs.textContent=done+"/"+tasks.length+" tasks done \u00B7 "+pct+"% complete";
+  };
+})();
+
+/* ── 402: phase done-time / total-time in phase header ──────────────────── */
+(function(){
+  if(typeof TM==="undefined"||typeof TASK_DETAILS==="undefined")return;
+  document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph){
+    var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+    var totalM=0,doneM=0;
+    rows.forEach(function(r){
+      var id=r.dataset.id||r.dataset.taskId;
+      if(!id)return;
+      var m=TM[id]||0;totalM+=m;
+      if(localStorage.getItem("ob_"+id)==="done")doneM+=m;
+    });
+    if(totalM<=0)return;
+    var phHdr=ph.querySelector(".phase-header,.phase-title,h3,h4");
+    if(!phHdr||phHdr.querySelector(".ph-time"))return;
+    var span=document.createElement("span");
+    span.className="ph-time";
+    var fmt=function(m){return m>=60?Math.round(m/60)+"h":m+"m";};
+    span.textContent=" "+fmt(doneM)+"/"+fmt(totalM);
+    span.style.cssText="font-size:11px;color:var(--muted);margin-left:6px;opacity:.65;";
+    phHdr.appendChild(span);
+  });
+})();
+
+/* ── 403: "Find in checklist" button in detail panel ───────────────────── */
+(function(){
+  var _origSD403=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD403(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel||panel.querySelector("#findInListBtn"))return;
+      var btn=document.createElement("button");
+      btn.id="findInListBtn";
+      btn.title="Scroll checklist to this task";
+      btn.textContent="\u{1F50E} In list";
+      btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;opacity:.7;";
+      btn.onclick=function(){
+        var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']")||document.querySelector("[data-id='"+id+"']");
+        if(!row){_showToast("Row not visible","warn");return;}
+        row.scrollIntoView({behavior:"smooth",block:"center"});
+        row.style.outline="2px solid var(--accent)";
+        setTimeout(function(){row.style.outline="";},2000);
+        _showToast("\u{1F50E} Highlighted in checklist","info",1500);
+      };
+      var da=panel.querySelector(".detail-actions,#detailActions");
+      (da||panel.firstElementChild||panel).appendChild(btn);
+    },80);
+  };
+})();
+
+/* ── 404: Ctrl+click task row copies title ──────────────────────────────── */
+(function(){
+  document.addEventListener("click",function(e){
+    if(!e.ctrlKey&&!e.metaKey)return;
+    var row=e.target.closest(".task-row,[data-task-id]");
+    if(!row)return;
+    var id=row.dataset.id||row.dataset.taskId;
+    if(!id)return;
+    var title=(typeof TASK_DETAILS!=="undefined"&&TASK_DETAILS[id])?TASK_DETAILS[id].title||id:id;
+    navigator.clipboard.writeText(title).then(function(){
+      _showToast("\u{1F4CB} Copied: "+title.slice(0,40),"info",1800);
+    }).catch(function(){_showToast("Copy failed","warn");});
+  });
+})();
+
+/* ── 405: floating hover-card with task description ─────────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  var tip=document.createElement("div");
+  tip.id="hoverDesc";
+  tip.style.cssText="position:fixed;z-index:9990;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);max-width:250px;line-height:1.5;pointer-events:none;opacity:0;transition:opacity .15s;box-shadow:0 4px 16px rgba(0,0,0,.5);";
+  document.body.appendChild(tip);
+  var hoverTimer=null;
+  document.addEventListener("mouseover",function(e){
+    clearTimeout(hoverTimer);
+    var row=e.target.closest(".task-row,[data-task-id]");
+    if(!row){tip.style.opacity="0";return;}
+    hoverTimer=setTimeout(function(){
+      var id=row.dataset.id||row.dataset.taskId;
+      if(!id)return;
+      var td=TASK_DETAILS[id];
+      if(!td||(!(td.description||"").trim()&&!(td.desc||"").trim())){tip.style.opacity="0";return;}
+      var txt=(td.description||td.desc||"").trim();
+      tip.textContent=txt.slice(0,130)+(txt.length>130?"\u2026":"");
+      tip.style.opacity="1";
+    },500);
+  });
+  document.addEventListener("mousemove",function(e){
+    tip.style.left=Math.min(e.clientX+14,window.innerWidth-270)+"px";
+    tip.style.top=Math.min(e.clientY+18,window.innerHeight-90)+"px";
+  },{passive:true});
+  document.addEventListener("mouseout",function(e){
+    clearTimeout(hoverTimer);
+    if(!e.target.closest(".task-row,[data-task-id]"))tip.style.opacity="0";
+  });
+})();
+
+
 </script></body></html>
