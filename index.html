@@ -5778,4 +5778,157 @@ function _exportChat(){
 })();
 
 
+/* ── 296: Progress bar: show % text inside the bar ─────────── */
+(function(){
+  var pbar=document.querySelector('.progress-bar,.prog-bar');
+  if(!pbar)return;
+  pbar.style.position='relative';pbar.style.overflow='visible';
+  var lbl=document.createElement('span');lbl.id='pbar-pct-lbl';
+  lbl.style.cssText='position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:.55rem;font-weight:700;color:#000;pointer-events:none;text-shadow:none;white-space:nowrap';
+  var fill=document.getElementById('pfill');
+  if(fill)fill.appendChild(lbl);
+  var _origUP296=updateProgress;
+  updateProgress=function(){
+    _origUP296();
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var pct=total?Math.round(done/total*100):0;
+    if(lbl)lbl.textContent=pct>8?pct+'%':'';
+  };
+})();
+
+/* ── 297: Checklist header: sort button (A-Z / by time) ─────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var sortMode=0;var MODES=['Default','A-Z','Time \u2193','Time \u2191'];
+  var btn=document.createElement('button');btn.className='hide-done-btn';
+  btn.style.fontSize='.62rem';btn.textContent='Sort: Default';btn.title='Sort tasks';
+  btn.onclick=function(){
+    sortMode=(sortMode+1)%MODES.length;
+    btn.textContent='Sort: '+MODES[sortMode];
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var items=Array.from(body.querySelectorAll('.task-item'));
+      if(!items.length)return;
+      var sorted;
+      if(sortMode===0){
+        items.forEach(function(it,i){it.dataset.origIdx=it.dataset.origIdx||i;});
+        sorted=items.slice().sort(function(a,b){return parseInt(a.dataset.origIdx)-parseInt(b.dataset.origIdx);});
+      }else if(sortMode===1){
+        sorted=items.slice().sort(function(a,b){
+          var ta=a.querySelector('.task-label');var tb=b.querySelector('.task-label');
+          return (ta?ta.textContent:'').localeCompare(tb?tb.textContent:'');
+        });
+      }else{
+        sorted=items.slice().sort(function(a,b){
+          var ca=a.querySelector('input');var cb2=b.querySelector('input');
+          var ma=ca?TM[ca.id]||0:0;var mb=cb2?TM[cb2.id]||0:0;
+          return sortMode===2?mb-ma:ma-mb;
+        });
+      }
+      sorted.forEach(function(it){body.appendChild(it);});
+    });
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 298: Detail: share via QR-code (text fallback) ─────────── */
+(function(){
+  var _origShow298=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow298(taskId);
+    var ar=document.querySelector('.detail-ask-row');
+    if(!ar||ar.querySelector('#detail-qr-btn'))return;
+    var btn=document.createElement('button');btn.id='detail-qr-btn';
+    btn.className='detail-ask-btn';btn.innerHTML='\uD83D\uDCF1 QR';
+    btn.title='Show QR code for this task (share URL)';
+    btn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);margin-left:4px';
+    btn.onclick=function(){
+      var url=location.href.split('#')[0]+'#task='+taskId;
+      var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=150x150&data='+encodeURIComponent(url);
+      var popup=window.open('','_blank','width=220,height=260');
+      if(popup){popup.document.write('<html><body style="text-align:center;font-family:sans-serif;padding:20px;background:#06120c;color:#fff"><img src="'+qrUrl+'" width="150"><br><small style="font-size:10px;color:#aaa;word-break:break-all">'+url+'</small></body></html>');popup.document.close();}
+    };
+    var pbtn=document.getElementById('detail-print-btn');
+    if(pbtn)ar.insertBefore(btn,pbtn);else ar.appendChild(btn);
+  };
+})();
+
+/* ── 299: Keyboard shortcut: G key opens settings drawer ─────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='g'&&e.key!=='G')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    var settingsBtn=document.querySelector('[title="Settings"]');
+    if(settingsBtn)settingsBtn.click();
+  });
+})();
+
+/* ── 300: Milestone: 300 improvements toast ─────────────────── */
+(function(){
+  if(!localStorage.getItem('ob_imp300_shown')){
+    localStorage.setItem('ob_imp300_shown','1');
+    setTimeout(function(){
+      _showToast('\uD83D\uDE80 300 improvements milestone!','success',5000);
+    },1500);
+  }
+})();
+
+/* ── 301: Detail: note badge on task item (sidebar indicator) ── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.task-item.has-note::after{content:"\u270F";position:absolute;top:3px;right:3px;font-size:.55rem;color:var(--accent2);opacity:.7}';
+  document.head.appendChild(st);
+  function _updateNoteBadges(){
+    document.querySelectorAll('.task-item').forEach(function(item){
+      var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+      var hasNote=(localStorage.getItem('ob_note_'+cb.id)||'').trim().length>0;
+      item.classList.toggle('has-note',hasNote);
+    });
+  }
+  _updateNoteBadges();
+  var _origSaveN4=_saveTaskNote;
+  _saveTaskNote=function(id,text){_origSaveN4(id,text);_updateNoteBadges();};
+})();
+
+/* ── 302: App: periodic autosave reminder every 15 min ──────── */
+(function(){
+  setInterval(function(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+    if(done>0)_showToast('Progress auto-saved (\u2713 '+done+' tasks)','',2000);
+  },15*60*1000);
+})();
+
+/* ── 303: Checklist: animated count-up on load ───────────────── */
+(function(){
+  var pc=document.getElementById('pct');if(!pc)return;
+  var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+  var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+  var target=total?Math.round(done/total*100):0;
+  if(!target)return;
+  var cur=0;
+  var id=setInterval(function(){
+    cur=Math.min(cur+2,target);pc.textContent=cur+'%';
+    if(cur>=target)clearInterval(id);
+  },20);
+})();
+
+/* ── 304: Phase: show completion checkmark on done phase ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.phase-head.phase-complete::before,.phase-header.phase-complete::before{content:"\u2705 ";font-size:.75rem;margin-right:3px}';
+  document.head.appendChild(st);
+})();
+
+/* ── 305: App: print-only CSS for clean print layout ────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@media print{.sidebar,.detail-ask-row,.chat-input-row,.tab-bar,#fab-next,#scroll-top-btn,.prog-ring-wrap,button{display:none!important}'+
+    '.checklist,.main{display:block!important;width:100%!important}'+
+    '.task-item{border:1px solid #ddd!important;margin-bottom:4px!important;break-inside:avoid}'+
+    'body{background:#fff!important;color:#000!important}}';
+  document.head.appendChild(st);
+})();
+
+
 </script></body></html>
