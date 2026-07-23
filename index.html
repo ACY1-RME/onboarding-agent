@@ -14724,4 +14724,220 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp691: mini progress summary card */
+(function(){
+  function buildSummaryCard(){
+    var el=document.getElementById("_summaryCard691");
+    var la=window._la||[];
+    if(!la.length)return;
+    var done=la.filter(function(t){return t.done;}).length;
+    var pct=Math.round(done/la.length*100);
+    var phases=Array.from(new Set(la.map(function(t){return t.phase||"Other";})));
+    var phDone=phases.filter(function(ph){return la.filter(function(t){return (t.phase||"Other")===ph;}).every(function(t){return t.done;});}).length;
+    var notes=la.filter(function(t){return (localStorage.getItem("ob_note_"+t.id)||"").trim();}).length;
+    if(!el){
+      el=document.createElement("div");
+      el.id="_summaryCard691";
+      el.style.cssText="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:8px 0;font-size:0.72rem;";
+      var sidebar=document.querySelector(".sidebar,.left-panel,#leftPanel");
+      if(sidebar)sidebar.insertBefore(el,sidebar.firstChild);
+    }
+    el.innerHTML="<div style='font-weight:600;color:var(--accent2);margin-bottom:6px;font-size:0.75rem;'>Your Progress</div>"
+      +"<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;'>"
+      +"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:700;color:var(--accent);'>"+pct+"%</div><div style='opacity:0.5;font-size:0.62rem;'>Overall</div></div>"
+      +"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:700;color:var(--accent);'>"+done+"</div><div style='opacity:0.5;font-size:0.62rem;'>Tasks done</div></div>"
+      +"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:700;color:var(--gold);'>"+phDone+"/"+phases.length+"</div><div style='opacity:0.5;font-size:0.62rem;'>Phases done</div></div>"
+      +"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:700;color:var(--accent2);'>"+notes+"</div><div style='opacity:0.5;font-size:0.62rem;'>With notes</div></div>"
+      +"</div>";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildSummaryCard,1000);});
+  var _origUP691=window.updateProgress;
+  window.updateProgress=function(){_origUP691&&_origUP691();setTimeout(buildSummaryCard,100);};
+})();
+
+/* imp692: confetti burst intensity scales with current streak */
+(function(){
+  var _origLC692=window._launchConfetti;
+  window._launchConfetti=function(){
+    _origLC692&&_origLC692();
+    var streak=parseInt(localStorage.getItem("ob_streak10")||"0");
+    if(streak<5)return;
+    var colors=["#00ffa8","#f0c453","#ff6b9d","#63b3ff","#ff9f43"];
+    var extra=Math.min(streak,20);
+    for(var i=0;i<extra;i++){
+      var p=document.createElement("div");
+      p.style.cssText="position:fixed;width:5px;height:5px;border-radius:50%;background:"+colors[i%colors.length]+";pointer-events:none;z-index:9999;left:"+(Math.random()*100)+"vw;top:-10px;";
+      document.body.appendChild(p);
+      var duration=1000+Math.random()*1500;
+      var tx=(Math.random()-0.5)*200;
+      p.animate([{transform:"translate(0,0)",opacity:1},{transform:"translate("+tx+"px,"+window.innerHeight+"px)",opacity:0}],{duration:duration,easing:"ease-in"}).onfinish=function(){p.remove();};
+    }
+  };
+})();
+
+/* imp693: note search — highlight matching text in note textarea */
+(function(){
+  var _origSD693=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD693&&_origSD693(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(!si)return;
+      var q=(si.value||"").trim();
+      if(!q)return;
+      var ta=panel.querySelector("textarea");
+      if(!ta)return;
+      var idx=ta.value.toLowerCase().indexOf(q.toLowerCase());
+      if(idx>=0){ta.focus();ta.setSelectionRange(idx,idx+q.length);}
+    },150);
+  };
+})();
+
+/* imp694: show "New hire checklist" PDF export button */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="_pdfExport";
+  btn.innerHTML="\uD83D\uDCC4 PDF Checklist";
+  btn.style.cssText="position:fixed;bottom:432px;left:14px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:0.7rem;cursor:pointer;opacity:0.65;";
+  btn.onclick=function(){
+    var la=window._la||[];
+    var td=window.TASK_DETAILS||{};
+    var html="<html><head><title>Onboarding Checklist</title><style>body{font-family:sans-serif;margin:20px;}h1{color:#00aa66;}ul{list-style:none;padding:0;}li{padding:4px 0;border-bottom:1px solid #eee;}li::before{content:'"+(String.fromCharCode(9744))+" ';}</style></head><body><h1>ACY1 RME Onboarding Checklist</h1><p>Generated: "+new Date().toLocaleDateString()+"</p><ul>";
+    la.forEach(function(t){var name=(td[t.id]&&td[t.id].name)||t.id;html+="<li>"+(t.done?"[x] ":"[ ] ")+name+"</li>";});
+    html+="</ul></body></html>";
+    var w=window.open("","_blank");
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  };
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);});
+})();
+
+/* imp695: progress bar with segmented phase colors */
+(function(){
+  function buildSegmentBar(){
+    var existing=document.getElementById("_segmentBar695");if(existing)existing.remove();
+    var la=window._la||[];
+    if(!la.length)return;
+    var phases=Array.from(new Set(la.map(function(t){return t.phase||"Other";})));
+    var bar=document.createElement("div");
+    bar.id="_segmentBar695";
+    bar.style.cssText="display:flex;height:4px;border-radius:4px;overflow:hidden;margin:4px 0;width:100%;";
+    var phColors=["#00ffa8","#f0c453","#63b3ff","#ff9f43","#ff6b9d","#a78bfa"];
+    phases.forEach(function(ph,i){
+      var tasks=la.filter(function(t){return (t.phase||"Other")===ph;});
+      var done=tasks.filter(function(t){return t.done;}).length;
+      var seg=document.createElement("div");
+      seg.style.cssText="flex:"+tasks.length+";display:flex;";
+      var fill=document.createElement("div");
+      fill.style.cssText="width:"+(done/tasks.length*100)+"%;background:"+phColors[i%phColors.length]+";transition:width 0.5s;";
+      var bg=document.createElement("div");
+      bg.style.cssText="flex:1;background:rgba(255,255,255,0.06);";
+      seg.appendChild(fill);seg.appendChild(bg);
+      bar.appendChild(seg);
+    });
+    var stats=document.querySelector(".stats-row,.stats-panel,#statsBar,.progress-section");
+    if(stats)stats.appendChild(bar);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildSegmentBar,900);});
+  var _origUP695=window.updateProgress;
+  window.updateProgress=function(){_origUP695&&_origUP695();setTimeout(buildSegmentBar,100);};
+})();
+
+/* imp696: idle detection — warning after 10 min inactivity */
+(function(){
+  var idleTime=0;var LIMIT=10;
+  var warned=false;
+  function resetIdle(){idleTime=0;warned=false;}
+  ["mousemove","keydown","click","scroll","touchstart"].forEach(function(ev){document.addEventListener(ev,resetIdle,{passive:true});});
+  setInterval(function(){
+    idleTime++;
+    if(idleTime>=LIMIT&&!warned){
+      warned=true;
+      _showToast&&_showToast("\u231B Still there? Your progress is saved.","info",4000);
+    }
+  },60000);
+})();
+
+/* imp697: note word-wrap toggle */
+(function(){
+  var _origSD697=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD697&&_origSD697(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_wrapToggle697"))return;
+      var ta=panel.querySelector("textarea");
+      if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="_wrapToggle697";
+      btn.style.cssText="font-size:0.62rem;padding:1px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--border);cursor:pointer;margin-bottom:3px;color:var(--muted,#888);";
+      var nowrap=false;
+      function update(){btn.textContent=nowrap?"Wrap ON":"Wrap OFF";ta.style.whiteSpace=nowrap?"nowrap":"";}
+      update();
+      btn.onclick=function(){nowrap=!nowrap;update();};
+      ta.parentNode.insertBefore(btn,ta);
+    },92);
+  };
+})();
+
+/* imp698: show done count in window title */
+(function(){
+  var _origUP698=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP698&&_origUP698();
+    setTimeout(function(){
+      var la=window._la||[];
+      if(!la.length)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var base=document.title.replace(/^\[\d+\/\d+\] /,"");
+      document.title="["+done+"/"+la.length+"] "+base;
+    },80);
+  };
+})();
+
+/* imp699: keyboard shortcut Ctrl+S to save current note */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(!e.ctrlKey||e.key!=="s")return;
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel)return;
+    var ta=panel.querySelector("textarea");
+    if(!ta||document.activeElement!==ta)return;
+    e.preventDefault();
+    var id=window._curTask;
+    if(id){
+      _saveTaskNote&&_saveTaskNote(id,ta.value);
+      _showToast&&_showToast("\u2705 Note saved","success",900);
+    }
+  });
+})();
+
+/* imp700: 700-MILESTONE GRAND FINALE */
+(function(){
+  if(!localStorage.getItem("ob_imp700_shown")){
+    localStorage.setItem("ob_imp700_shown","1");
+    setTimeout(function(){
+      var overlay=document.createElement("div");
+      overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;";
+      overlay.innerHTML=[
+        "<div style='font-size:5rem;margin-bottom:12px;'>&#127882;</div>",
+        "<div style='font-size:2.6rem;font-weight:900;color:#00ffa8;letter-spacing:3px;text-shadow:0 0 20px rgba(0,255,168,0.6);'>700 IMPROVEMENTS</div>",
+        "<div style='margin-top:12px;font-size:1.1rem;opacity:0.8;max-width:480px;text-align:center;line-height:1.6;'>Seven hundred improvements to the ACY1 RME Onboarding Agent. Every new hire will be welcomed with something remarkable.</div>",
+        "<div style='margin-top:8px;font-size:0.82rem;opacity:0.45;'>Built one improvement at a time.</div>",
+        "<div id='_700close' style='margin-top=24px;margin-top:24px;padding:12px 32px;background:#00ffa8;color:#000;border-radius:10px;cursor:pointer;font-weight:900;font-size:1.1rem;box-shadow:0 4px 20px rgba(0,255,168,0.5);'>Onward to 800! &#129302;</div>"
+      ].join("");
+      document.body.appendChild(overlay);
+      overlay.querySelector("#_700close").onclick=function(){
+        overlay.remove();
+        for(var i=0;i<5;i++)setTimeout(function(){window._launchConfetti&&window._launchConfetti();},i*300);
+      };
+      setTimeout(function(){overlay.remove();},14000);
+    },800);
+  }
+})();
+</script>
 </script></body></html>
