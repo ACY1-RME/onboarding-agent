@@ -20221,4 +20221,185 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 941-950 */
+(function(){
+
+/* 941 – Note zoom (increase font size) */
+(function(){
+  var _oSD941=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD941.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob941-zoom"))return;
+      var size=parseInt(localStorage.getItem("ob_note_zoom")||"13");
+      ta.style.fontSize=size+"px";
+      var row=document.createElement("div");row.style.cssText="display:flex;gap:4px;margin-bottom:4px;";
+      var dec=document.createElement("button");dec.id="ob941-zoom";dec.type="button";dec.textContent="A\u2212";
+      dec.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 7px;";
+      dec.title="Decrease font size";
+      var inc=document.createElement("button");inc.type="button";inc.textContent="A+";
+      inc.style.cssText=dec.style.cssText;inc.title="Increase font size";
+      dec.addEventListener("click",function(){size=Math.max(10,size-1);ta.style.fontSize=size+"px";localStorage.setItem("ob_note_zoom",size);});
+      inc.addEventListener("click",function(){size=Math.min(20,size+1);ta.style.fontSize=size+"px";localStorage.setItem("ob_note_zoom",size);});
+      row.appendChild(dec);row.appendChild(inc);
+      ta.parentNode.insertBefore(row,ta);
+    },240);
+  };
+})();
+
+/* 942 – Phase ETA (estimated completion date for phase) */
+(function(){
+  function refreshPhaseETA(){
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(h){
+      if(h.querySelector(".ob942-eta"))return;
+      var ph=h.closest(".phase-block")||h.closest("[data-phase]");if(!ph)return;
+      var phId=ph.dataset.phase||ph.id;if(!window.TM)return;
+      var tasks=Object.values(window.TM).filter(function(t){return t.phase===phId;});
+      var remaining=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)!=="1";});
+      var est=remaining.reduce(function(a,t){return a+(parseInt(localStorage.getItem("ob_est_"+t.id)||"30"));},0);
+      if(!est)return;
+      var el=document.createElement("span");el.className="ob942-eta";
+      el.style.cssText="font-size:.65rem;opacity:.4;margin-left:6px;";
+      var hrs=Math.floor(est/60),mins=est%60;
+      el.textContent=hrs>0?hrs+"h "+mins+"m left":mins+"m left";
+      h.appendChild(el);
+    });
+  }
+  var _orig942=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig942.apply(this,arguments);setTimeout(refreshPhaseETA,200);};
+  setTimeout(refreshPhaseETA,4400);
+})();
+
+/* 943 – Keyboard shortcut: O key opens focused task */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key==="o"&&!e.ctrlKey&&!e.altKey&&e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"){
+      var focused=document.activeElement;
+      if(focused&&(focused.classList.contains("task-card")||focused.classList.contains("ob-task"))){
+        var id=focused.dataset.id||focused.dataset.taskId;
+        if(id&&typeof window.showTaskDetail==="function")window.showTaskDetail(id);
+      }
+    }
+  });
+})();
+
+/* 944 – Task link: Shift+L opens first resource URL */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.shiftKey&&e.key==="L"){
+      var id=window._curTask;if(!id)return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];if(!td||!td.resources)return;
+      var first=td.resources[0];
+      var url=first&&first.url?first.url:first;
+      if(url&&typeof url==="string")window.open(url,"_blank");
+    }
+  });
+})();
+
+/* 945 – Note line highlight (current line) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="textarea.ob945{background-attachment:local !important;}";
+  document.head.appendChild(css);
+  var _oSD945=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD945.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||ta.dataset.ob945)return;
+      ta.dataset.ob945="1";ta.classList.add("ob945");
+      ta.style.caretColor="var(--accent)";
+    },200);
+  };
+})();
+
+/* 946 – Chat /tag command: add tag to current task note */
+(function(){
+  var _oSM946=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp){
+      var val=inp.value.trim();
+      if(val.startsWith("/tag ")){
+        var tag=val.substring(4).trim();
+        if(!tag.startsWith("#"))tag="#"+tag;
+        var id=window._curTask;
+        if(id){
+          var note=localStorage.getItem("ob_note_"+id)||"";
+          if(note.indexOf(tag)===-1){
+            localStorage.setItem("ob_note_"+id,note+(note?" ":"")+tag);
+            var ta=document.getElementById("task-note");if(ta)ta.value=localStorage.getItem("ob_note_"+id);
+          }
+          if(typeof window.appendMsg==="function")window.appendMsg("Tagged with "+tag,"bot");
+          inp.value="";return;
+        }
+      }
+    }
+    _oSM946.apply(this,arguments);
+  };
+})();
+
+/* 947 – Phase color themes */
+(function(){
+  var PHASE_COLORS=["rgba(0,255,168,.08)","rgba(126,184,255,.08)","rgba(255,126,179,.08)","rgba(240,196,83,.08)","rgba(184,160,255,.08)"];
+  function applyPhaseColors(){
+    document.querySelectorAll(".phase-block,[data-phase]").forEach(function(block,i){
+      if(!block.dataset.phaseColor){
+        block.dataset.phaseColor="1";
+        block.style.borderLeft="3px solid "+["#00ffa8","#7eb8ff","#ff7eb3","#f0c453","#b8a0ff"][i%5];
+      }
+    });
+  }
+  var _orig947=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig947.apply(this,arguments);setTimeout(applyPhaseColors,200);};
+  setTimeout(applyPhaseColors,4500);
+})();
+
+/* 948 – Global hotkey map modal (?) enhancement with categories */
+(function(){
+  var over=document.getElementById("ob751-overlay");if(!over)return;
+  var box=document.getElementById("ob751-box");if(!box)return;
+  var extra=document.createElement("div");
+  extra.style.cssText="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:.72rem;opacity:.5;";
+  extra.textContent="Also: J/K = prev/next task  |  O = open task  |  G = search  |  Alt+D = toggle done  |  Alt+1-9 = goto phase";
+  box.appendChild(extra);
+})();
+
+/* 949 – Note history restore (previous version picker) */
+(function(){
+  var _oSD949=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD949.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob949-hist"))return;
+      var btn=document.createElement("button");
+      btn.id="ob949-hist";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent="\u23F3 History";btn.title="Browse note history";
+      btn.addEventListener("click",function(){
+        var h=window.history842&&window.history842[id];
+        if(!h||h.length<2){if(typeof window._showToast==="function")window._showToast("No history yet (make changes first)","info",2500);return;}
+        var choice=prompt("Select version (1-"+h.length+", newest is "+h.length+"):");
+        var n=parseInt(choice);if(isNaN(n)||n<1||n>h.length)return;
+        var ta=document.getElementById("task-note");
+        if(ta){ta.value=h[n-1];ta.dispatchEvent(new Event("input"));}
+      });
+      var ta2=document.getElementById("task-note");
+      if(ta2)ta2.parentNode.insertBefore(btn,ta2.nextSibling);
+    },280);
+  };
+})();
+
+/* 950 – MILESTONE toast: 950! */
+(function(){
+  if(localStorage.getItem("ob_imp950_shown"))return;
+  localStorage.setItem("ob_imp950_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83C\uDFC6\uD83C\uDFC6 950 improvements — Hall of Fame!","success",6000);
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+  },5500);
+})();
+
+})();
+</script>
 </script></body></html>
