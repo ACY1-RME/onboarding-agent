@@ -17275,4 +17275,219 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 801-810 */
+(function(){
+
+/* 801 – Dark/light mode toggle */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob801-theme";
+  btn.style.cssText="position:fixed;top:8px;right:56px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:800;";
+  var isLight=localStorage.getItem("ob_light_mode")==="1";
+  btn.textContent=isLight?"\uD83C\uDF19 Dark":"\u2600\uFE0F Light";
+  btn.title="Toggle light/dark mode";
+  function applyLight(){
+    document.documentElement.style.setProperty("--bg","#f4f6f0");
+    document.documentElement.style.setProperty("--panel","#ffffff");
+    document.documentElement.style.setProperty("--border","#ccd6cc");
+    document.documentElement.style.setProperty("--text","#1a2e1a");
+    document.documentElement.style.setProperty("--muted","#5a7a5a");
+  }
+  function applyDark(){
+    document.documentElement.style.setProperty("--bg","#06120c");
+    document.documentElement.style.setProperty("--panel","#0e2016");
+    document.documentElement.style.setProperty("--border","#1e3828");
+    document.documentElement.style.setProperty("--text","#e0efe0");
+    document.documentElement.style.setProperty("--muted","#7a9f8a");
+  }
+  if(isLight)applyLight();
+  btn.addEventListener("click",function(){
+    isLight=!isLight;
+    localStorage.setItem("ob_light_mode",isLight?"1":"0");
+    btn.textContent=isLight?"\uD83C\uDF19 Dark":"\u2600\uFE0F Light";
+    isLight?applyLight():applyDark();
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 802 – Task list density toggle (compact / comfortable) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob802-compact .task-card,.ob802-compact .ob-task{padding:4px 8px !important;margin:2px 0 !important;font-size:.8rem !important;}";
+  document.head.appendChild(css);
+  var compact=localStorage.getItem("ob_compact")==="1";
+  if(compact)document.body.classList.add("ob802-compact");
+  var btn=document.createElement("button");
+  btn.id="ob802-density";
+  btn.style.cssText="position:fixed;top:8px;right:110px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:800;";
+  btn.textContent=compact?"Comfy":"Compact";btn.title="Toggle list density";
+  btn.addEventListener("click",function(){
+    compact=!compact;
+    localStorage.setItem("ob_compact",compact?"1":"0");
+    document.body.classList.toggle("ob802-compact",compact);
+    btn.textContent=compact?"Comfy":"Compact";
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 803 – Chat message timestamp */
+(function(){
+  var _oAM803=window.appendMsg||function(){};
+  window.appendMsg=function(text,cls){
+    _oAM803.apply(this,arguments);
+    setTimeout(function(){
+      var msgs=document.querySelectorAll(".chat-message:not([data-ob803])");
+      msgs.forEach(function(msg){
+        msg.dataset.ob803="1";
+        var ts=document.createElement("span");
+        ts.style.cssText="font-size:.6rem;opacity:.35;margin-left:8px;float:right;";
+        ts.textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+        msg.appendChild(ts);
+      });
+    },60);
+  };
+})();
+
+/* 804 – Sticky note overlay on task card */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob804-sticky{position:absolute;top:-8px;right:-8px;width:18px;height:18px;background:var(--gold,#f0c453);border-radius:50%;font-size:.6rem;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.4);z-index:2;}" +
+    ".task-card,.ob-task{position:relative;}";
+  document.head.appendChild(css);
+  function attachStickies(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;
+      if(!id||card.querySelector(".ob804-sticky"))return;
+      var note=localStorage.getItem("ob_note_"+id)||"";
+      if(!note.trim())return;
+      var dot=document.createElement("div");dot.className="ob804-sticky";
+      dot.textContent="\uD83D\uDCDD";dot.title="Has note — click to view";
+      dot.addEventListener("click",function(e){
+        e.stopPropagation();
+        if(typeof window.showTaskDetail==="function")window.showTaskDetail(id);
+      });
+      card.appendChild(dot);
+    });
+  }
+  var _orig804=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig804.apply(this,arguments);setTimeout(attachStickies,150);};
+  setTimeout(attachStickies,2200);
+})();
+
+/* 805 – Note character heatmap (busiest lines) */
+(function(){
+  var _oSD805=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD805.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var el=document.getElementById("ob805-heat");
+      if(!el){el=document.createElement("div");el.id="ob805-heat";el.style.cssText="margin-top:4px;font-size:.65rem;opacity:.4;";}
+      ta.parentNode.insertBefore(el,ta.nextSibling);
+      function upd(){
+        var lines=ta.value.split("\n");
+        var max=Math.max.apply(null,lines.map(function(l){return l.length;}))||1;
+        el.innerHTML=lines.slice(0,5).map(function(l){
+          var pct=Math.round(l.length/max*100);
+          return "<div style='height:3px;background:rgba(0,255,168,"+pct/100+");border-radius:2px;margin:1px 0;width:"+Math.max(4,pct)+"%'></div>";
+        }).join("");
+      }
+      ta.addEventListener("input",upd);upd();
+    },180);
+  };
+})();
+
+/* 806 – Onboarding phase roadmap mini-map */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob806-map{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:705;pointer-events:none;}" +
+    ".ob806-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:background .3s;}" +
+    ".ob806-dot.active{background:var(--accent);}" +
+    ".ob806-dot.done{background:var(--accent2,#00c47e);}";
+  document.head.appendChild(css);
+  var map=document.createElement("div");map.id="ob806-map";
+  document.body.appendChild(map);
+  function refreshMap(){
+    if(!window.TM)return;
+    var phases={};
+    Object.values(window.TM).forEach(function(t){
+      if(!t.phase)return;
+      if(!phases[t.phase])phases[t.phase]={total:0,done:0};
+      phases[t.phase].total++;
+      if(localStorage.getItem("ob_done_"+t.id)==="1")phases[t.phase].done++;
+    });
+    map.innerHTML=Object.keys(phases).map(function(p){
+      var d=phases[p];
+      var cls="ob806-dot"+(d.done===d.total&&d.total>0?" done":d.done>0?" active":"");
+      return "<div class='"+cls+"' title='"+p+" ("+d.done+"/"+d.total+")'></div>";
+    }).join("");
+  }
+  var _orig806=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig806.apply(this,arguments);setTimeout(refreshMap,100);};
+  setTimeout(refreshMap,2300);
+})();
+
+/* 807 – Pomodoro break reminder */
+(function(){
+  var PKEY="ob_pom_count";
+  var count=parseInt(localStorage.getItem(PKEY)||"0");
+  var _orig807=window.updateProgress||function(){};
+  window.updateProgress=function(){
+    _orig807.apply(this,arguments);
+    count++;localStorage.setItem(PKEY,count);
+    if(count%4===0){
+      setTimeout(function(){
+        if(typeof window._showToast==="function")window._showToast("\u2615 Time for a break! You have been going strong.","info",6000);
+      },500);
+    }
+  };
+})();
+
+/* 808 – Task dependency: show blocked-by text */
+(function(){
+  var _oSD808=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD808.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob808-deps"))return;
+      var deps=localStorage.getItem("ob_deps_"+id);
+      if(!deps)return;
+      var arr=JSON.parse(deps);if(!arr.length)return;
+      var el=document.createElement("div");el.id="ob808-deps";
+      el.style.cssText="margin-top:8px;font-size:.78rem;padding:6px 10px;background:rgba(255,68,68,.1);border-left:3px solid #ff4444;border-radius:4px;";
+      var names=arr.map(function(did){return window.TM&&window.TM[did]?window.TM[did].title:did;});
+      el.innerHTML="\uD83D\uDD12 Blocked by: "+names.map(function(n){return "<b>"+n+"</b>";}).join(", ");
+      var det=document.getElementById("task-detail-body")||document.getElementById("task-detail");
+      if(det)det.appendChild(el);
+    },200);
+  };
+})();
+
+/* 809 – Ctrl+L: clear note (with confirm) */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="l"){
+      var ta=document.getElementById("task-note");
+      if(document.activeElement!==ta)return;
+      e.preventDefault();
+      if(ta.value&&confirm("Clear this note?")){
+        ta.value="";ta.dispatchEvent(new Event("input"));
+        if(typeof window._showToast==="function")window._showToast("Note cleared","info",2000);
+      }
+    }
+  });
+})();
+
+/* 810 – Milestone toast: 810 */
+(function(){
+  if(localStorage.getItem("ob_imp810_shown"))return;
+  localStorage.setItem("ob_imp810_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\u2728 810 — past 800 and still climbing!","success",4500);
+  },4200);
+})();
+
+})();
+</script>
 </script></body></html>
