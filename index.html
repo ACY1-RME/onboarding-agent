@@ -19633,4 +19633,206 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 911-920 */
+(function(){
+
+/* 911 – Keyboard: G key opens/focuses search */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key==="g"&&!e.ctrlKey&&!e.altKey&&e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"){
+      var si=document.getElementById("search-input")||document.querySelector("input[placeholder*='search' i]");
+      if(si){si.focus();si.select();}
+    }
+  });
+})();
+
+/* 912 – Phase progress sparkline (mini trend) */
+(function(){
+  function attachPhaseSparklines(){
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(h){
+      if(h.querySelector(".ob912-spark"))return;
+      var ph=h.closest(".phase-block")||h.closest("[data-phase]");if(!ph)return;
+      var phId=ph.dataset.phase||ph.id;if(!window.TM)return;
+      var tasks=Object.values(window.TM).filter(function(t){return t.phase===phId;});if(!tasks.length)return;
+      var key="ob_phase_hist_"+phId;
+      var hist=JSON.parse(localStorage.getItem(key)||"[]");
+      var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+      if(!hist.length||hist[hist.length-1]!==done){hist.push(done);if(hist.length>10)hist.shift();localStorage.setItem(key,JSON.stringify(hist));}
+      if(hist.length<2)return;
+      var can=document.createElement("canvas");can.className="ob912-spark";can.width=40;can.height=14;
+      can.style.cssText="margin-left:6px;opacity:.5;vertical-align:middle;";
+      h.appendChild(can);
+      var ctx=can.getContext("2d");var max=tasks.length||1;
+      ctx.beginPath();ctx.strokeStyle="#00ffa8";ctx.lineWidth=1.2;
+      hist.forEach(function(v,i){var x=i/(hist.length-1)*38+1;var y=12-(v/max*10);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+      ctx.stroke();
+    });
+  }
+  var _orig912=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig912.apply(this,arguments);setTimeout(attachPhaseSparklines,200);};
+  setTimeout(attachPhaseSparklines,4000);
+})();
+
+/* 913 – Auto-clear completed tasks from view (toggle) */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob913-hide";
+  btn.style.cssText="position:fixed;top:78px;left:16px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:.72rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\uD83D\uDC41 Hide Done";btn.title="Toggle visibility of completed tasks";
+  var hidden=localStorage.getItem("ob_hide_done")==="1";
+  btn.style.borderColor=hidden?"var(--accent)":"var(--border)";
+  btn.style.color=hidden?"var(--accent)":"var(--muted)";
+  function apply(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+      var done=localStorage.getItem("ob_done_"+id)==="1";
+      if(hidden&&done)card.style.display="none";
+      else if(!done)card.style.display="";
+    });
+  }
+  btn.addEventListener("click",function(){
+    hidden=!hidden;localStorage.setItem("ob_hide_done",hidden?"1":"0");
+    btn.textContent=hidden?"\uD83D\uDC41 Show Done":"\uD83D\uDC41 Hide Done";
+    btn.style.borderColor=hidden?"var(--accent)":"var(--border)";
+    btn.style.color=hidden?"var(--accent)":"var(--muted)";
+    apply();
+  });
+  document.body.appendChild(btn);
+  var _orig913=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig913.apply(this,arguments);setTimeout(apply,100);};
+  setTimeout(apply,4100);
+})();
+
+/* 914 – Task print summary (printable view) */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob914-print";
+  btn.style.cssText="position:fixed;bottom:152px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\uD83D\uDDA8 Print";btn.title="Print task summary";
+  btn.addEventListener("click",function(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";});
+    var rows=tasks.map(function(t){
+      var d=localStorage.getItem("ob_done_"+t.id)==="1"?"[X]":"[ ]";
+      var note=localStorage.getItem("ob_note_"+t.id)||"";
+      return "<tr><td>"+d+"</td><td>"+t.title+"</td><td>"+(t.phase||"")+"</td><td>"+note.substring(0,60)+"</td></tr>";
+    }).join("");
+    var html="<html><head><title>Onboarding Summary</title><style>table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 8px;font-size:12px}th{background:#eee}</style></head><body><h2>Onboarding Progress ("+done.length+"/"+tasks.length+")</h2><table><tr><th>Done</th><th>Task</th><th>Phase</th><th>Note</th></tr>"+rows+"</table></body></html>";
+    var w=window.open("","_blank");
+    if(w){w.document.write(html);w.document.close();w.print();}
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 915 – Note read aloud (text-to-speech) */
+(function(){
+  if(!window.speechSynthesis)return;
+  var _oSD915=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD915.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob915-tts"))return;
+      var btn=document.createElement("button");
+      btn.id="ob915-tts";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent="\uD83D\uDD0A Read";btn.title="Read note aloud";
+      var speaking=false;
+      btn.addEventListener("click",function(){
+        if(speaking){window.speechSynthesis.cancel();speaking=false;btn.textContent="\uD83D\uDD0A Read";return;}
+        var ta=document.getElementById("task-note");
+        if(!ta||!ta.value.trim())return;
+        var utter=new SpeechSynthesisUtterance(ta.value);
+        utter.rate=1;utter.onend=function(){speaking=false;btn.textContent="\uD83D\uDD0A Read";};
+        window.speechSynthesis.speak(utter);speaking=true;btn.textContent="\u23F9 Stop";
+      });
+      var ta2=document.getElementById("task-note");
+      if(ta2)ta2.parentNode.insertBefore(btn,ta2);
+    },260);
+  };
+})();
+
+/* 916 – Smart note placeholder with hints */
+(function(){
+  var _oSD916=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD916.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var hints=[
+        "Start typing... Use **bold** or *italic*. Add #tags.",
+        "What did you learn here? Notes help future you.",
+        "Document any blockers, links, or action items.",
+        "Use - for bullet lists. Use # for headings.",
+        "Add a date with the Date button above."
+      ];
+      ta.placeholder=hints[Math.floor(Math.random()*hints.length)];
+    },150);
+  };
+})();
+
+/* 917 – Ctrl+G go to task by number */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="g"){
+      e.preventDefault();
+      var n=prompt("Go to task # (1-based):");
+      if(!n||isNaN(parseInt(n)))return;
+      var idx=parseInt(n)-1;
+      if(!window.TM)return;
+      var tasks=Object.values(window.TM);
+      if(idx<0||idx>=tasks.length)return;
+      var id=tasks[idx].id;
+      var card=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+      if(card)card.scrollIntoView({behavior:"smooth",block:"center"});
+      if(typeof window.showTaskDetail==="function")window.showTaskDetail(id);
+    }
+  });
+})();
+
+/* 918 – Task card border glow on focus */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".task-card:focus,.ob-task:focus{outline:none;box-shadow:0 0 0 2px var(--accent),0 0 16px rgba(0,255,168,.2) !important;}" +
+    ".task-card,.ob-task{cursor:pointer;}";
+  document.head.appendChild(css);
+  function makeFocusable(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(c){
+      if(!c.tabIndex)c.tabIndex=0;
+    });
+  }
+  var _orig918=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig918.apply(this,arguments);setTimeout(makeFocusable,200);};
+  setTimeout(makeFocusable,4200);
+})();
+
+/* 919 – Chat: /reset command (clear all done) */
+(function(){
+  var _oSM919=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp&&inp.value.trim()==="/reset"){
+      if(confirm("Reset all task completions? This cannot be undone.")){
+        if(window.TM)Object.values(window.TM).forEach(function(t){localStorage.removeItem("ob_done_"+t.id);});
+        if(typeof window.updateProgress==="function")window.updateProgress();
+        if(typeof window.appendMsg==="function")window.appendMsg("All tasks reset.","bot");
+        inp.value="";return;
+      }
+    }
+    _oSM919.apply(this,arguments);
+  };
+})();
+
+/* 920 – Milestone toast: 920 */
+(function(){
+  if(localStorage.getItem("ob_imp920_shown"))return;
+  localStorage.setItem("ob_imp920_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDE4F 920 — unstoppable momentum!","success",4500);
+  },6800);
+})();
+
+})();
+</script>
 </script></body></html>
