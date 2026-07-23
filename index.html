@@ -9841,4 +9841,264 @@ function _exportChat(){
 })();
 
 
+/* ── 476: highlight matched text in task-row titles during search ────────── */
+(function(){
+  var _origSR476=typeof searchTasks==="function"?searchTasks:null;
+  if(!_origSR476)return;
+  var origTexts={};
+  searchTasks=function(q){
+    _origSR476(q);
+    document.querySelectorAll(".task-row [data-original-text]").forEach(function(el){el.textContent=el.dataset.originalText;delete el.dataset.originalText;});
+    if(!q||!q.trim())return;
+    var re=new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi");
+    document.querySelectorAll(".task-row .task-title,.task-row .task-name,[data-task-id] .task-title").forEach(function(el){
+      if(!el.dataset.originalText)el.dataset.originalText=el.textContent;
+      el.innerHTML=el.dataset.originalText.replace(re,"<mark style='background:rgba(0,255,168,.35);color:var(--text);border-radius:2px;padding:0 1px;'>$1</mark>");
+    });
+  };
+})();
+
+/* ── 477: track + display phase completion dates ─────────────────────────── */
+(function(){
+  var _origUP477=typeof updateProgress==="function"?updateProgress:null;
+  if(!_origUP477)return;
+  updateProgress=function(){
+    _origUP477();
+    document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph,i){
+      var phid=ph.dataset.phase||ph.dataset.id||("ph"+i);
+      var lsKey="ob_phdone_"+phid;
+      if(localStorage.getItem(lsKey))return;
+      var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+      if(!rows.length)return;
+      var allDone=Array.from(rows).every(function(r){var id=r.dataset.id||r.dataset.taskId;return id&&localStorage.getItem("ob_"+id)==="done";});
+      if(allDone)localStorage.setItem(lsKey,String(Date.now()));
+    });
+  };
+  var _origSTAB477=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB477)return;
+  showTab=function(name){
+    _origSTAB477(name);
+    if(name!=="stats")return;
+    requestAnimationFrame(function(){
+      var stats=document.getElementById("statsTab")||document.getElementById("stats");
+      if(!stats||stats.querySelector("#phdDates"))return;
+      var phases=Array.from(document.querySelectorAll(".phase-section,[data-phase]"));
+      var any=phases.some(function(ph,i){var pid=ph.dataset.phase||ph.dataset.id||("ph"+i);return !!localStorage.getItem("ob_phdone_"+pid);});
+      if(!any)return;
+      var wrap=document.createElement("div");
+      wrap.id="phdDates";
+      wrap.style.cssText="margin:8px 0;";
+      var lbl=document.createElement("div");
+      lbl.style.cssText="font-size:11px;color:var(--muted);margin-bottom:4px;";
+      lbl.textContent="Phase completions";
+      wrap.appendChild(lbl);
+      phases.forEach(function(ph,i){
+        var pid=ph.dataset.phase||ph.dataset.id||("ph"+i);
+        var ts=parseInt(localStorage.getItem("ob_phdone_"+pid)||"0",10);
+        if(!ts)return;
+        var phHdr=ph.querySelector(".phase-name,.phase-title,h3,h4");
+        var phName=phHdr?(phHdr.textContent||"").trim().slice(0,22):"Phase "+(i+1);
+        var line=document.createElement("div");
+        line.style.cssText="font-size:11px;color:var(--text);padding:1px 0;";
+        var ago=Date.now()-ts;
+        var str=ago<86400000?Math.round(ago/3600000)+"h ago":Math.round(ago/86400000)+"d ago";
+        line.innerHTML="\u2713 "+phName+" <span style='color:var(--muted);'>"+str+"</span>";
+        wrap.appendChild(line);
+      });
+      stats.insertBefore(wrap,stats.firstChild);
+    });
+  };
+})();
+
+/* ── 478: page background subtle glow shifts with progress ──────────────── */
+(function(){
+  var _origUP478=typeof updateProgress==="function"?updateProgress:null;
+  if(!_origUP478)return;
+  updateProgress=function(){
+    _origUP478();
+    var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+    if(!tasks.length)return;
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+    var pct=done/tasks.length;
+    var g=Math.round(6+pct*6);
+    document.body.style.background="var(--bg,#06"+g.toString(16).padStart(2,"0")+"0c)";
+  };
+})();
+
+/* ── 479: scrollspy updates phase minimap highlights ────────────────────── */
+(function(){
+  var map=document.getElementById("phTimeline");
+  if(!map)return;
+  var phases=Array.from(document.querySelectorAll(".phase-section,[data-phase]"));
+  var dots=Array.from(map.querySelectorAll("button"));
+  if(!phases.length||!dots.length)return;
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(!entry.isIntersecting)return;
+      var idx=phases.indexOf(entry.target);
+      if(idx<0)return;
+      dots.forEach(function(d){d.style.boxShadow="";});
+      if(dots[idx])dots[idx].style.boxShadow="0 0 0 3px var(--accent)";
+    });
+  },{threshold:0.3});
+  phases.forEach(function(ph){io.observe(ph);});
+})();
+
+/* ── 480: task-type pill counts in stats ────────────────────────────────── */
+(function(){
+  var _origSTAB480=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB480)return;
+  showTab=function(name){
+    _origSTAB480(name);
+    if(name!=="stats")return;
+    requestAnimationFrame(function(){
+      var stats=document.getElementById("statsTab")||document.getElementById("stats");
+      if(!stats||stats.querySelector("#typeCountWrap")||typeof TASK_DETAILS==="undefined")return;
+      var TYPES=[{kws:["meeting","attend","orientation"],icon:"\u{1F4C5}",label:"Meetings"},{kws:["sign","form","fill"],icon:"\u{1F4DD}",label:"Forms"},{kws:["read","review","policy"],icon:"\u{1F4D6}",label:"Reading"},{kws:["call","contact","email"],icon:"\u{1F4DE}",label:"Contacts"},{kws:["training","course","learn"],icon:"\u{1F393}",label:"Training"}];
+      var counts={};
+      Object.keys(TASK_DETAILS).forEach(function(id){
+        var text=((TASK_DETAILS[id].title||"")+" "+(TASK_DETAILS[id].description||"")).toLowerCase();
+        TYPES.forEach(function(type){
+          if(type.kws.some(function(kw){return text.indexOf(kw)>=0;})){counts[type.label]=(counts[type.label]||0)+1;}
+        });
+      });
+      var any=Object.values(counts).some(function(v){return v>0;});
+      if(!any)return;
+      var wrap=document.createElement("div");
+      wrap.id="typeCountWrap";
+      wrap.style.cssText="margin:8px 0;display:flex;flex-wrap:wrap;gap:4px;";
+      TYPES.forEach(function(type){
+        if(!counts[type.label])return;
+        var pill=document.createElement("span");
+        pill.style.cssText="background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:12px;padding:2px 9px;font-size:11px;";
+        pill.textContent=type.icon+" "+counts[type.label]+" "+type.label;
+        wrap.appendChild(pill);
+      });
+      stats.insertBefore(wrap,stats.firstChild);
+    });
+  };
+})();
+
+/* ── 481: last-visit greeting banner ────────────────────────────────────── */
+(function(){
+  var key="ob_last_visit";
+  var prev=parseInt(localStorage.getItem(key)||"0",10);
+  localStorage.setItem(key,String(Date.now()));
+  if(!prev)return;
+  var ago=Date.now()-prev;
+  var str=ago<3600000?"<1h":ago<86400000?Math.round(ago/3600000)+"h":Math.round(ago/86400000)+"d";
+  setTimeout(function(){_showToast("\u{1F44B} Welcome back! Last visit: "+str+" ago.","info",3000);},1500);
+})();
+
+/* ── 482: truncate long descriptions with "Show more" ───────────────────── */
+(function(){
+  var _origSD482=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD482(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel)return;
+      var descEl=panel.querySelector(".detail-description,#detailDesc,.task-description");
+      if(!descEl||descEl.dataset.truncInited)return;
+      descEl.dataset.truncInited="1";
+      var full=descEl.innerHTML;
+      var text=descEl.textContent||"";
+      if(text.length<=200)return;
+      var short=full.slice(0,500);
+      descEl.innerHTML=short+"...";
+      var moreBtn=document.createElement("button");
+      moreBtn.textContent="Show more";
+      moreBtn.style.cssText="background:transparent;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0;";
+      var expanded=false;
+      moreBtn.onclick=function(){
+        expanded=!expanded;
+        descEl.innerHTML=expanded?full:short+"...";
+        descEl.appendChild(moreBtn);
+        moreBtn.textContent=expanded?"Show less":"Show more";
+      };
+      descEl.appendChild(moreBtn);
+    },100);
+  };
+})();
+
+/* ── 483: compact header on scroll ──────────────────────────────────────── */
+(function(){
+  var s=document.createElement("style");
+  s.textContent=".hdr-compact{padding-top:4px!important;padding-bottom:4px!important;font-size:12px!important;transition:padding .2s;}";
+  document.head.appendChild(s);
+  var hdr=document.querySelector(".app-header,.page-header,header");
+  if(!hdr)return;
+  var scrollEl=document.querySelector(".checklist-panel,#checklistPanel,.main-content")||document.body;
+  scrollEl.addEventListener("scroll",function(){
+    hdr.classList.toggle("hdr-compact",scrollEl.scrollTop>80);
+  },{passive:true});
+  window.addEventListener("scroll",function(){
+    hdr.classList.toggle("hdr-compact",window.scrollY>80);
+  },{passive:true});
+})();
+
+/* ── 484: step-completion percentage badge on task rows ─────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  var _origUP484=typeof updateProgress==="function"?updateProgress:null;
+  function paintPctBadges(){
+    Object.keys(TASK_DETAILS).forEach(function(id){
+      var steps=TASK_DETAILS[id].steps||[];
+      if(!steps.length)return;
+      var saved=JSON.parse(localStorage.getItem("ob_steps_"+id)||"[]");
+      var done=saved.filter(Boolean).length;
+      var pct=Math.round(done/steps.length*100);
+      var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+      if(!row)return;
+      var badge=row.querySelector(".step-pct-badge");
+      if(!badge){badge=document.createElement("span");badge.className="step-pct-badge";badge.style.cssText="font-size:10px;background:rgba(0,255,168,.12);border:1px solid rgba(0,255,168,.2);border-radius:8px;padding:0 5px;margin-left:4px;color:var(--accent);";row.appendChild(badge);}
+      badge.textContent=pct+"%";
+      badge.style.display=pct>0&&pct<100?"":"none";
+    });
+  }
+  if(_origUP484){updateProgress=function(){_origUP484();setTimeout(paintPctBadges,70);};}
+  setTimeout(paintPctBadges,500);
+})();
+
+/* ── 485: full hotkey inventory modal (Ctrl+/) ──────────────────────────── */
+(function(){
+  var HOTKEYS=[
+    {k:"/ ",d:"Focus search"},{k:"Esc",d:"Close detail"},{k:"M",d:"Mark task done"},
+    {k:"W",d:"Open scratch pad"},{k:"J",d:"Jump to first incomplete"},{k:"B",d:"Back to previous task"},
+    {k:"N",d:"Focus note textarea"},{k:"F",d:"Focus mode (hide chat)"},{k:"F2",d:"Edit task title"},
+    {k:"\u2191\u2193",d:"Navigate tasks"},{k:"Enter",d:"Open selected task"},{k:"Ctrl+Z",d:"Undo last done"},
+    {k:"?",d:"Toggle this help"},{k:"Shift+D",d:"Maximize detail panel"},{k:"Shift+S",d:"Stats tab"},
+  ];
+  document.addEventListener("keydown",function(e){
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.isContentEditable)return;
+    if(e.key!=="/"||!e.ctrlKey)return;
+    e.preventDefault();
+    var existing=document.getElementById("hotkeyModal");
+    if(existing){existing.remove();return;}
+    var modal=document.createElement("div");
+    modal.id="hotkeyModal";
+    modal.style.cssText="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:var(--panel);border:1px solid var(--accent);border-radius:12px;padding:16px 20px;min-width:280px;max-width:400px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.7);";
+    var title=document.createElement("div");
+    title.style.cssText="font-size:14px;font-weight:bold;margin-bottom:10px;color:var(--accent);";
+    title.textContent="Keyboard Shortcuts (Ctrl+/ to close)";
+    modal.appendChild(title);
+    HOTKEYS.forEach(function(hk){
+      var row=document.createElement("div");
+      row.style.cssText="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);";
+      var kbd=document.createElement("kbd");
+      kbd.textContent=hk.k;
+      kbd.style.cssText="font-family:monospace;background:rgba(0,255,168,.1);border:1px solid var(--accent);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--accent);";
+      var desc=document.createElement("span");
+      desc.textContent=hk.d;
+      desc.style.cssText="font-size:12px;color:var(--muted);";
+      row.appendChild(kbd);row.appendChild(desc);
+      modal.appendChild(row);
+    });
+    document.body.appendChild(modal);
+    modal.addEventListener("click",function(e2){e2.stopPropagation();});
+    document.addEventListener("click",function closeModal(){modal.remove();document.removeEventListener("click",closeModal);},{once:true,capture:true});
+  });
+})();
+
+
 </script></body></html>
