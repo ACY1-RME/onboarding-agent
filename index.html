@@ -16784,4 +16784,256 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 781-790 */
+(function(){
+
+/* 781 – Recent tasks sidebar (last 5 viewed) */
+(function(){
+  var HIST_KEY="ob_recent_tasks";
+  function getHist(){return JSON.parse(localStorage.getItem(HIST_KEY)||"[]");}
+  function addHist(id){
+    var h=getHist().filter(function(x){return x!==id;});
+    h.unshift(id);if(h.length>5)h.pop();
+    localStorage.setItem(HIST_KEY,JSON.stringify(h));
+  }
+  var _oSD781=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD781.apply(this,arguments);
+    addHist(id);
+    updateRecent();
+  };
+  var css=document.createElement("style");
+  css.textContent="#ob781-recent{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:785;}" +
+    "#ob781-rtab{background:var(--panel);border:1px solid var(--border);border-left:none;border-radius:0 8px 8px 0;padding:8px 6px;cursor:pointer;writing-mode:vertical-lr;font-size:.7rem;letter-spacing:.06em;color:var(--muted);}" +
+    "#ob781-rbody{display:none;background:var(--panel);border:1px solid var(--border);border-left:none;border-radius:0 8px 8px 0;padding:10px;min-width:150px;}" +
+    ".ob781-item{font-size:.75rem;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}" +
+    ".ob781-item:hover{color:var(--accent);}";
+  document.head.appendChild(css);
+  var panel=document.createElement("div");panel.id="ob781-recent";
+  var tab=document.createElement("div");tab.id="ob781-rtab";tab.textContent="Recent";
+  var body=document.createElement("div");body.id="ob781-rbody";
+  panel.appendChild(tab);panel.appendChild(body);
+  document.body.appendChild(panel);
+  var open=false;
+  tab.addEventListener("click",function(){open=!open;body.style.display=open?"block":"none";if(open)updateRecent();});
+  function updateRecent(){
+    var h=getHist();
+    if(!h.length){body.innerHTML="<div style='font-size:.75rem;opacity:.5;'>No recent tasks</div>";return;}
+    body.innerHTML=h.map(function(id){
+      var t=window.TM&&window.TM[id];
+      var title=t?t.title:id;
+      return "<div class='ob781-item' data-id='"+id+"' title='"+title+"'>"+title+"</div>";
+    }).join("");
+    body.querySelectorAll(".ob781-item").forEach(function(el){
+      el.addEventListener("click",function(){
+        var id=el.dataset.id;
+        if(typeof window.showTaskDetail==="function")window.showTaskDetail(id);
+        open=false;body.style.display="none";
+      });
+    });
+  }
+})();
+
+/* 782 – Note reading time estimate */
+(function(){
+  var _oSD782=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD782.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var el=document.getElementById("ob782-readtime");
+      if(!el){
+        el=document.createElement("span");el.id="ob782-readtime";
+        el.style.cssText="font-size:.68rem;opacity:.45;margin-left:8px;";
+        var wc=document.getElementById("ob754-wc")||ta.nextSibling;
+        if(wc)wc.appendChild(el);
+      }
+      function upd(){
+        var words=ta.value.trim()?ta.value.trim().split(/\s+/).length:0;
+        var secs=Math.round(words/3);
+        el.textContent=secs>0?"(~"+secs+"s read)":"";
+      }
+      ta.addEventListener("input",upd);upd();
+    },160);
+  };
+})();
+
+/* 783 – Chat message copy button */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob783-copymsg{position:absolute;right:6px;top:4px;background:none;border:1px solid rgba(255,255,255,.15);border-radius:4px;font-size:.65rem;color:var(--muted);cursor:pointer;padding:1px 5px;opacity:0;transition:opacity .15s;}" +
+    ".chat-message:hover .ob783-copymsg{opacity:1;}";
+  document.head.appendChild(css);
+  var _oAM=window.appendMsg||function(){};
+  window.appendMsg=function(text,cls){
+    _oAM.apply(this,arguments);
+    setTimeout(function(){
+      var msgs=document.querySelectorAll(".chat-message:not([data-ob783])");
+      msgs.forEach(function(msg){
+        msg.dataset.ob783="1";
+        msg.style.position="relative";
+        var btn=document.createElement("button");btn.className="ob783-copymsg";btn.textContent="\uD83D\uDCCB";btn.title="Copy";
+        btn.addEventListener("click",function(){
+          navigator.clipboard.writeText(msg.innerText||"").then(function(){
+            btn.textContent="\u2713";setTimeout(function(){btn.textContent="\uD83D\uDCCB";},1200);
+          }).catch(function(){});
+        });
+        msg.appendChild(btn);
+      });
+    },80);
+  };
+})();
+
+/* 784 – Task title inline edit */
+(function(){
+  var _oSD784=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD784.apply(this,arguments);
+    setTimeout(function(){
+      var h=document.querySelector("#task-detail h2,#task-detail-header .task-title,#task-detail .detail-title");
+      if(!h||h.dataset.ob784)return;
+      h.dataset.ob784="1";
+      h.title="Double-click to edit title locally";
+      h.addEventListener("dblclick",function(){
+        var old=h.textContent.trim();
+        var inp=document.createElement("input");
+        inp.type="text";inp.value=old;
+        inp.style.cssText="background:var(--panel);border:1px solid var(--accent);border-radius:4px;color:inherit;font-size:inherit;font-weight:inherit;width:100%;padding:2px 6px;";
+        h.textContent="";h.appendChild(inp);inp.focus();inp.select();
+        function commit(){
+          var nv=inp.value.trim()||old;
+          h.textContent=nv;
+          if(window.TM&&window.TM[id])window.TM[id]._localTitle=nv;
+          localStorage.setItem("ob_title_"+id,nv);
+        }
+        inp.addEventListener("blur",commit);
+        inp.addEventListener("keydown",function(e){if(e.key==="Enter")commit();if(e.key==="Escape"){h.textContent=old;}});
+      });
+    },200);
+  };
+})();
+
+/* 785 – Voice note (dictate into note field) */
+(function(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR)return;
+  var _oSD785=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD785.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      if(document.getElementById("ob785-mic"))return;
+      var btn=document.createElement("button");
+      btn.id="ob785-mic";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.85rem;padding:2px 8px;";
+      btn.textContent="\uD83C\uDFA4 Dictate";btn.title="Dictate into note (voice)";
+      var rec=null;
+      btn.addEventListener("click",function(){
+        if(rec){rec.stop();rec=null;btn.textContent="\uD83C\uDFA4 Dictate";return;}
+        rec=new SR();rec.continuous=true;rec.interimResults=true;
+        rec.onresult=function(e){
+          var final="";
+          for(var i=e.resultIndex;i<e.results.length;i++){
+            if(e.results[i].isFinal)final+=e.results[i][0].transcript;
+          }
+          if(final){ta.value+=final+" ";ta.dispatchEvent(new Event("input"));}
+        };
+        rec.onerror=function(){rec=null;btn.textContent="\uD83C\uDFA4 Dictate";};
+        rec.onend=function(){rec=null;btn.textContent="\uD83C\uDFA4 Dictate";};
+        rec.start();btn.textContent="\u23F9 Stop";
+        btn.style.color="var(--warn,#f0c453)";
+      });
+      ta.parentNode.insertBefore(btn,ta);
+    },200);
+  };
+})();
+
+/* 786 – Keyboard shortcut: Ctrl+M to mark task done */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="m"){
+      e.preventDefault();
+      if(typeof window.toggleDetailDone==="function")window.toggleDetailDone();
+    }
+  });
+})();
+
+/* 787 – Task list scroll progress indicator */
+(function(){
+  var bar=document.createElement("div");
+  bar.id="ob787-scroll";
+  bar.style.cssText="position:fixed;top:0;left:0;height:2px;background:var(--accent);z-index:9500;width:0%;transition:width .1s;pointer-events:none;";
+  document.body.appendChild(bar);
+  window.addEventListener("scroll",function(){
+    var scrolled=document.documentElement.scrollTop;
+    var total=document.documentElement.scrollHeight-document.documentElement.clientHeight;
+    var pct=total>0?Math.round(scrolled/total*100):0;
+    bar.style.width=pct+"%";
+  });
+})();
+
+/* 788 – Phase collapse all / expand all toggle */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob788-colexp";
+  btn.style.cssText="position:fixed;top:56px;left:16px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.72rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="Collapse All";
+  var collapsed=false;
+  btn.addEventListener("click",function(){
+    collapsed=!collapsed;
+    btn.textContent=collapsed?"Expand All":"Collapse All";
+    document.querySelectorAll(".phase-block,.phase-content,.phase-tasks").forEach(function(el){
+      if(el.classList.contains("phase-content")||el.classList.contains("phase-tasks")){
+        el.style.display=collapsed?"none":"";
+      }
+    });
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 789 – Task search history (recent searches) */
+(function(){
+  var SKEY="ob_search_hist";
+  function getHist(){return JSON.parse(localStorage.getItem(SKEY)||"[]");}
+  function addHist(q){
+    var h=getHist().filter(function(x){return x!==q;});
+    h.unshift(q);if(h.length>8)h.pop();
+    localStorage.setItem(SKEY,JSON.stringify(h));
+  }
+  var si=document.getElementById("search-input")||document.querySelector("input[placeholder*='search' i]");
+  if(!si)return;
+  si.autocomplete="off";
+  var dd=document.createElement("div");
+  dd.id="ob789-dd";
+  dd.style.cssText="display:none;position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:6px;z-index:900;min-width:180px;max-height:160px;overflow-y:auto;top:100%;left:0;";
+  si.style.position="relative";
+  si.parentNode.style.position="relative";
+  si.parentNode.appendChild(dd);
+  si.addEventListener("focus",function(){
+    var h=getHist();
+    if(!h.length)return;
+    dd.innerHTML=h.map(function(q){
+      return "<div class='ob789-item' style='padding:6px 12px;cursor:pointer;font-size:.8rem;' data-q='"+q+"'>"+q+"</div>";
+    }).join("");
+    dd.querySelectorAll(".ob789-item").forEach(function(el){
+      el.addEventListener("click",function(){si.value=el.dataset.q;dd.style.display="none";si.dispatchEvent(new Event("input"));});
+    });
+    dd.style.display="block";
+  });
+  si.addEventListener("blur",function(){setTimeout(function(){dd.style.display="none";},200);});
+  si.addEventListener("change",function(){if(si.value.trim())addHist(si.value.trim());});
+})();
+
+/* 790 – Milestone toast: 790 */
+(function(){
+  if(localStorage.getItem("ob_imp790_shown"))return;
+  localStorage.setItem("ob_imp790_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDE80 790 improvements — approach 800!","success",4500);
+  },4000);
+})();
+
+})();
+</script>
 </script></body></html>
