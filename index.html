@@ -6470,4 +6470,184 @@ function _exportChat(){
 })();
 
 
+/* ── 336: Detail: task note character countdown ring ────────── */
+(function(){
+  var _origShow336=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow336(taskId);
+    var ta=document.getElementById('task-note-input');if(!ta)return;
+    var wrap=ta.parentNode;if(wrap.querySelector('#note-ring'))return;
+    var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.id='note-ring';svg.setAttribute('viewBox','0 0 20 20');svg.setAttribute('width','18');svg.setAttribute('height','18');
+    svg.style.cssText='position:absolute;right:6px;bottom:6px;opacity:.7';
+    var bg=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    bg.setAttribute('cx','10');bg.setAttribute('cy','10');bg.setAttribute('r','8');
+    bg.setAttribute('fill','none');bg.setAttribute('stroke','rgba(255,255,255,.1)');bg.setAttribute('stroke-width','3');
+    var fg=document.createElementNS('http://www.w3.org/2000/svg','circle');fg.id='note-ring-fg';
+    fg.setAttribute('cx','10');fg.setAttribute('cy','10');fg.setAttribute('r','8');
+    fg.setAttribute('fill','none');fg.setAttribute('stroke','var(--accent)');fg.setAttribute('stroke-width','3');
+    fg.setAttribute('stroke-linecap','round');fg.setAttribute('stroke-dasharray','50.3');
+    fg.setAttribute('transform','rotate(-90 10 10)');
+    svg.appendChild(bg);svg.appendChild(fg);
+    if(getComputedStyle(wrap).position!=='relative')wrap.style.position='relative';
+    wrap.appendChild(svg);
+    function _updateRing(){
+      var pct=Math.min(ta.value.length/1000,1);
+      var offset=(50.3*(1-pct)).toFixed(1);
+      fg.setAttribute('stroke-dashoffset',offset);
+      fg.setAttribute('stroke',pct>0.9?'var(--warn,#f0c453)':pct>0.7?'var(--gold)':'var(--accent)');
+    }
+    ta.addEventListener('input',_updateRing);
+    _updateRing();
+  };
+})();
+
+/* ── 337: Checklist: "surprise me" rotating tips strip ──────── */
+(function(){
+  var TIPS=[
+    'Tip: Double-click a task label to open details.',
+    'Tip: Press ? to see all keyboard shortcuts.',
+    'Tip: Right-click a task for quick actions.',
+    'Tip: Star important tasks with the \u2605 button.',
+    'Tip: Add notes with the N key while viewing a task.',
+    'Tip: Press J to jump to the next incomplete task.',
+    'Tip: Use # tags in notes to find tasks by topic.',
+    'Tip: Press Z to expand the detail panel fullscreen.',
+    'Tip: Phase dot rows show your completion at a glance.',
+    'Tip: Export your notes any time from the sidebar.',
+  ];
+  var tipEl=document.createElement('div');tipEl.id='tip-strip';
+  tipEl.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04);font-style:italic;cursor:pointer;transition:opacity .3s';
+  tipEl.title='Click for another tip';
+  var _tipIdx=Math.floor(Math.random()*TIPS.length);
+  tipEl.textContent=TIPS[_tipIdx];
+  tipEl.onclick=function(){
+    _tipIdx=(_tipIdx+1)%TIPS.length;
+    tipEl.style.opacity='0';
+    setTimeout(function(){tipEl.textContent=TIPS[_tipIdx];tipEl.style.opacity='1';},200);
+  };
+  var cl=document.querySelector('.checklist');if(cl)cl.before(tipEl);
+})();
+
+/* ── 338: Phase: click phase title to jump to first incomplete ─ */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    var oc=hd.getAttribute('onclick')||'';
+    hd.addEventListener('dblclick',function(e){
+      e.stopPropagation();
+      var body=hd.nextElementSibling;if(!body)return;
+      var first=null;
+      body.querySelectorAll('input[type=checkbox]').forEach(function(cb){if(!first&&!cb.checked)first=cb.id;});
+      if(first)showTaskDetail(first);
+      else _showToast('Phase complete!','success',1500);
+    });
+  });
+})();
+
+/* ── 339: App: copy URL button in resources tab ─────────────── */
+(function(){
+  document.querySelectorAll('#tab-resources a').forEach(function(a){
+    var btn=document.createElement('button');
+    btn.style.cssText='font-size:.55rem;background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;padding:0 3px;vertical-align:middle;line-height:1';
+    btn.textContent='\uD83D\uDCCB';btn.title='Copy link URL';
+    btn.onclick=function(e){
+      e.preventDefault();e.stopPropagation();
+      navigator.clipboard&&navigator.clipboard.writeText(a.href).then(function(){_showToast('URL copied','success',1500);});
+    };
+    a.appendChild(btn);
+  });
+})();
+
+/* ── 340: Detail: show task index (e.g. task 5 of 48) ────────── */
+(function(){
+  var _origShow340=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow340(taskId);
+    var allIds=Object.keys(TASK_DETAILS);
+    var idx=allIds.indexOf(taskId);
+    var el=document.getElementById('detail-task-idx');
+    if(!el){
+      el=document.createElement('span');el.id='detail-task-idx';
+      el.style.cssText='font-size:.58rem;color:var(--muted);margin-left:8px;font-weight:400';
+      var ti=document.getElementById('detail-title');if(ti)ti.after(el);
+    }
+    el.textContent=idx>=0?'#'+(idx+1)+' of '+allIds.length:'';
+  };
+})();
+
+/* ── 341: Sidebar: highlight phase with most progress ────────── */
+(function(){
+  function _highlightLeadPhase(){
+    var best=null,bestPct=0;
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      var pct=done/cbs.length;
+      if(pct>bestPct&&pct<1){bestPct=pct;best=body.previousElementSibling;}
+    });
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){hd.style.borderLeft='';});
+    if(best)best.style.borderLeft='2px solid var(--accent)';
+  }
+  _highlightLeadPhase();
+  var _origUP341=updateProgress;
+  updateProgress=function(){_origUP341();_highlightLeadPhase();};
+})();
+
+/* ── 342: Checklist: task item "time ago" for recently done ─── */
+(function(){
+  function _updateRecentDone(){
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      if(!cb.checked)return;
+      var ts=localStorage.getItem('ob_done_ts_'+cb.id);if(!ts)return;
+      var age=Date.now()-Number(ts);if(age>3600000)return;
+      var item=cb.closest('.task-item');if(!item)return;
+      var el=item.querySelector('.done-ago');
+      if(!el){el=document.createElement('span');el.className='done-ago';
+        el.style.cssText='font-size:.55rem;color:var(--accent2);margin-left:4px;vertical-align:middle';item.appendChild(el);}
+      var mins=Math.round(age/60000);
+      el.textContent=mins<1?'just now':mins+'m ago';
+    });
+  }
+  _updateRecentDone();
+  setInterval(_updateRecentDone,30000);
+  var _origUP342=updateProgress;
+  updateProgress=function(){_origUP342();_updateRecentDone();};
+})();
+
+/* ── 343: App: show role-specific task count ─────────────────── */
+(function(){
+  var role=localStorage.getItem('ob_role');if(!role)return;
+  var visible=document.querySelectorAll('.checklist .task-item:not([style*="display: none"])').length;
+  var el=document.getElementById('role-task-count');
+  if(!el){
+    el=document.createElement('div');el.id='role-task-count';
+    el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px';
+    var badge=document.getElementById('role-filter-badge');if(badge)badge.after(el);
+  }
+  el.textContent=visible+' tasks for your role';
+})();
+
+/* ── 344: Detail: one-click mark-complete with animation ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='#detail-done-btn.anim-complete{animation:flashGreen .6s ease;border-color:var(--accent)!important;color:var(--accent)!important}';
+  document.head.appendChild(st);
+  var _origTogDone344=toggleDetailDone;
+  toggleDetailDone=function(){
+    _origTogDone344();
+    var btn=document.getElementById('detail-done-btn');
+    if(btn){btn.classList.remove('anim-complete');void btn.offsetWidth;btn.classList.add('anim-complete');}
+  };
+})();
+
+/* ── 345: App: keyboard W to open/close scratch pad ─────────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='w'&&e.key!=='W')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    if(typeof showTab==='function')showTab('scratch');
+  });
+})();
+
+
 </script></body></html>
