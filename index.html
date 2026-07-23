@@ -14940,4 +14940,230 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp701: task priority reorder — drag high-priority tasks to top */
+(function(){
+  var KEY="ob_priority_order";
+  function savePriorityOrder(){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list)return;
+    var order=Array.from(list.querySelectorAll(".task-row,.ob-task-row")).map(function(r){return r.dataset.id||r.dataset.taskId;}).filter(Boolean);
+    localStorage.setItem(KEY,JSON.stringify(order));
+  }
+  function applyPriorityOrder(){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list)return;
+    var order=JSON.parse(localStorage.getItem(KEY)||"[]");
+    if(!order.length)return;
+    order.forEach(function(id){
+      var row=list.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+      if(row)list.appendChild(row);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(applyPriorityOrder,700);});
+  document.addEventListener("dragend",function(){setTimeout(savePriorityOrder,100);});
+})();
+
+/* imp702: note line count indicator */
+(function(){
+  var _origSD702=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD702&&_origSD702(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var ta=panel.querySelector("textarea");
+      if(!ta||ta.dataset._lineCount)return;
+      ta.dataset._lineCount="1";
+      var el=document.createElement("span");
+      el.style.cssText="font-size:0.6rem;opacity:0.35;margin-left:8px;";
+      function update(){el.textContent=(ta.value.match(/\n/g)||[]).length+1+" lines";}
+      update();
+      ta.addEventListener("input",update);
+      var counter=ta.parentNode.querySelector("._ts,._charCount,._charWarn");
+      if(counter)counter.parentNode.insertBefore(el,counter.nextSibling);
+      else ta.parentNode.insertBefore(el,ta.nextSibling);
+    },92);
+  };
+})();
+
+/* imp703: task list keyboard navigation with Up/Down arrows */
+(function(){
+  var focusIdx=-1;
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    var rows=Array.from(document.querySelectorAll(".task-row,.ob-task-row")).filter(function(r){return r.style.display!=="none";});
+    if(!rows.length)return;
+    e.preventDefault();
+    focusIdx=e.key==="ArrowDown"?Math.min(focusIdx+1,rows.length-1):Math.max(focusIdx-1,0);
+    rows[focusIdx].focus();
+    rows[focusIdx].scrollIntoView({block:"nearest",behavior:"smooth"});
+    var id=rows[focusIdx].dataset.id||rows[focusIdx].dataset.taskId;
+    if(id)showTaskDetail&&showTaskDetail(id);
+  });
+})();
+
+/* imp704: note quick-action toolbar (bold, italic, bullet, link) */
+(function(){
+  var _origSD704=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD704&&_origSD704(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_noteToolbar704"))return;
+      var ta=panel.querySelector("textarea");
+      if(!ta)return;
+      var bar=document.createElement("div");
+      bar.id="_noteToolbar704";
+      bar.style.cssText="display:flex;gap:3px;margin-bottom:3px;";
+      function wrap(before,after){
+        var s=ta.selectionStart;var e2=ta.selectionEnd;
+        var sel=ta.value.slice(s,e2)||"text";
+        ta.value=ta.value.slice(0,s)+before+sel+after+ta.value.slice(e2);
+        ta.setSelectionRange(s+before.length,s+before.length+sel.length);
+        ta.focus();ta.dispatchEvent(new Event("input"));
+      }
+      var actions=[["B","**","**","Bold"],["I","*","*","Italic"],["~","~~","~~","Strike"],["#","# ","","Heading"],["-","- ","","Bullet"],["[]","- [ ] ","","Checkbox"],["<>","`","`","Code"]];
+      actions.forEach(function(a){
+        var btn=document.createElement("button");
+        btn.textContent=a[0];btn.title=a[3];
+        btn.style.cssText="font-size:0.68rem;padding:2px 6px;border-radius:4px;background:var(--panel);border:1px solid var(--border);cursor:pointer;font-family:monospace;";
+        btn.onclick=function(){wrap(a[1],a[2]);};
+        bar.appendChild(btn);
+      });
+      ta.parentNode.insertBefore(bar,ta);
+    },93);
+  };
+})();
+
+/* imp705: show days until onboarding complete (ETA banner) */
+(function(){
+  function etaBanner(){
+    var la=window._la||[];
+    if(!la.length)return;
+    var remaining=la.filter(function(t){return !t.done;}).length;
+    if(!remaining)return;
+    var times=JSON.parse(localStorage.getItem("ob_done_times")||"[]");
+    if(times.length<4)return;
+    var diffs=[];for(var i=1;i<times.length;i++)diffs.push(times[i]-times[i-1]);
+    var avgMs=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
+    var etaMs=remaining*avgMs;
+    var etaDate=new Date(Date.now()+etaMs);
+    var el=document.getElementById("_etaBanner705");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_etaBanner705";
+      el.style.cssText="font-size:0.7rem;opacity:0.55;padding:3px 8px;background:rgba(0,255,168,0.05);border-radius:6px;margin:4px 0;text-align:center;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    if(el)el.textContent="\uD83C\uDFC1 Estimated finish: "+etaDate.toLocaleDateString()+" ("+remaining+" tasks left)";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(etaBanner,1000);});
+  var _origTD705=window.toggleDetailDone;
+  window.toggleDetailDone=function(){_origTD705&&_origTD705();setTimeout(etaBanner,100);};
+})();
+
+/* imp706: jump to random incomplete task (Ctrl+R) */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(!e.ctrlKey||e.key!=="r")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    e.preventDefault();
+    var la=window._la||[];
+    var incomplete=la.filter(function(t){return !t.done;});
+    if(!incomplete.length){_showToast&&_showToast("All tasks done!","success",1500);return;}
+    var pick=incomplete[Math.floor(Math.random()*incomplete.length)];
+    showTaskDetail&&showTaskDetail(pick.id);
+    var row=document.querySelector("[data-id='"+pick.id+"'],[data-task-id='"+pick.id+"']");
+    if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
+    _showToast&&_showToast("Random task!","info",900);
+  });
+})();
+
+/* imp707: note export as .csv (id, name, note) */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="_csvNotes";
+  btn.innerHTML="\uD83D\uDCCA Notes CSV";
+  btn.style.cssText="position:fixed;bottom:468px;left:14px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:0.7rem;cursor:pointer;opacity:0.65;";
+  btn.onclick=function(){
+    var la=window._la||[];
+    var td=window.TASK_DETAILS||{};
+    var rows=["id,name,phase,done,note"];
+    la.forEach(function(t){
+      var name=(td[t.id]&&td[t.id].name||t.id).replace(/,/g," ");
+      var note=(localStorage.getItem("ob_note_"+t.id)||"").replace(/[\n\r]/g," ").replace(/,/g," ");
+      rows.push([t.id,name,t.phase||"",t.done?"1":"0",note].join(","));
+    });
+    var blob=new Blob([rows.join("\n")],{type:"text/csv"});
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="onboarding_notes_"+new Date().toISOString().slice(0,10)+".csv";
+    a.click();
+    _showToast&&_showToast("CSV exported","success",1500);
+  };
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);});
+})();
+
+/* imp708: task row hover shows mini progress ring animation */
+(function(){
+  document.addEventListener("mouseover",function(e){
+    var ring=e.target.closest("._miniRing");
+    if(!ring||ring.dataset._animated)return;
+    ring.dataset._animated="1";
+    var fg=ring.querySelector("circle[stroke='#00ffa8'],circle[stroke='#00c47e']");
+    if(!fg)return;
+    var c=parseFloat(fg.getAttribute("stroke-dasharray")||"38");
+    var target=parseFloat(fg.getAttribute("stroke-dashoffset")||"0");
+    fg.setAttribute("stroke-dashoffset",c);
+    fg.style.transition="stroke-dashoffset 0.5s ease";
+    setTimeout(function(){fg.setAttribute("stroke-dashoffset",target);},20);
+  });
+})();
+
+/* imp709: show unsaved note indicator in panel title */
+(function(){
+  var dirty=false;
+  var _origSD709=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD709&&_origSD709(id);
+    dirty=false;
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var ta=panel.querySelector("textarea");
+      if(!ta||ta.dataset._dirtyWatch)return;
+      ta.dataset._dirtyWatch="1";
+      ta.addEventListener("input",function(){
+        dirty=true;
+        var h=panel.querySelector("h2,h3,.detail-title");
+        if(h&&!h.querySelector("._unsavedDot")){
+          var dot=document.createElement("span");
+          dot.className="_unsavedDot";
+          dot.style.cssText="display:inline-block;width:6px;height:6px;border-radius:50%;background:#e05c5c;margin-left:6px;vertical-align:middle;";
+          dot.title="Unsaved changes";
+          h.appendChild(dot);
+        }
+      });
+    },92);
+  };
+  var _origSN709=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){
+    _origSN709&&_origSN709(id,text);
+    dirty=false;
+    var dot=document.querySelector("._unsavedDot");
+    if(dot)dot.remove();
+  };
+})();
+
+/* imp710: 710-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp710_shown")){
+    localStorage.setItem("ob_imp710_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDE80 710! Sprint to 750!","info",3000);},2000);
+  }
+})();
+</script>
 </script></body></html>
