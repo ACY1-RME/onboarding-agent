@@ -15653,4 +15653,231 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp731: focus mode hides everything except current task detail */
+(function(){
+  var active=false;
+  var st=document.createElement("style");
+  st.textContent=".focus-mode-active .sidebar,.focus-mode-active .left-panel,.focus-mode-active #leftPanel,.focus-mode-active .task-list,.focus-mode-active #task-list{display:none!important;}.focus-mode-active #task-detail-panel,.focus-mode-active #taskDetailPanel{width:100%!important;max-width:800px!important;margin:auto!important;}";
+  document.head.appendChild(st);
+  var btn=document.createElement("button");
+  btn.id="_focusModeBtn";
+  btn.title="Toggle focus mode (Alt+F)";
+  btn.innerHTML="\uD83C\uDFAF Focus";
+  btn.style.cssText="position:fixed;top:8px;right:160px;z-index:900;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:0.68rem;cursor:pointer;opacity:0.65;";
+  btn.onclick=function(){active=!active;document.body.classList.toggle("focus-mode-active",active);btn.style.background=active?"var(--accent)":"var(--panel)";btn.style.color=active?"#000":"var(--text)";btn.style.opacity=active?"1":"0.65";};
+  document.addEventListener("keydown",function(e){if(e.altKey&&e.key==="f"&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName))btn.click();});
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);});
+})();
+
+/* imp732: keyboard shortcut Ctrl+D to duplicate note text */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(!e.ctrlKey||e.key!=="d")return;
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel)return;
+    var ta=panel.querySelector("textarea");
+    if(!ta||document.activeElement!==ta)return;
+    e.preventDefault();
+    var start=ta.selectionStart;var end=ta.selectionEnd;
+    if(start===end)return;
+    var sel=ta.value.slice(start,end);
+    ta.value=ta.value.slice(0,end)+"\n"+sel+ta.value.slice(end);
+    ta.setSelectionRange(end+1,end+1+sel.length);
+    ta.dispatchEvent(new Event("input"));
+  });
+})();
+
+/* imp733: animated progress number counter */
+(function(){
+  function animateCount(el,target,duration){
+    var start=parseInt(el.textContent)||0;
+    var diff=target-start;
+    var startTime=null;
+    function step(ts){
+      if(!startTime)startTime=ts;
+      var prog=Math.min((ts-startTime)/duration,1);
+      el.textContent=Math.round(start+diff*prog)+"%";
+      if(prog<1)requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  var _origUP733=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP733&&_origUP733();
+    setTimeout(function(){
+      var la=window._la||[];
+      if(!la.length)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var pct=Math.round(done/la.length*100);
+      var pctEls=document.querySelectorAll(".progress-pct,.pct-text,.progress-percent");
+      pctEls.forEach(function(el){
+        var cur=parseInt(el.textContent)||0;
+        if(cur!==pct)animateCount(el,pct,500);
+      });
+    },80);
+  };
+})();
+
+/* imp734: task heat score (combined done+notes+time+steps) */
+(function(){
+  function heatScore(id){
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+    var score=0;
+    if(task&&task.done)score+=30;
+    var note=(localStorage.getItem("ob_note_"+id)||"").trim();
+    score+=Math.min(30,Math.floor(note.length/20));
+    var logs=JSON.parse(localStorage.getItem("ob_log_"+id)||"[]");
+    var mins=logs.reduce(function(a,b){return a+b.m;},0);
+    score+=Math.min(20,Math.floor(mins/5));
+    var steps=td&&td.steps&&td.steps.length||0;
+    var stepDone=Object.values(JSON.parse(localStorage.getItem("ob_step_done_"+id)||"{}")).filter(Boolean).length;
+    if(steps)score+=Math.round(stepDone/steps*20);
+    return Math.min(100,score);
+  }
+  function applyHeatScores(){
+    (window._la||[]).forEach(function(t){
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row)return;
+      var badge=row.querySelector("._heatBadge");
+      var score=heatScore(t.id);
+      if(score<20)return;
+      if(!badge){badge=document.createElement("span");badge.className="_heatBadge";badge.style.cssText="font-size:0.55rem;padding:1px 4px;border-radius:4px;margin-left:3px;font-weight:700;";row.appendChild(badge);}
+      badge.textContent=score+"hp";
+      badge.style.background=score>=80?"rgba(0,255,168,0.2)":score>=50?"rgba(240,196,83,0.2)":"rgba(99,179,255,0.2)";
+      badge.style.color=score>=80?"var(--accent)":score>=50?"var(--gold)":"#63b3ff";
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(applyHeatScores,900);});
+  var _origUP734=window.updateProgress;
+  window.updateProgress=function(){_origUP734&&_origUP734();setTimeout(applyHeatScores,120);};
+})();
+
+/* imp735: swipe down to refresh (mobile) */
+(function(){
+  var startY=0;
+  document.addEventListener("touchstart",function(e){startY=e.touches[0].clientY;},{passive:true});
+  document.addEventListener("touchend",function(e){
+    var dy=e.changedTouches[0].clientY-startY;
+    if(dy>80&&window.scrollY===0){
+      updateProgress&&updateProgress();
+      _showToast&&_showToast("Refreshed \u2191","info",700);
+    }
+  },{passive:true});
+})();
+
+/* imp736: auto-complete task when all steps are checked */
+(function(){
+  var _origSD736=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD736&&_origSD736(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var stepWrap=document.getElementById("_stepChecklist");
+      if(!stepWrap)return;
+      stepWrap.querySelectorAll("input[type='checkbox']").forEach(function(cb){
+        var old=cb.onchange;
+        cb.onchange=function(){
+          if(old)old.call(cb);
+          var all=Array.from(stepWrap.querySelectorAll("input[type='checkbox']"));
+          if(all.every(function(c){return c.checked;})){
+            var la=window._la||[];
+            var task=la.find(function(t){return t.id===id;});
+            if(task&&!task.done){
+              if(confirm("All steps done! Mark task complete?")){
+                task.done=true;
+                updateProgress&&updateProgress();
+                _showToast&&_showToast("Task auto-completed!","success",2000);
+              }
+            }
+          }
+        };
+      });
+    },250);
+  };
+})();
+
+/* imp737: chat /stats command shows progress summary */
+(function(){
+  var _origSM737=window.sendMsg;
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.getElementById("chatInput");
+    var val=(inp&&inp.value||"").trim();
+    if(val==="/stats"){
+      var la=window._la||[];
+      var done=la.filter(function(t){return t.done;}).length;
+      var pct=la.length?Math.round(done/la.length*100):0;
+      var notes=la.filter(function(t){return (localStorage.getItem("ob_note_"+t.id)||"").trim();}).length;
+      var streak=localStorage.getItem("ob_streak10")||"0";
+      var msg="Progress: "+done+"/"+la.length+" ("+pct+"%) | Notes: "+notes+" | Streak: "+streak;
+      appendMsg&&appendMsg(msg,"bot");
+      if(inp)inp.value="";
+      return;
+    }
+    _origSM737&&_origSM737();
+  };
+})();
+
+/* imp738: long note scroll indicator (faded bottom gradient when note overflows) */
+(function(){
+  var _origSD738=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD738&&_origSD738(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var ta=panel.querySelector("textarea");
+      if(!ta||ta.dataset._scrollFade)return;
+      ta.dataset._scrollFade="1";
+      var fade=document.createElement("div");
+      fade.style.cssText="position:absolute;bottom:0;left:0;right:0;height:20px;background:linear-gradient(transparent,var(--bg));pointer-events:none;opacity:0;transition:opacity 0.2s;border-radius:0 0 6px 6px;";
+      ta.parentNode.style.position="relative";
+      ta.parentNode.appendChild(fade);
+      ta.addEventListener("input",function(){
+        fade.style.opacity=(ta.scrollHeight>ta.clientHeight+10)?"1":"0";
+      });
+    },94);
+  };
+})();
+
+/* imp739: show "Skip" button to skip non-critical tasks */
+(function(){
+  var KEY_PRE="ob_skipped_";
+  var _origSD739=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD739&&_origSD739(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_skipBtn739"))return;
+      var skipped=localStorage.getItem(KEY_PRE+id)==="1";
+      var btn=document.createElement("button");
+      btn.id="_skipBtn739";
+      btn.textContent=skipped?"\u21AA Unskip":"Skip";
+      btn.style.cssText="font-size:0.65rem;padding:2px 8px;border-radius:8px;background:var(--panel);border:1px solid var(--border);cursor:pointer;opacity:0.6;";
+      btn.onclick=function(){
+        skipped=!skipped;
+        localStorage.setItem(KEY_PRE+id,skipped?"1":"0");
+        btn.textContent=skipped?"\u21AA Unskip":"Skip";
+        var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+        if(row)row.style.opacity=skipped?"0.35":"";
+        _showToast&&_showToast(skipped?"Task skipped":"Task unskipped","info",1000);
+      };
+      var actions=panel.querySelector(".detail-actions");
+      if(actions)actions.appendChild(btn);
+      else panel.appendChild(btn);
+    },95);
+  };
+})();
+
+/* imp740: 740-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp740_shown")){
+    localStorage.setItem("ob_imp740_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83C\uDF1F 740 improvements! Legendary.","success",3200);},2600);
+  }
+})();
+</script>
 </script></body></html>
