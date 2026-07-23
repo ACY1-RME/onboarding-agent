@@ -5101,7 +5101,7 @@ function _exportChat(){
   if(localStorage.getItem('ob_greeted_today')===new Date().toLocaleDateString())return;
   localStorage.setItem('ob_greeted_today',new Date().toLocaleDateString());
   var h=new Date().getHours();
-  var greeting=h<12?'Good morning':'h<17?Good afternoon':'Good evening';
+  var greeting=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
   if(h>=12&&h<17)greeting='Good afternoon';
   else if(h>=17)greeting='Good evening';
   var name=localStorage.getItem('ob_name');
