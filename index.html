@@ -18409,4 +18409,196 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 851-860 */
+(function(){
+
+/* 851 – Task note share via URL (encode into hash) */
+(function(){
+  var _oSD851=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD851.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob851-share"))return;
+      var btn=document.createElement("button");
+      btn.id="ob851-share";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent="\uD83D\uDD17 Share Note";btn.title="Copy shareable note link";
+      btn.addEventListener("click",function(){
+        var ta=document.getElementById("task-note");
+        var text=ta?ta.value:"";
+        var t=window.TM&&window.TM[id]?window.TM[id].title:"task";
+        var payload=JSON.stringify({t:t,n:text.substring(0,500)});
+        var hash="#note="+btoa(payload);
+        var url=location.href.split("#")[0]+hash;
+        navigator.clipboard.writeText(url).then(function(){
+          if(typeof window._showToast==="function")window._showToast("Note link copied!","success",2500);
+        }).catch(function(){});
+      });
+      var det=document.getElementById("task-detail-body")||document.getElementById("task-detail");
+      if(det)det.appendChild(btn);
+    },270);
+  };
+})();
+
+/* 852 – Import note from URL hash */
+(function(){
+  var hash=location.hash;
+  if(!hash.startsWith("#note="))return;
+  try{
+    var data=JSON.parse(atob(hash.substring(6)));
+    if(data.n)setTimeout(function(){
+      var ta=document.getElementById("task-note");
+      if(ta&&!ta.value){ta.value=data.n;ta.dispatchEvent(new Event("input"));}
+      if(typeof window._showToast==="function")window._showToast("Note imported from link!","info",3500);
+    },1000);
+  }catch(e){}
+})();
+
+/* 853 – Task checklist progress ring tooltip */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob853-ring-wrap{display:inline-block;position:relative;cursor:default;}" +
+    ".ob853-ring-tip{position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:.68rem;white-space:nowrap;z-index:900;opacity:0;transition:opacity .15s;pointer-events:none;}" +
+    ".ob853-ring-wrap:hover .ob853-ring-tip{opacity:1;}";
+  document.head.appendChild(css);
+})();
+
+/* 854 – Done task count badge in window title prefix */
+(function(){
+  function updateTitle(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+    var total=tasks.length;
+    var pct=total?Math.round(done/total*100):0;
+    var base=document.title.replace(/^\[\d+%\]\s*/,"").replace(/^\(\d+\/\d+\)\s*/,"");
+    document.title="["+pct+"%] "+base;
+  }
+  var _orig854=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig854.apply(this,arguments);setTimeout(updateTitle,80);};
+  setTimeout(updateTitle,3200);
+})();
+
+/* 855 – Right-click context menu on task cards */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob855-ctx{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px 0;z-index:9000;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.5);}" +
+    ".ob855-item{padding:7px 14px;font-size:.82rem;cursor:pointer;}" +
+    ".ob855-item:hover{background:rgba(255,255,255,.06);}";
+  document.head.appendChild(css);
+  var menu=document.createElement("div");menu.id="ob855-ctx";menu.style.display="none";
+  document.body.appendChild(menu);
+  var ctxId=null;
+  document.addEventListener("contextmenu",function(e){
+    var card=e.target.closest(".task-card,.ob-task");if(!card)return;
+    ctxId=card.dataset.id||card.dataset.taskId;if(!ctxId)return;
+    e.preventDefault();
+    var items=[
+      ["\u2705 Mark Done",function(){localStorage.setItem("ob_done_"+ctxId,"1");if(typeof window.updateProgress==="function")window.updateProgress();}],
+      ["\u270F Open Detail",function(){if(typeof window.showTaskDetail==="function")window.showTaskDetail(ctxId);}],
+      ["\uD83D\uDEA9 Flag Red",function(){localStorage.setItem("ob_flag_"+ctxId,"red");if(typeof window.updateProgress==="function")window.updateProgress();}],
+      ["\uD83D\uDCCB Copy Title",function(){var t=window.TM&&window.TM[ctxId]?window.TM[ctxId].title:ctxId;navigator.clipboard.writeText(t).catch(function(){});}]
+    ];
+    menu.innerHTML=items.map(function(it,i){return "<div class='ob855-item' data-idx='"+i+"'>"+it[0]+"</div>";}).join("");
+    menu.querySelectorAll(".ob855-item").forEach(function(el){
+      var fn=items[parseInt(el.dataset.idx)][1];
+      el.addEventListener("click",function(){fn();menu.style.display="none";});
+    });
+    var x=Math.min(e.clientX,window.innerWidth-170);
+    var y=Math.min(e.clientY,window.innerHeight-170);
+    menu.style.left=x+"px";menu.style.top=y+"px";menu.style.display="block";
+  });
+  document.addEventListener("click",function(){menu.style.display="none";});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")menu.style.display="none";});
+})();
+
+/* 856 – Note length progress bar (toward 500 chars) */
+(function(){
+  var GOAL=500;
+  var _oSD856=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD856.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob856-bar"))return;
+      var wrap=document.createElement("div");
+      wrap.style.cssText="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:3px;overflow:hidden;";
+      var bar=document.createElement("div");bar.id="ob856-bar";
+      bar.style.cssText="height:100%;background:var(--accent);border-radius:2px;transition:width .3s;width:0%;";
+      wrap.appendChild(bar);
+      ta.parentNode.insertBefore(wrap,ta.nextSibling);
+      function upd(){var pct=Math.min(100,Math.round(ta.value.length/GOAL*100));bar.style.width=pct+"%";}
+      ta.addEventListener("input",upd);upd();
+    },190);
+  };
+})();
+
+/* 857 – Keyboard: Ctrl+F focus on note find box */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="f"){
+      var fi=document.getElementById("ob844-find");
+      if(fi){e.preventDefault();fi.focus();fi.select();}
+    }
+  });
+})();
+
+/* 858 – Task list sorting: by priority */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob858-sort";
+  btn.style.cssText="position:fixed;top:56px;right:16px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.72rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\u2195 Sort";btn.title="Sort tasks by priority";
+  var sorted=false;
+  btn.addEventListener("click",function(){
+    sorted=!sorted;
+    btn.style.borderColor=sorted?"var(--accent)":"var(--border)";
+    btn.style.color=sorted?"var(--accent)":"var(--muted)";
+    var lists=document.querySelectorAll(".phase-tasks,.task-list,#task-list");
+    lists.forEach(function(list){
+      var cards=Array.from(list.querySelectorAll(".task-card,.ob-task"));
+      if(!sorted){cards.forEach(function(c){list.appendChild(c);});return;}
+      var order={p1:0,p2:1,p3:2};
+      cards.sort(function(a,b){
+        var ia=a.dataset.id||"";var ib=b.dataset.id||"";
+        var pa=localStorage.getItem("ob_pri_"+ia)||"p3";
+        var pb=localStorage.getItem("ob_pri_"+ib)||"p3";
+        return (order[pa]||2)-(order[pb]||2);
+      });
+      cards.forEach(function(c){list.appendChild(c);});
+    });
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 859 – Tag filter from global tag cloud */
+(function(){
+  var active=null;
+  document.addEventListener("click",function(e){
+    var tag=e.target.closest(".ob-tag,[data-tag]");if(!tag)return;
+    var val=tag.dataset.tag||tag.textContent.trim();if(!val.startsWith("#"))return;
+    active=active===val?null:val;
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      if(!active){card.style.display="";return;}
+      var id=card.dataset.id||card.dataset.taskId;
+      var note=localStorage.getItem("ob_note_"+id)||"";
+      card.style.display=note.includes(active)?"":"none";
+    });
+    if(typeof window._showToast==="function"){
+      window._showToast(active?"Filtering by "+active:"Tag filter cleared","info",2000);
+    }
+  });
+})();
+
+/* 860 – Milestone toast: 860 */
+(function(){
+  if(localStorage.getItem("ob_imp860_shown"))return;
+  localStorage.setItem("ob_imp860_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83C\uDF20 860 — constellation of features!","success",4500);
+  },5500);
+})();
+
+})();
+</script>
 </script></body></html>
