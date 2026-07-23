@@ -18191,4 +18191,222 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 841-850 */
+(function(){
+
+/* 841 – Note character limit warning */
+(function(){
+  var LIMIT=2000;
+  var _oSD841=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD841.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob841-warn"))return;
+      var warn=document.createElement("div");warn.id="ob841-warn";
+      warn.style.cssText="font-size:.68rem;margin-top:2px;display:none;";
+      ta.parentNode.insertBefore(warn,ta.nextSibling);
+      ta.addEventListener("input",function(){
+        var rem=LIMIT-ta.value.length;
+        if(rem<200){
+          warn.style.display="block";
+          warn.style.color=rem<50?"#ff4444":"var(--warn,#f0c453)";
+          warn.textContent=rem+" chars left";
+        } else warn.style.display="none";
+      });
+    },170);
+  };
+})();
+
+/* 842 – Keyboard: Ctrl+Z undo note (last saved version) */
+(function(){
+  var history842={};
+  var _oSD842=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD842.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var saved=localStorage.getItem("ob_note_"+id)||"";
+      history842[id]=[saved];
+      ta.addEventListener("input",function(){
+        var h=history842[id]=history842[id]||[];
+        if(h.length>20)h.shift();
+        h.push(ta.value);
+      });
+    },180);
+  };
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="z"&&document.activeElement&&document.activeElement.id==="task-note"){
+      var id=window._curTask;if(!id)return;
+      var h=history842[id];if(!h||h.length<2)return;
+      h.pop();var prev=h[h.length-1];
+      document.activeElement.value=prev;
+      document.activeElement.dispatchEvent(new Event("input"));
+    }
+  });
+})();
+
+/* 843 – Resource count badge on task cards */
+(function(){
+  function attachResCounts(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;if(!id||card.querySelector(".ob843-rc"))return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];if(!td||!td.resources)return;
+      var n=td.resources.length;if(!n)return;
+      var badge=document.createElement("span");badge.className="ob843-rc";
+      badge.style.cssText="font-size:.6rem;background:rgba(0,255,168,.12);border:1px solid rgba(0,255,168,.3);border-radius:10px;padding:1px 6px;margin-left:auto;color:var(--accent);flex-shrink:0;";
+      badge.textContent=n+" link"+(n!==1?"s":"");badge.title=n+" resource links";
+      card.style.display="flex";card.style.alignItems="center";card.appendChild(badge);
+    });
+  }
+  var _orig843=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig843.apply(this,arguments);setTimeout(attachResCounts,200);};
+  setTimeout(attachResCounts,3000);
+})();
+
+/* 844 – Note search (find text within current note) */
+(function(){
+  var _oSD844=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD844.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||document.getElementById("ob844-find"))return;
+      var row=document.createElement("div");row.style.cssText="display:flex;gap:6px;margin-bottom:4px;";
+      var inp=document.createElement("input");inp.id="ob844-find";inp.type="text";inp.placeholder="Find in note...";
+      inp.style.cssText="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:4px;color:inherit;padding:2px 8px;font-size:.75rem;";
+      var info=document.createElement("span");info.style.cssText="font-size:.72rem;opacity:.5;align-self:center;";
+      row.appendChild(inp);row.appendChild(info);
+      ta.parentNode.insertBefore(row,ta);
+      inp.addEventListener("input",function(){
+        var q=inp.value.trim();if(!q){ta.style.background="";info.textContent="";return;}
+        var text=ta.value;var idx=text.toLowerCase().indexOf(q.toLowerCase());
+        if(idx!==-1){
+          ta.focus();ta.selectionStart=idx;ta.selectionEnd=idx+q.length;
+          ta.scrollTop=ta.scrollHeight*(idx/text.length);
+          info.textContent="Found at char "+idx;info.style.color="var(--accent)";
+        } else{info.textContent="Not found";info.style.color="#ff4444";}
+      });
+    },200);
+  };
+})();
+
+/* 845 – Chat: /done command marks current task done */
+(function(){
+  var _oSM845=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp&&inp.value.trim()==="/done"){
+      var id=window._curTask;
+      if(id){
+        localStorage.setItem("ob_done_"+id,"1");
+        if(typeof window.updateProgress==="function")window.updateProgress();
+        var t=window.TM&&window.TM[id]?window.TM[id].title:"task";
+        if(typeof window.appendMsg==="function")window.appendMsg("\u2705 Marked done: "+t,"bot");
+        inp.value="";return;
+      }
+    }
+    _oSM845.apply(this,arguments);
+  };
+})();
+
+/* 846 – Keyboard: F2 rename task locally */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="F2")return;
+    var id=window._curTask;if(!id)return;
+    var h=document.querySelector("#task-detail h2,#task-detail .detail-title");if(!h)return;
+    var old=localStorage.getItem("ob_title_"+id)||h.textContent.trim();
+    var nv=prompt("Rename task (local only):",old);
+    if(nv&&nv.trim()){
+      localStorage.setItem("ob_title_"+id,nv.trim());
+      h.textContent=nv.trim();
+    }
+  });
+})();
+
+/* 847 – Weekly task completion heatmap (7-day bar) */
+(function(){
+  var el=document.createElement("div");
+  el.id="ob847-week";
+  el.style.cssText="position:fixed;bottom:34px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:705;pointer-events:none;";
+  document.body.appendChild(el);
+  function buildWeek(){
+    var days=[];
+    for(var i=6;i>=0;i--){
+      var d=new Date();d.setDate(d.getDate()-i);
+      var key=d.toDateString();
+      var count=0;
+      if(window.TM)Object.values(window.TM).forEach(function(t){
+        var ts=localStorage.getItem("ob_done_ts_"+t.id);
+        if(ts&&new Date(ts).toDateString()===key)count++;
+      });
+      days.push({label:d.toLocaleDateString([],{weekday:"short"}),count:count});
+    }
+    var max=Math.max.apply(null,days.map(function(d){return d.count;}))||1;
+    el.innerHTML=days.map(function(d){
+      var h=Math.max(4,Math.round(d.count/max*20));
+      var op=0.2+d.count/max*0.8;
+      return "<div title='"+d.label+": "+d.count+"' style='width:8px;height:"+h+"px;background:var(--accent);opacity:"+op+";border-radius:2px;align-self:flex-end;'></div>";
+    }).join("");
+  }
+  var _orig847=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig847.apply(this,arguments);setTimeout(buildWeek,120);};
+  setTimeout(buildWeek,3100);
+})();
+
+/* 848 – Tooltip on hover over task title */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob848-tip{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.75rem;max-width:260px;z-index:8000;pointer-events:none;opacity:0;transition:opacity .15s;line-height:1.4;}";
+  document.head.appendChild(css);
+  var tip=document.createElement("div");tip.className="ob848-tip";document.body.appendChild(tip);
+  document.addEventListener("mouseover",function(e){
+    var card=e.target.closest(".task-card,.ob-task");if(!card)return;
+    var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+    var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];if(!td||!td.desc)return;
+    tip.textContent=td.desc.substring(0,140)+(td.desc.length>140?"...":"");
+    tip.style.opacity="1";
+    tip.style.left=Math.min(e.clientX+14,window.innerWidth-280)+"px";
+    tip.style.top=(e.clientY+14)+"px";
+  });
+  document.addEventListener("mousemove",function(e){
+    tip.style.left=Math.min(e.clientX+14,window.innerWidth-280)+"px";
+    tip.style.top=(e.clientY+14)+"px";
+  });
+  document.addEventListener("mouseout",function(e){
+    if(!e.target.closest(".task-card,.ob-task"))tip.style.opacity="0";
+  });
+})();
+
+/* 849 – Chat /progress command */
+(function(){
+  var _oSM849=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp&&inp.value.trim()==="/progress"){
+      if(window.TM){
+        var tasks=Object.values(window.TM);
+        var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+        var pct=tasks.length?Math.round(done/tasks.length*100):0;
+        var msg="Progress: "+done+"/"+tasks.length+" tasks ("+pct+"% complete)";
+        if(typeof window.appendMsg==="function")window.appendMsg(msg,"bot");
+        inp.value="";return;
+      }
+    }
+    _oSM849.apply(this,arguments);
+  };
+})();
+
+/* 850 – MILESTONE toast: 850 */
+(function(){
+  if(localStorage.getItem("ob_imp850_shown"))return;
+  localStorage.setItem("ob_imp850_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDD34 850 improvements — Hall of Fame!","success",5000);
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+  },5200);
+})();
+
+})();
+</script>
 </script></body></html>
