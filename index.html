@@ -11629,4 +11629,223 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp546: font size persistent preference slider */
+(function(){
+  var KEY="ob_font_size";
+  var current=parseFloat(localStorage.getItem(KEY)||"1");
+  document.documentElement.style.fontSize=(current*16)+"px";
+  var wrap=document.createElement("div");
+  wrap.id="_fontSizeWrap";
+  wrap.style.cssText="position:fixed;bottom:360px;right:14px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:0.65rem;opacity:0;transition:opacity 0.2s;";
+  wrap.innerHTML="<div style='margin-bottom:4px;opacity:0.6;'>Font size</div><input type='range' min='0.8' max='1.3' step='0.05' value='"+current+"' style='width:90px;accent-color:var(--accent);' id='_fontSlider'><div id='_fontLabel' style='text-align:center;opacity:0.5;'>"+Math.round(current*100)+"%</div>";
+  var btn=document.createElement("button");
+  btn.title="Font size";
+  btn.innerHTML="<b>A</b>";
+  btn.style.cssText="position:fixed;bottom:252px;right:50px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:50%;width:28px;height:28px;font-size:0.8rem;cursor:pointer;opacity:0.6;";
+  btn.onclick=function(){wrap.style.opacity=wrap.style.opacity==="1"?"0":"1";};
+  document.addEventListener("DOMContentLoaded",function(){
+    document.body.appendChild(btn);
+    document.body.appendChild(wrap);
+    wrap.querySelector("#_fontSlider").addEventListener("input",function(){
+      current=parseFloat(this.value);
+      localStorage.setItem(KEY,current);
+      document.documentElement.style.fontSize=(current*16)+"px";
+      wrap.querySelector("#_fontLabel").textContent=Math.round(current*100)+"%";
+    });
+  });
+})();
+
+/* imp547: show resource count badge on task rows */
+(function(){
+  function resourceBadges(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      if(!td||!td.resources||!td.resources.length)return;
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row||row.querySelector("._resBadge"))return;
+      var b=document.createElement("span");
+      b.className="_resBadge";
+      b.textContent=td.resources.length+"\uD83D\uDD17";
+      b.style.cssText="font-size:0.6rem;opacity:0.55;margin-left:3px;";
+      b.title=td.resources.length+" resource"+(td.resources.length>1?"s":"");
+      row.appendChild(b);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(resourceBadges,800);});
+})();
+
+/* imp548: AI chat message reactions (thumbs up/down) */
+(function(){
+  var _origAM548=window.appendMsg;
+  window.appendMsg=function(text,cls){
+    _origAM548&&_origAM548(text,cls);
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(!chat)return;
+    var last=chat.lastElementChild;
+    if(!last||last.querySelector("._reactions"))return;
+    var react=document.createElement("span");
+    react.className="_reactions";
+    react.style.cssText="margin-left:8px;font-size:0.8rem;opacity:0.5;";
+    var up=document.createElement("span");up.textContent="\uD83D\uDC4D";up.style.cursor="pointer";up.title="Helpful";
+    var dn=document.createElement("span");dn.textContent="\uD83D\uDC4E";dn.style.cssText="margin-left:4px;cursor:pointer;";dn.title="Not helpful";
+    up.onclick=function(){up.style.opacity="1";dn.style.opacity="0.3";};
+    dn.onclick=function(){dn.style.opacity="1";up.style.opacity="0.3";};
+    react.appendChild(up);react.appendChild(dn);
+    last.appendChild(react);
+  };
+})();
+
+/* imp549: show task phase badge in detail panel header */
+(function(){
+  var _origSD549=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD549&&_origSD549(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_phaseBadge549"))return;
+      var la=window._la||[];
+      var task=la.find(function(t){return t.id===id;});
+      if(!task||!task.phase)return;
+      var badge=document.createElement("span");
+      badge.id="_phaseBadge549";
+      badge.textContent=task.phase;
+      badge.style.cssText="font-size:0.65rem;padding:2px 8px;border-radius:10px;background:rgba(0,255,168,0.12);color:var(--accent);border:1px solid var(--accent2);margin-left:6px;vertical-align:middle;";
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.appendChild(badge);
+    },85);
+  };
+})();
+
+/* imp550: global progress percentage in nav title area */
+(function(){
+  var el=null;
+  function updateGlobalPct(){
+    var la=window._la||[];
+    if(!la.length)return;
+    var done=la.filter(function(t){return t.done;}).length;
+    var pct=Math.round(done/la.length*100);
+    if(!el){
+      el=document.createElement("span");
+      el.id="_globalPct";
+      el.style.cssText="font-size:0.8rem;color:var(--accent);font-weight:700;margin-left:10px;";
+      var nav=document.querySelector("nav,.nav,.header-nav,.top-nav,.app-header");
+      if(nav)nav.appendChild(el);
+      else{el.style.cssText+="position:fixed;top:8px;right:100px;z-index:900;";document.body.appendChild(el);}
+    }
+    el.textContent=pct+"%";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(updateGlobalPct,700);});
+  var _origUP550=window.updateProgress;
+  window.updateProgress=function(){_origUP550&&_origUP550();setTimeout(updateGlobalPct,80);};
+})();
+
+/* imp551: animated checkmark icon when task is marked done */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="@keyframes checkPop{0%{transform:scale(0)}60%{transform:scale(1.3)}100%{transform:scale(1)}}.task-done-check{animation:checkPop 0.35s ease forwards;display:inline-block;}";
+  document.head.appendChild(st);
+  var _origUP551=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP551&&_origUP551();
+    setTimeout(function(){
+      document.querySelectorAll(".task-row.done,.ob-task-row.done,.task-row[data-done='true']").forEach(function(row){
+        if(row.querySelector("._ckMark"))return;
+        var ck=document.createElement("span");
+        ck.className="_ckMark task-done-check";
+        ck.style.cssText="color:var(--accent);margin-right:4px;font-size:0.85rem;";
+        ck.textContent="\u2713";
+        row.insertBefore(ck,row.firstChild);
+      });
+    },80);
+  };
+})();
+
+/* imp552: time-of-day greeting in chat intro */
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(!chat||chat.querySelector("._greeting"))return;
+    var h=new Date().getHours();
+    var greet=h<12?"Good morning":"h<17"?"Good afternoon":"Good evening";
+    greet=h<12?"Good morning":h<17?"Good afternoon":"Good evening";
+    var el=document.createElement("div");
+    el.className="_greeting";
+    el.style.cssText="font-size:0.75rem;opacity:0.5;text-align:center;padding:4px 0 8px;";
+    el.textContent=greet+"! I'm here to help with your onboarding.";
+    chat.insertBefore(el,chat.firstChild);
+  });
+})();
+
+/* imp553: search box shows live result count */
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(!si||document.getElementById("_searchCount553"))return;
+      var counter=document.createElement("span");
+      counter.id="_searchCount553";
+      counter.style.cssText="font-size:0.65rem;opacity:0.5;margin-left:6px;";
+      si.parentNode.appendChild(counter);
+      si.addEventListener("input",function(){
+        var q=(si.value||"").toLowerCase();
+        if(!q){counter.textContent="";return;}
+        var visible=Array.from(document.querySelectorAll(".task-row,.ob-task-row")).filter(function(r){return r.style.display!=="none";}).length;
+        counter.textContent=visible+" found";
+      });
+    },700);
+  });
+})();
+
+/* imp554: show overdue count in page header */
+(function(){
+  function updateOverdueHeader(){
+    var la=window._la||[];
+    var count=la.filter(function(t){
+      if(t.done)return false;
+      var due=localStorage.getItem("ob_due_"+t.id);
+      return due&&new Date(due)<new Date();
+    }).length;
+    var el=document.getElementById("_overdueHeader");
+    if(!count){if(el)el.remove();return;}
+    if(!el){
+      el=document.createElement("span");
+      el.id="_overdueHeader";
+      el.style.cssText="background:#e05c5c;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.68rem;font-weight:700;margin-left:8px;";
+      var h=document.querySelector("h1,.app-title,.page-title,header h2");
+      if(h)h.appendChild(el);
+    }
+    if(el)el.textContent=count+" overdue";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(updateOverdueHeader,800);});
+  var _origUP554=window.updateProgress;
+  window.updateProgress=function(){_origUP554&&_origUP554();setTimeout(updateOverdueHeader,100);};
+})();
+
+/* imp555: quick win tasks (5-min tasks highlighted) */
+(function(){
+  function markQuickWins(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      if(t.done)return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      if(!td||!td.steps)return;
+      if(td.steps.length<=2){
+        var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+        if(!row||row.querySelector("._quickWin"))return;
+        var badge=document.createElement("span");
+        badge.className="_quickWin";
+        badge.textContent="\u26A1 Quick";
+        badge.title="Quick win — few steps";
+        badge.style.cssText="font-size:0.58rem;padding:1px 5px;border-radius:4px;background:#6b48ff;color:#fff;margin-left:4px;";
+        row.appendChild(badge);
+      }
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(markQuickWins,800);});
+  var _origUP555=window.updateProgress;
+  window.updateProgress=function(){_origUP555&&_origUP555();setTimeout(markQuickWins,100);};
+})();
+</script>
 </script></body></html>
