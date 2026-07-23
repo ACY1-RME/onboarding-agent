@@ -4749,4 +4749,190 @@ function _exportChat(){
 })();
 
 
+/* ── 236: Checklist: task item progress bar (steps done) ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.task-step-bar{height:2px;border-radius:1px;background:rgba(0,255,168,.12);margin-top:3px;overflow:hidden}'+
+    '.task-step-bar-fill{height:100%;background:var(--accent2);border-radius:1px;transition:width .3s}';
+  document.head.appendChild(st);
+  function _renderTaskStepBars(){
+    document.querySelectorAll('.task-item').forEach(function(item){
+      var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+      var d=TASK_DETAILS[cb.id];if(!d||!d.steps||!d.steps.length)return;
+      var saved=JSON.parse(localStorage.getItem('ob_steps_'+cb.id)||'[]');
+      var pct=Math.round(saved.length/d.steps.length*100);
+      var bar=item.querySelector('.task-step-bar');
+      if(!bar){
+        bar=document.createElement('div');bar.className='task-step-bar';
+        var fill=document.createElement('div');fill.className='task-step-bar-fill';
+        bar.appendChild(fill);item.appendChild(bar);
+      }
+      var fill=bar.querySelector('.task-step-bar-fill');
+      if(fill)fill.style.width=pct+'%';
+      bar.style.display=pct>0?'block':'none';
+    });
+  }
+  _renderTaskStepBars();
+  var _origUP236=updateProgress;
+  updateProgress=function(){_origUP236();_renderTaskStepBars();};
+})();
+
+/* ── 237: Detail: tab key cycles through action buttons ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='#task-detail-panel button:focus{outline:2px solid var(--accent)!important;outline-offset:2px}'+
+    '#task-detail-panel a:focus{outline:2px solid var(--accent)!important;outline-offset:2px}';
+  document.head.appendChild(st);
+})();
+
+/* ── 238: Phase: progress ring animates on open ─────────────── */
+(function(){
+  var _origTogPhAnim=togglePhase;
+  togglePhase=function(id){
+    _origTogPhAnim(id);
+    var body=document.getElementById(id)||document.querySelector('[id="'+id+'"]');
+    if(!body)return;
+    if(body.style.display==='none')return;
+    var rings=body.querySelectorAll('.ph-fg');
+    rings.forEach(function(r){
+      var curr=r.getAttribute('stroke-dashoffset')||'0';
+      r.setAttribute('stroke-dashoffset','37.7');
+      setTimeout(function(){r.setAttribute('stroke-dashoffset',curr);},50);
+    });
+  };
+})();
+
+/* ── 239: Note: line count display ───────────────────────────── */
+(function(){
+  var _origShow29=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow29(taskId);
+    var ta=document.getElementById('task-note-input');if(!ta)return;
+    var wc=document.getElementById('note-word-count');if(!wc)return;
+    function _updateLine(){
+      var lines=ta.value.split('\n').length;
+      var words=ta.value.trim().split(/\s+/).filter(Boolean).length;
+      wc.textContent=ta.value.length+'/1000 \u00B7 '+words+'w \u00B7 '+lines+'L';
+    }
+    ta.addEventListener('input',_updateLine);
+    _updateLine();
+  };
+})();
+
+/* ── 240: Task items: pulse animation on checkbox check ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes checkPulse{0%{box-shadow:0 0 0 0 rgba(0,255,168,.5)}100%{box-shadow:0 0 0 10px rgba(0,255,168,0)}}'+
+    '.task-item.check-pulse{animation:checkPulse .5s ease-out}';
+  document.head.appendChild(st);
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      if(cb.checked){
+        var item=cb.closest('.task-item');
+        if(item){item.classList.remove('check-pulse');void item.offsetWidth;item.classList.add('check-pulse');
+          setTimeout(function(){item.classList.remove('check-pulse');},500);}
+      }
+    });
+  });
+})();
+
+/* ── 241: Sidebar: collapsible stats section ────────────────── */
+(function(){
+  var stats=document.getElementById('quick-stats-table');if(!stats)return;
+  var togBtn=document.createElement('button');
+  togBtn.style.cssText='background:none;border:none;font-size:.65rem;color:var(--muted);cursor:pointer;padding:0;display:flex;align-items:center;gap:3px;margin-bottom:2px;width:100%';
+  togBtn.innerHTML='<span>Stats</span><span id="stats-chevron" style="font-size:.6rem">&#9660;</span>';
+  var collapsed=localStorage.getItem('ob_stats_collapsed')==='1';
+  stats.style.display=collapsed?'none':'';
+  togBtn.onclick=function(){
+    collapsed=!collapsed;
+    localStorage.setItem('ob_stats_collapsed',collapsed?'1':'0');
+    stats.style.display=collapsed?'none':'';
+    document.getElementById('stats-chevron').innerHTML=collapsed?'&#9658;':'&#9660;';
+  };
+  stats.before(togBtn);
+})();
+
+/* ── 242: Chat input: send on Enter, Shift+Enter for newline ─── */
+(function(){
+  var inp=document.getElementById('chatInput');if(!inp)return;
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&!e.shiftKey){
+      e.preventDefault();
+      if(typeof sendMsg==='function')sendMsg();
+    }
+  });
+})();
+
+/* ── 243: Resource links: categorize with color dots ────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.res-cat-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle;flex-shrink:0}';
+  document.head.appendChild(st);
+  var CATS={
+    'knet':'#4ea8ff','amazon':'#f0c453','training':'#cc88ff',
+    'a-to-z':'#00ffa8','safety':'#ff6b6b','eam':'#00c47e',
+    'maxis':'#f0c453','sharepoint':'#4ea8ff'
+  };
+  document.querySelectorAll('#tab-resources a,.resource-link').forEach(function(a){
+    var href=(a.href||'').toLowerCase();
+    var color='rgba(255,255,255,.2)';
+    Object.keys(CATS).forEach(function(k){if(href.includes(k))color=CATS[k];});
+    var dot=document.createElement('span');dot.className='res-cat-dot';dot.style.background=color;
+    a.prepend(dot);
+  });
+})();
+
+/* ── 244: Sidebar: total hours invested this week ───────────── */
+(function(){
+  function _weeklyHours(){
+    var total=0;
+    var now=new Date();
+    for(var i=0;i<7;i++){
+      var d=new Date(now);d.setDate(now.getDate()-i);
+      total+=parseInt(localStorage.getItem('ob_day_'+d.toLocaleDateString())||'0',10);
+    }
+    var mins=0;
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      if(cb.checked)mins+=(TM[cb.id]||0);
+    });
+    var el=document.getElementById('weekly-hours-lbl');
+    if(!el){
+      el=document.createElement('div');el.id='weekly-hours-lbl';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px';
+      var sc=document.getElementById('session-time');if(sc)sc.after(el);
+    }
+    el.textContent=mins?fmtDur(mins)+' invested total':'';
+  }
+  _weeklyHours();
+  var _origUP244=updateProgress;
+  updateProgress=function(){_origUP244();_weeklyHours();};
+})();
+
+/* ── 245: Detail panel: collapsible description section ─────── */
+(function(){
+  var _origShow30=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow30(taskId);
+    var desc=document.getElementById('detail-desc');if(!desc)return;
+    if(desc.textContent.length<60)return;
+    if(desc.dataset.collapsible)return;
+    desc.dataset.collapsible='1';
+    var full=desc.innerHTML;
+    var preview=desc.textContent.slice(0,120)+'...';
+    var collapsed=false;
+    var tog=document.createElement('button');
+    tog.style.cssText='font-size:.6rem;background:none;border:none;color:var(--accent2);cursor:pointer;padding:0;margin-top:3px;display:block';
+    tog.textContent='Show less';
+    tog.onclick=function(){
+      collapsed=!collapsed;
+      if(collapsed){desc.textContent=preview;desc.appendChild(tog);}
+      else{desc.innerHTML=full;desc.appendChild(tog);}
+      tog.textContent=collapsed?'Show more':'Show less';
+    };
+    desc.appendChild(tog);
+  };
+})();
+
+
 </script></body></html>
