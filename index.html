@@ -12528,4 +12528,236 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp586: task due-date color gradient in list rows */
+(function(){
+  function applyDueDateColors(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      if(t.done)return;
+      var due=localStorage.getItem("ob_due_"+t.id);
+      if(!due)return;
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row||row.dataset.dueTinted)return;
+      var dueDate=new Date(due);
+      var now=new Date();
+      var days=Math.round((dueDate-now)/(1000*60*60*24));
+      var color=days<0?"rgba(224,92,92,0.12)":days<=2?"rgba(240,196,83,0.1)":"rgba(0,255,168,0.04)";
+      row.style.borderLeft="3px solid "+(days<0?"#e05c5c":days<=2?"var(--gold)":"var(--accent2)");
+      row.dataset.dueTinted="1";
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(applyDueDateColors,800);});
+  var _origUP586=window.updateProgress;
+  window.updateProgress=function(){_origUP586&&_origUP586();setTimeout(applyDueDateColors,120);};
+})();
+
+/* imp587: progress confetti at 25%, 50%, 75%, 100% */
+(function(){
+  var milestones=[25,50,75,100];
+  var hit=JSON.parse(localStorage.getItem("ob_pct_hit")||"[]");
+  var _origUP587=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP587&&_origUP587();
+    setTimeout(function(){
+      var la=window._la||[];
+      if(!la.length)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var pct=Math.round(done/la.length*100);
+      milestones.forEach(function(m){
+        if(pct>=m&&!hit.includes(m)){
+          hit.push(m);
+          localStorage.setItem("ob_pct_hit",JSON.stringify(hit));
+          _launchConfetti&&_launchConfetti();
+          _showToast&&_showToast(m+"% complete! \uD83C\uDF89","success",2500);
+        }
+      });
+    },80);
+  };
+})();
+
+/* imp588: note hashtag tagging — #tag extracted from note text */
+(function(){
+  function extractHashtags(text){
+    var tags=[];
+    var m;var re=/#(\w+)/g;
+    while((m=re.exec(text))!==null)tags.push(m[1]);
+    return tags;
+  }
+  var _origSN588=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){
+    _origSN588&&_origSN588(id,text);
+    var tags=extractHashtags(text);
+    if(tags.length){
+      var existing=JSON.parse(localStorage.getItem("ob_tags_"+id)||"[]");
+      var merged=Array.from(new Set(existing.concat(tags)));
+      localStorage.setItem("ob_tags_"+id,JSON.stringify(merged));
+    }
+  };
+})();
+
+/* imp589: mini sparkline of daily completions (last 7 days) in stats */
+(function(){
+  function buildSparkline(){
+    if(document.getElementById("_sparkline589"))return;
+    var dates=JSON.parse(localStorage.getItem("ob_done_dates")||"{}");
+    var vals=[];
+    for(var i=6;i>=0;i--){
+      var d=new Date();d.setDate(d.getDate()-i);
+      vals.push(dates[d.toISOString().slice(0,10)]||0);
+    }
+    if(!vals.some(function(v){return v>0;}))return;
+    var maxV=Math.max(1,...vals);
+    var svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+    svg.setAttribute("width","80");svg.setAttribute("height","28");
+    svg.setAttribute("viewBox","0 0 80 28");
+    svg.id="_sparkline589";
+    svg.style.cssText="vertical-align:middle;margin-left:8px;";
+    var pts=vals.map(function(v,i){return (i*13+1)+","+(26-Math.round(v/maxV*22));}).join(" ");
+    var poly=document.createElementNS("http://www.w3.org/2000/svg","polyline");
+    poly.setAttribute("points",pts);
+    poly.setAttribute("fill","none");poly.setAttribute("stroke","#00ffa8");poly.setAttribute("stroke-width","1.5");poly.setAttribute("stroke-linecap","round");
+    svg.appendChild(poly);
+    var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+    if(stats)stats.appendChild(svg);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildSparkline,1100);});
+  var _origTD589=window.toggleDetailDone;
+  window.toggleDetailDone=function(){_origTD589&&_origTD589();var s=document.getElementById("_sparkline589");if(s)s.remove();setTimeout(buildSparkline,200);};
+})();
+
+/* imp590: task search history dropdown */
+(function(){
+  var KEY="ob_search_hist";
+  function getHist(){try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch(e){return[];}}
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(!si||si.list)return;
+      var dl=document.createElement("datalist");
+      dl.id="_searchHistDl";
+      function refreshDl(){dl.innerHTML=getHist().map(function(q){return "<option value='"+q+"'>";}).join("");}
+      refreshDl();
+      si.setAttribute("list","_searchHistDl");
+      si.parentNode.appendChild(dl);
+      si.addEventListener("keydown",function(e){
+        if(e.key!=="Enter")return;
+        var q=si.value.trim();
+        if(!q)return;
+        var arr=getHist().filter(function(x){return x!==q;});
+        arr.unshift(q);if(arr.length>12)arr=arr.slice(0,12);
+        localStorage.setItem(KEY,JSON.stringify(arr));
+        refreshDl();
+      });
+    },700);
+  });
+})();
+
+/* imp591: detail panel ESC closes properly */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Escape")return;
+    var modal=document.getElementById("_kbdModal");
+    if(modal){modal.remove();return;}
+    var fab=document.getElementById("_fab");
+    if(fab&&fab.dataset.open==="true"){return;}
+    closeTaskDetail&&closeTaskDetail();
+  });
+})();
+
+/* imp592: show step completion % in task row badge */
+(function(){
+  function stepPctBadges(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      if(!td||!td.steps||!td.steps.length)return;
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row)return;
+      var existing=row.querySelector("._stepPct592");
+      var KEY="ob_step_done_"+t.id;
+      var done=JSON.parse(localStorage.getItem(KEY)||"{}");
+      var doneCount=Object.values(done).filter(Boolean).length;
+      var pct=Math.round(doneCount/td.steps.length*100);
+      if(!existing){
+        existing=document.createElement("span");
+        existing.className="_stepPct592";
+        existing.style.cssText="font-size:0.58rem;padding:1px 5px;border-radius:4px;background:var(--panel);border:1px solid var(--border);margin-left:4px;opacity:0.7;";
+        row.appendChild(existing);
+      }
+      existing.textContent=doneCount+"/"+td.steps.length+" steps";
+      existing.style.color=pct===100?"var(--accent)":"var(--text)";
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(stepPctBadges,800);});
+  var _origUP592=window.updateProgress;
+  window.updateProgress=function(){_origUP592&&_origUP592();setTimeout(stepPctBadges,120);};
+})();
+
+/* imp593: show onboarding manager name if stored */
+(function(){
+  var KEY="ob_manager";
+  document.addEventListener("DOMContentLoaded",function(){
+    var stored=localStorage.getItem(KEY);
+    if(stored){
+      var welcome=document.querySelector(".welcome-msg,.intro-text,#welcomeMsg");
+      if(welcome&&!welcome.querySelector("._mgr")){
+        var span=document.createElement("span");
+        span.className="_mgr";
+        span.style.cssText="display:block;font-size:0.72rem;opacity:0.55;margin-top:3px;";
+        span.textContent="Manager: "+stored;
+        welcome.appendChild(span);
+      }
+    }
+    var chatInput=document.getElementById("chat-input")||document.getElementById("chatInput");
+    if(chatInput){
+      chatInput.addEventListener("change",function(){
+        var val=chatInput.value||"";
+        var m=val.match(/my manager is ([A-Za-z ]+)/i);
+        if(m){localStorage.setItem(KEY,m[1].trim());_showToast("Manager saved: "+m[1].trim(),"success",1500);}
+      });
+    }
+  });
+})();
+
+/* imp594: show completed date on task row (if done today) */
+(function(){
+  function showDoneDates(){
+    var dates=JSON.parse(localStorage.getItem("ob_done_dates_tasks")||"{}");
+    var today=new Date().toISOString().slice(0,10);
+    Object.keys(dates).forEach(function(id){
+      if(dates[id]!==today)return;
+      var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+      if(!row||row.querySelector("._doneToday"))return;
+      var span=document.createElement("span");
+      span.className="_doneToday";
+      span.textContent="Today";
+      span.style.cssText="font-size:0.58rem;padding:1px 5px;border-radius:4px;background:rgba(0,255,168,0.2);color:var(--accent);margin-left:4px;";
+      row.appendChild(span);
+    });
+  }
+  var _origTD594=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD594&&_origTD594();
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(task&&task.done){
+      var dates=JSON.parse(localStorage.getItem("ob_done_dates_tasks")||"{}");
+      dates[id]=new Date().toISOString().slice(0,10);
+      localStorage.setItem("ob_done_dates_tasks",JSON.stringify(dates));
+      showDoneDates();
+    }
+  };
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(showDoneDates,700);});
+})();
+
+/* imp595: 595-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp595_shown")){
+    localStorage.setItem("ob_imp595_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDCAF 595 — only 5 to 600!","info",3500);},3000);
+  }
+})();
+</script>
 </script></body></html>
