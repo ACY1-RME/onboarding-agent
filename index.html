@@ -13697,4 +13697,197 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp641: task done time tracker (clock that shows how long task took) */
+(function(){
+  var KEY_START="ob_task_start_";
+  var _origSD641=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD641&&_origSD641(id);
+    if(!localStorage.getItem(KEY_START+id))localStorage.setItem(KEY_START+id,Date.now());
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_taskTimer641"))return;
+      var la=window._la||[];
+      var task=la.find(function(t){return t.id===id;});
+      if(task&&task.done)return;
+      var el=document.createElement("div");
+      el.id="_taskTimer641";
+      el.style.cssText="font-size:0.65rem;opacity:0.45;font-family:monospace;margin:2px 0;";
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.parentNode.insertBefore(el,h.nextSibling);
+      var iv=setInterval(function(){
+        var panel2=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+        if(!panel2||!panel2.contains(el)){clearInterval(iv);return;}
+        var start=parseInt(localStorage.getItem(KEY_START+id)||Date.now());
+        var elapsed=Math.floor((Date.now()-start)/1000);
+        var m=Math.floor(elapsed/60);var s=elapsed%60;
+        el.textContent="\u23F1\uFE0F "+m+"m "+s+"s on this task";
+      },1000);
+    },85);
+  };
+})();
+
+/* imp642: quick task search from URL hash (#search:keyword) */
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){
+    var hash=window.location.hash;
+    if(hash.startsWith("#search:")){
+      var q=decodeURIComponent(hash.slice(8));
+      setTimeout(function(){
+        var si=document.getElementById("search-input")||document.getElementById("searchInput");
+        if(si){si.value=q;si.dispatchEvent(new Event("input"));}
+      },800);
+    }
+  });
+})();
+
+/* imp643: show total steps across all tasks in stats */
+(function(){
+  function totalSteps(){
+    var total=0;var done=0;
+    (window._la||[]).forEach(function(t){
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      var steps=(td&&td.steps&&td.steps.length)||0;
+      total+=steps;
+      var stepDone=Object.values(JSON.parse(localStorage.getItem("ob_step_done_"+t.id)||"{}")).filter(Boolean).length;
+      done+=stepDone;
+    });
+    var el=document.getElementById("_totalSteps643");
+    if(!total)return;
+    if(!el){
+      el=document.createElement("div");
+      el.id="_totalSteps643";
+      el.style.cssText="font-size:0.7rem;opacity:0.55;margin:3px 0;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    if(el)el.textContent="\uD83D\uDCCB "+done+"/"+total+" steps completed";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(totalSteps,900);});
+  var _origUP643=window.updateProgress;
+  window.updateProgress=function(){_origUP643&&_origUP643();setTimeout(totalSteps,100);};
+})();
+
+/* imp644: note word count milestone toast */
+(function(){
+  var _origSN644=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){
+    _origSN644&&_origSN644(id,text);
+    var words=(text||"").trim().split(/\s+/).filter(Boolean).length;
+    var milestones=[50,100,200,500];
+    milestones.forEach(function(m){
+      var KEY="ob_note_words_"+id+"_"+m;
+      if(words>=m&&!localStorage.getItem(KEY)){
+        localStorage.setItem(KEY,"1");
+        _showToast&&_showToast("\u270F\uFE0F "+m+" words in this note!","success",1800);
+      }
+    });
+  };
+})();
+
+/* imp645: last-opened task remembered and re-opened on load */
+(function(){
+  var KEY="ob_last_task";
+  var _origSD645=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD645&&_origSD645(id);
+    localStorage.setItem(KEY,id);
+  };
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var last=localStorage.getItem(KEY);
+      if(last&&window.TASK_DETAILS&&window.TASK_DETAILS[last])showTaskDetail&&showTaskDetail(last);
+    },800);
+  });
+})();
+
+/* imp646: keyboard shortcut N to jump to next incomplete task */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="n"&&e.key!=="N")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    if(e.altKey)return;
+    var la=window._la||[];
+    var id=window._curTask;
+    var idx=la.findIndex(function(t){return t.id===id;});
+    var next=la.slice(idx+1).find(function(t){return !t.done;})||la.find(function(t){return !t.done;});
+    if(next){
+      showTaskDetail&&showTaskDetail(next.id);
+      var row=document.querySelector("[data-id='"+next.id+"'],[data-task-id='"+next.id+"']");
+      if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
+    }
+  });
+})();
+
+/* imp647: resource link opens in a preview tooltip on hover */
+(function(){
+  var previewEl=null;
+  function getPreview(){
+    if(!previewEl){
+      previewEl=document.createElement("div");
+      previewEl.style.cssText="position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:0.7rem;z-index:9999;max-width:260px;opacity:0;transition:opacity 0.15s;box-shadow:0 4px 12px rgba(0,0,0,0.5);";
+      document.body.appendChild(previewEl);
+    }
+    return previewEl;
+  }
+  document.addEventListener("mouseover",function(e){
+    var link=e.target.closest("a[href]");
+    if(!link)return;
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel||!panel.contains(link))return;
+    var p=getPreview();
+    var hostname="";
+    try{hostname=new URL(link.href).hostname;}catch(ex){}
+    p.innerHTML="<b style='color:var(--accent);'>"+(link.textContent||link.href).slice(0,40)+"</b>"+(hostname?"<div style='opacity:0.5;font-size:0.65rem;'>"+hostname+"</div>":"")+"<div style='opacity:0.45;font-size:0.62rem;margin-top:2px;'>Click to open</div>";
+    p.style.opacity="1";
+  });
+  document.addEventListener("mousemove",function(e){if(!previewEl||previewEl.style.opacity==="0")return;previewEl.style.left=(e.clientX+14)+"px";previewEl.style.top=(e.clientY-10)+"px";});
+  document.addEventListener("mouseout",function(e){var link=e.target.closest("a[href]");if(link&&!link.contains(e.relatedTarget)){if(previewEl)previewEl.style.opacity="0";}});
+})();
+
+/* imp648: mobile-friendly tap gesture for mark done (swipe right on task row) */
+(function(){
+  var touchStart=null;
+  document.addEventListener("touchstart",function(e){
+    var row=e.target.closest(".task-row,.ob-task-row");
+    if(!row)return;
+    touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY,id:row.dataset.id||row.dataset.taskId};
+  },{passive:true});
+  document.addEventListener("touchend",function(e){
+    if(!touchStart)return;
+    var dx=e.changedTouches[0].clientX-touchStart.x;
+    var dy=e.changedTouches[0].clientY-touchStart.y;
+    if(dx>60&&Math.abs(dy)<30){
+      var la=window._la||[];
+      var task=la.find(function(t){return t.id===touchStart.id;});
+      if(task){task.done=!task.done;updateProgress&&updateProgress();_showToast&&_showToast(task.done?"Swiped done!":"Swiped undone","success",1000);}
+    }
+    touchStart=null;
+  },{passive:true});
+})();
+
+/* imp649: show onboarding day number */
+(function(){
+  var KEY="ob_start_date";
+  document.addEventListener("DOMContentLoaded",function(){
+    if(!localStorage.getItem(KEY))localStorage.setItem(KEY,new Date().toISOString().slice(0,10));
+    var start=new Date(localStorage.getItem(KEY));
+    var days=Math.floor((new Date()-start)/(1000*60*60*24))+1;
+    var el=document.createElement("div");
+    el.style.cssText="font-size:0.7rem;opacity:0.45;text-align:center;padding:2px;";
+    el.textContent="Onboarding day "+days;
+    var header=document.querySelector(".app-header,header,.top-bar");
+    if(header)header.appendChild(el);
+  });
+})();
+
+/* imp650: 650-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp650_shown")){
+    localStorage.setItem("ob_imp650_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83C\uDF89 650! Halfway to 700!","success",3200);},2800);
+  }
+})();
+</script>
 </script></body></html>
