@@ -15880,4 +15880,210 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp741: task list search with AND logic (space-separated terms) */
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(!si||si.dataset._andSearch)return;
+      si.dataset._andSearch="1";
+      si.addEventListener("input",function(){
+        var q=(si.value||"").toLowerCase().trim();
+        if(!q||q.startsWith("/"))return;
+        var terms=q.split(/\s+/).filter(Boolean);
+        if(terms.length<2)return;
+        var la=window._la||[];
+        la.forEach(function(t){
+          var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+          var text=[(td&&td.name)||"",(td&&td.description)||""].join(" ").toLowerCase();
+          var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+          if(row)row.style.display=terms.every(function(term){return text.includes(term);})?row.style.display:"none";
+        });
+      });
+    },750);
+  });
+})();
+
+/* imp742: progress bar label (animated fraction text) */
+(function(){
+  var _origUP742=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP742&&_origUP742();
+    setTimeout(function(){
+      var la=window._la||[];
+      if(!la.length)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var el=document.getElementById("_progressLabel742");
+      if(!el){
+        el=document.createElement("div");
+        el.id="_progressLabel742";
+        el.style.cssText="font-size:0.7rem;opacity:0.55;text-align:center;margin:2px 0;";
+        var prog=document.querySelector(".progress-section,.stats-panel,#statsBar");
+        if(prog)prog.insertBefore(el,prog.firstChild);
+      }
+      if(el)el.textContent=done+" of "+la.length+" tasks complete";
+    },80);
+  };
+})();
+
+/* imp743: Pomodoro break reminder (5 min every 25 min) */
+(function(){
+  var work=25*60;var brk=5*60;var running=false;var onBreak=false;var remaining=work;var iv=null;
+  var KEY="ob_pom_state";
+  var wrap=document.createElement("div");
+  wrap.id="_pomTimerWidget";
+  wrap.style.cssText="position:fixed;bottom:330px;right:50px;z-index:801;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:none;text-align:center;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,0.5);";
+  var display=document.createElement("div");
+  display.style.cssText="font-size:1.6rem;font-weight:700;font-family:monospace;color:var(--accent);";
+  var label=document.createElement("div");
+  label.style.cssText="font-size:0.65rem;opacity:0.55;margin:2px 0;";
+  var startBtn=document.createElement("button");
+  startBtn.style.cssText="margin-top:6px;padding:3px 12px;border-radius:8px;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:0.72rem;font-weight:600;";
+  function fmt(s){return Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");}
+  function tick(){
+    remaining--;
+    display.textContent=fmt(remaining);
+    if(remaining<=0){
+      clearInterval(iv);running=false;
+      if(!onBreak){onBreak=true;remaining=brk;label.textContent="Break!";_showToast&&_showToast("\u2615 Pomodoro done! Take a 5-min break.","success",4000);}
+      else{onBreak=false;remaining=work;label.textContent="Work";_showToast&&_showToast("\uD83D\uDD34 Break over! Back to work.","info",3000);}
+      startBtn.textContent="Start";
+    }
+  }
+  function toggle(){
+    if(running){clearInterval(iv);running=false;startBtn.textContent="Resume";}
+    else{iv=setInterval(tick,1000);running=true;startBtn.textContent="Pause";}
+  }
+  display.textContent=fmt(remaining);
+  label.textContent="Work";
+  startBtn.textContent="Start";
+  startBtn.onclick=toggle;
+  var resetBtn=document.createElement("button");
+  resetBtn.style.cssText="margin-top:4px;margin-left:4px;padding:3px 8px;border-radius:8px;background:transparent;color:var(--text);border:1px solid var(--border);cursor:pointer;font-size:0.68rem;";
+  resetBtn.textContent="Reset";
+  resetBtn.onclick=function(){clearInterval(iv);running=false;onBreak=false;remaining=work;display.textContent=fmt(remaining);label.textContent="Work";startBtn.textContent="Start";};
+  wrap.appendChild(display);wrap.appendChild(label);wrap.appendChild(startBtn);wrap.appendChild(resetBtn);
+  var trigBtn=document.createElement("button");
+  trigBtn.id="_pomTrigger743";
+  trigBtn.innerHTML="\uD83C\uDF45";
+  trigBtn.title="Pomodoro timer";
+  trigBtn.style.cssText="position:fixed;bottom:324px;right:50px;z-index:800;width:32px;height:32px;border-radius:50%;background:var(--panel);border:1px solid var(--border);cursor:pointer;font-size:0.9rem;";
+  trigBtn.onclick=function(){wrap.style.display=wrap.style.display==="none"?"block":"none";};
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(wrap);document.body.appendChild(trigBtn);});
+})();
+
+/* imp744: note character limit extended warning (hard cap at 2000) */
+(function(){
+  var HARD_CAP=2000;
+  document.addEventListener("input",function(e){
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel||!panel.contains(e.target))return;
+    var ta=panel.querySelector("textarea");
+    if(!ta||e.target!==ta)return;
+    if(ta.value.length>HARD_CAP){
+      ta.value=ta.value.slice(0,HARD_CAP);
+      _showToast&&_showToast("Note limit: "+HARD_CAP+" characters","info",1200);
+    }
+  });
+})();
+
+/* imp745: chat /help command lists all slash commands */
+(function(){
+  var cmds=["/stats — show progress summary","/clear-filters — reset all filters","/add <phase>: <name> — add custom task","/done — toggle current task done"];
+  var _origSM745=window.sendMsg;
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.getElementById("chatInput");
+    var val=(inp&&inp.value||"").trim();
+    if(val==="/help"){
+      appendMsg&&appendMsg("Slash commands:\n"+cmds.join("\n"),"bot");
+      if(inp)inp.value="";
+      return;
+    }
+    if(val==="/done"){
+      toggleDetailDone&&toggleDetailDone();
+      if(inp)inp.value="";
+      return;
+    }
+    _origSM745&&_origSM745();
+  };
+})();
+
+/* imp746: show keyboard shortcut overlay hint on first visit */
+(function(){
+  if(!localStorage.getItem("ob_kbd_hint_shown")){
+    localStorage.setItem("ob_kbd_hint_shown","1");
+    setTimeout(function(){
+      _showToast&&_showToast("Tip: Press ? for keyboard shortcuts","info",3500);
+    },3000);
+  }
+})();
+
+/* imp747: note paste detection — auto-format pasted lists */
+(function(){
+  document.addEventListener("paste",function(e){
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel||!panel.contains(document.activeElement))return;
+    var ta=panel.querySelector("textarea");
+    if(!ta||document.activeElement!==ta)return;
+    var text=e.clipboardData&&e.clipboardData.getData("text/plain");
+    if(!text)return;
+    var lines=text.split("\n");
+    if(lines.length>2&&!text.startsWith("-")&&!text.startsWith("*")){
+      e.preventDefault();
+      var formatted=lines.map(function(l){return l.trim()?"- "+l.trim():"";}).filter(Boolean).join("\n");
+      var start=ta.selectionStart;
+      ta.value=ta.value.slice(0,start)+formatted+ta.value.slice(ta.selectionEnd);
+      ta.setSelectionRange(start+formatted.length,start+formatted.length);
+      ta.dispatchEvent(new Event("input"));
+      _showToast&&_showToast("Formatted as bullet list","info",1000);
+    }
+  });
+})();
+
+/* imp748: show skipped task count in stats */
+(function(){
+  function skippedCount(){
+    var la=window._la||[];
+    var count=la.filter(function(t){return localStorage.getItem("ob_skipped_"+t.id)==="1";}).length;
+    if(!count)return;
+    var el=document.getElementById("_skippedCount748");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_skippedCount748";
+      el.style.cssText="font-size:0.7rem;opacity:0.45;margin:2px 0;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    if(el)el.textContent=count+" task"+(count>1?"s":"")+" skipped";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(skippedCount,900);});
+  var _origUP748=window.updateProgress;
+  window.updateProgress=function(){_origUP748&&_origUP748();setTimeout(skippedCount,100);};
+})();
+
+/* imp749: task list scroll to active item on panel open */
+(function(){
+  var _origSD749=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD749&&_origSD749(id);
+    setTimeout(function(){
+      var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+      if(row&&row.scrollIntoViewIfNeeded)row.scrollIntoViewIfNeeded(true);
+      else if(row)row.scrollIntoView({block:"nearest",behavior:"smooth"});
+    },100);
+  };
+})();
+
+/* imp750: 750-MILESTONE celebration */
+(function(){
+  if(!localStorage.getItem("ob_imp750_shown")){
+    localStorage.setItem("ob_imp750_shown","1");
+    setTimeout(function(){
+      _showToast&&_showToast("\uD83C\uDFC6 750 improvements! Three-quarters to 1000!","success",5000);
+      setTimeout(function(){_launchConfetti&&_launchConfetti();},500);
+    },1000);
+  }
+})();
+</script>
 </script></body></html>
