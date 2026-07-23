@@ -6828,4 +6828,203 @@ function _exportChat(){
 })();
 
 
+/* ── 356: Checklist: task row shows step-done fraction ──────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.task-steps-frac{font-size:.55rem;color:var(--muted);margin-left:3px;vertical-align:middle}';
+  document.head.appendChild(st);
+  function _renderStepFracs(){
+    document.querySelectorAll('.task-item').forEach(function(item){
+      var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+      var d=TASK_DETAILS[cb.id];if(!d||!d.steps||!d.steps.length)return;
+      var saved=JSON.parse(localStorage.getItem('ob_steps_'+cb.id)||'[]');
+      if(!saved.length)return;
+      var el=item.querySelector('.task-steps-frac');
+      if(!el){el=document.createElement('span');el.className='task-steps-frac';item.appendChild(el);}
+      el.textContent=saved.length+'/'+d.steps.length+'\u00A0steps';
+      el.style.color=saved.length===d.steps.length?'var(--accent2)':'var(--muted)';
+    });
+  }
+  _renderStepFracs();
+  var _origUP356=updateProgress;
+  updateProgress=function(){_origUP356();_renderStepFracs();};
+})();
+
+/* ── 357: App: "import state" from JSON file ─────────────────── */
+(function(){
+  var btn=document.createElement('button');
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 7px;border-radius:6px;cursor:pointer;margin:2px 4px';
+  btn.textContent='Import';btn.title='Import progress from a JSON backup';
+  btn.onclick=function(){
+    var inp=document.createElement('input');inp.type='file';inp.accept='.json';
+    inp.onchange=function(){
+      var f=inp.files[0];if(!f)return;
+      var reader=new FileReader();
+      reader.onload=function(e){
+        try{
+          var state=JSON.parse(e.target.result);
+          var count=0;
+          Object.keys(state).forEach(function(k){
+            if(k.startsWith('ob_')){localStorage.setItem(k,state[k]);count++;}
+          });
+          updateProgress();
+          _showToast('Imported '+count+' keys','success',2500);
+        }catch(err){_showToast('Invalid JSON file','warn',2500);}
+      };
+      reader.readAsText(f);
+    };
+    inp.click();
+  };
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(btn);
+})();
+
+/* ── 358: Detail: visual border color matches task tag ────────── */
+(function(){
+  var _origShow358=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow358(taskId);
+    var color=localStorage.getItem('ob_tag_'+taskId)||'';
+    var panel=document.getElementById('task-detail-panel');
+    if(panel)panel.style.borderLeft=color?'3px solid '+color:'';
+  };
+})();
+
+/* ── 359: Checklist: "mark all done" confirmation ─────────────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var btn=document.createElement('button');btn.className='hide-done-btn';
+  btn.style.cssText='font-size:.6rem;color:rgba(0,255,168,.7);border-color:rgba(0,255,168,.25)';
+  btn.textContent='Check all';btn.title='Mark all tasks complete (with confirmation)';
+  btn.onclick=function(){
+    var undone=document.querySelectorAll('.checklist input[type=checkbox]:not(:checked)').length;
+    if(!undone){_showToast('All tasks already done!','success',1800);return;}
+    if(!confirm('Mark all '+undone+' remaining tasks as complete?'))return;
+    var now=Date.now();
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      if(!cb.checked){cb.checked=true;localStorage.setItem('ob_done_ts_'+cb.id,now);}
+    });
+    updateProgress();_showToast(undone+' tasks marked complete','success',2500);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 360: Chat: show AI "thinking" time ─────────────────────── */
+(function(){
+  var _sendStart=0;
+  var _origSendTimer=sendMsg;
+  sendMsg=async function(){
+    _sendStart=Date.now();
+    await _origSendTimer();
+    var elapsed=((Date.now()-_sendStart)/1000).toFixed(1);
+    var box=document.getElementById('chatbox');
+    var msgs=box&&box.querySelectorAll('.msg.ai');
+    if(msgs&&msgs.length){
+      var last=msgs[msgs.length-1];
+      var ts=last.querySelector('span:last-child');
+      if(ts&&ts.style.fontSize==='.55rem')ts.textContent+=' \u00B7 '+elapsed+'s';
+    }
+  };
+})();
+
+/* ── 361: Sidebar: collapsible biggest-remaining list ────────── */
+(function(){
+  var el=document.getElementById('top-tasks-list');if(!el)return;
+  var hdrEl=el.previousElementSibling;if(!hdrEl)return;
+  hdrEl.style.cursor='pointer';hdrEl.style.userSelect='none';
+  var chev=document.createElement('span');chev.style.cssText='margin-left:4px;font-size:.6rem';chev.textContent='\u25BC';hdrEl.appendChild(chev);
+  var _open=true;
+  hdrEl.addEventListener('click',function(){
+    _open=!_open;el.style.display=_open?'':'none';chev.textContent=_open?'\u25BC':'\u25B6';
+  });
+})();
+
+/* ── 362: Task items: completed items move to bottom visually ── */
+(function(){
+  var _origUP362=updateProgress;
+  updateProgress=function(){
+    _origUP362();
+    if(localStorage.getItem('ob_sort_done_bottom')!=='1')return;
+    document.querySelectorAll('.phase-body').forEach(function(body){
+      var items=Array.from(body.querySelectorAll('.task-item'));
+      items.filter(function(i){return i.querySelector('input:checked');})
+           .forEach(function(i){body.appendChild(i);});
+    });
+  };
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var btn=document.createElement('button');btn.className='hide-done-btn';
+  btn.style.fontSize='.62rem';btn.title='Push completed tasks to bottom of each phase';
+  var _active=localStorage.getItem('ob_sort_done_bottom')==='1';
+  btn.textContent='Done to bottom';
+  btn.style.background=_active?'rgba(0,255,168,.12)':'';
+  btn.onclick=function(){
+    _active=!_active;
+    localStorage.setItem('ob_sort_done_bottom',_active?'1':'0');
+    btn.style.background=_active?'rgba(0,255,168,.12)':'';
+    updateProgress();
+    _showToast(_active?'Done tasks go to bottom':'Normal order restored','',1600);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 363: Phase: animated progress fill bar under header ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.ph-fill-bar{height:2px;width:0;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:1px;transition:width .5s ease;margin-top:2px}';
+  document.head.appendChild(st);
+  function _renderFillBars(){
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      var pct=Math.round(done/cbs.length*100);
+      var bar=hd.querySelector('.ph-fill-bar');
+      if(!bar){bar=document.createElement('div');bar.className='ph-fill-bar';hd.appendChild(bar);}
+      setTimeout(function(){bar.style.width=pct+'%';},100);
+    });
+  }
+  _renderFillBars();
+  var _origUP363=updateProgress;
+  updateProgress=function(){_origUP363();_renderFillBars();};
+})();
+
+/* ── 364: App: offline detection banner ─────────────────────── */
+(function(){
+  function _makeOfflineBanner(){
+    var banner=document.getElementById('offline-banner');
+    if(!banner){
+      banner=document.createElement('div');banner.id='offline-banner';
+      banner.style.cssText='position:fixed;top:0;left:0;right:0;background:#ff6b6b;color:#000;text-align:center;font-size:.68rem;font-weight:600;padding:4px;z-index:9999;display:none';
+      banner.textContent='\u26A0 Offline \u2014 changes saved locally';
+      document.body.appendChild(banner);
+    }
+    banner.style.display=navigator.onLine?'none':'';
+  }
+  _makeOfflineBanner();
+  window.addEventListener('offline',_makeOfflineBanner);
+  window.addEventListener('online',_makeOfflineBanner);
+})();
+
+/* ── 365: Detail: show "N tasks left after this" hint ────────── */
+(function(){
+  var _origShow365=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow365(taskId);
+    var allIds=Object.keys(TASK_DETAILS);
+    var idx=allIds.indexOf(taskId);
+    var remaining=0;
+    allIds.slice(idx+1).forEach(function(id){
+      var cb=document.getElementById(id);if(cb&&!cb.checked)remaining++;
+    });
+    var el=document.getElementById('detail-after-hint');
+    if(!el){
+      el=document.createElement('div');el.id='detail-after-hint';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:right;margin-top:3px';
+      var ar=document.querySelector('.detail-ask-row');if(ar)ar.before(el);
+    }
+    el.textContent=remaining>0?remaining+' task'+(remaining===1?'':'s')+' ahead':'You are at the last task!';
+    el.style.color=remaining===0?'var(--accent)':'var(--muted)';
+  };
+})();
+
+
 </script></body></html>
