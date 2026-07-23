@@ -6650,4 +6650,182 @@ function _exportChat(){
 })();
 
 
+/* ── 346: Sidebar: collapsible Next Up card ─────────────────── */
+(function(){
+  var nu=document.getElementById('next-up-card');if(!nu)return;
+  var collapsed=localStorage.getItem('ob_nu_collapsed')==='1';
+  var hdr=document.createElement('div');
+  hdr.style.cssText='font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px;cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none';
+  hdr.innerHTML='Next Up <span id="nu-chev">'+(collapsed?'&#9658;':'&#9660;')+'</span>';
+  if(collapsed)nu.style.display='none';
+  hdr.onclick=function(){
+    collapsed=!collapsed;
+    localStorage.setItem('ob_nu_collapsed',collapsed?'1':'0');
+    nu.style.display=collapsed?'none':'';
+    document.getElementById('nu-chev').innerHTML=collapsed?'&#9658;':'&#9660;';
+  };
+  nu.before(hdr);
+})();
+
+/* ── 347: Checklist: task item "notes preview" on hover ─────── */
+(function(){
+  var preview=document.createElement('div');preview.id='note-hover-preview';
+  preview.style.cssText='position:fixed;max-width:200px;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:.65rem;color:var(--muted);pointer-events:none;z-index:8500;display:none;box-shadow:0 3px 12px rgba(0,0,0,.5);line-height:1.45;white-space:pre-wrap;word-break:break-word';
+  document.body.appendChild(preview);
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+    item.addEventListener('mouseenter',function(e){
+      var note=(localStorage.getItem('ob_note_'+cb.id)||'').trim();if(!note)return;
+      preview.innerHTML='<span style="color:var(--accent2);font-weight:600;display:block;margin-bottom:2px">\u270F Note</span>'+note.slice(0,120)+(note.length>120?'...':'');
+      preview.style.display='block';
+      preview.style.left=Math.min(e.clientX+14,window.innerWidth-210)+'px';
+      preview.style.top=(e.clientY+14)+'px';
+    });
+    item.addEventListener('mouseleave',function(){preview.style.display='none';});
+  });
+})();
+
+/* ── 348: Detail: toggle raw HTML/text view of description ───── */
+(function(){
+  var _origShow348=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow348(taskId);
+    var desc=document.getElementById('detail-desc');if(!desc)return;
+    if(desc.textContent.length<10||!desc.innerHTML.includes('<'))return;
+    var existing=document.getElementById('desc-raw-btn');
+    if(!existing){
+      var btn=document.createElement('button');btn.id='desc-raw-btn';
+      btn.style.cssText='font-size:.55rem;background:none;border:1px solid var(--border);color:var(--muted);padding:1px 5px;border-radius:4px;cursor:pointer;margin-top:3px;display:block';
+      btn.textContent='View source';
+      var _raw=false;
+      btn.onclick=function(){
+        _raw=!_raw;
+        if(_raw){desc.dataset.html=desc.innerHTML;desc.textContent=desc.dataset.html;}
+        else{desc.innerHTML=desc.dataset.html||desc.textContent;}
+        btn.textContent=_raw?'View rendered':'View source';
+      };
+      desc.after(btn);
+    }
+  };
+})();
+
+/* ── 349: App: version badge in sidebar footer ───────────────── */
+(function(){
+  var vEl=document.getElementById('ob-version-badge');
+  if(!vEl){
+    vEl=document.createElement('div');vEl.id='ob-version-badge';
+    vEl.style.cssText='font-size:.52rem;color:rgba(255,255,255,.15);text-align:center;margin-top:2px;letter-spacing:.04em';
+    vEl.textContent='v3.15 \u00B7 345 improvements';
+    var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(vEl);
+  }
+})();
+
+/* ── 350: Checklist: completed-today count badge on header ───── */
+(function(){
+  var today=new Date().toLocaleDateString();
+  function _todayCount(){
+    var cnt=0;
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      var ts=localStorage.getItem('ob_done_ts_'+cb.id);
+      if(ts&&new Date(Number(ts)).toLocaleDateString()===today)cnt++;
+    });
+    var el=document.getElementById('today-done-badge');
+    if(!el){
+      el=document.createElement('span');el.id='today-done-badge';
+      el.style.cssText='font-size:.6rem;background:rgba(0,255,168,.15);color:var(--accent);border-radius:8px;padding:0 5px;margin-left:6px;vertical-align:middle';
+      var hdr=document.querySelector('.checklist-header,.checklist-title');if(hdr)hdr.appendChild(el);
+    }
+    el.textContent=cnt?'+'+cnt+' today':'';
+    el.style.display=cnt?'':'none';
+  }
+  _todayCount();
+  var _origUP350=updateProgress;
+  updateProgress=function(){_origUP350();_todayCount();};
+})();
+
+/* ── 351: Detail: collapsible links section ──────────────────── */
+(function(){
+  var _origShow351=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow351(taskId);
+    var d=TASK_DETAILS[taskId];if(!d||!d.links||!d.links.length)return;
+    var le=document.getElementById('detail-links');if(!le)return;
+    var lbl=document.getElementById('detail-links-label');if(!lbl||lbl.dataset.collapsible)return;
+    lbl.dataset.collapsible='1';
+    lbl.style.cursor='pointer';lbl.style.userSelect='none';
+    var chev=document.createElement('span');chev.style.cssText='margin-left:5px;font-size:.65rem';chev.textContent='\u25BC';
+    lbl.appendChild(chev);
+    var _open=true;
+    lbl.addEventListener('click',function(){
+      _open=!_open;le.style.display=_open?'':'none';chev.textContent=_open?'\u25BC':'\u25B6';
+    });
+  };
+})();
+
+/* ── 352: Checklist: "new" badge on recently added tasks ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.new-badge{display:inline-block;font-size:.52rem;font-weight:700;background:rgba(78,168,255,.2);color:#4ea8ff;border:1px solid rgba(78,168,255,.35);border-radius:6px;padding:0 4px;margin-left:4px;vertical-align:middle;letter-spacing:.04em}';
+  document.head.appendChild(st);
+  var NEW_IDS=['t20','t21','t22','t23','t24'];
+  NEW_IDS.forEach(function(id){
+    var cb=document.getElementById(id);if(!cb)return;
+    var item=cb.closest('.task-item');if(!item||item.querySelector('.new-badge'))return;
+    var lbl=item.querySelector('.task-label');
+    var badge=document.createElement('span');badge.className='new-badge';badge.textContent='NEW';
+    if(lbl)lbl.after(badge);
+  });
+})();
+
+/* ── 353: Chat: persist last 3 conversations across sessions ─── */
+(function(){
+  var _origSaveChat=_saveChatMsg;
+  _saveChatMsg=function(msg,role){
+    _origSaveChat&&_origSaveChat(msg,role);
+    var hist=JSON.parse(localStorage.getItem('ob_chat_hist_v2')||'[]');
+    hist.push({msg:msg,role:role,ts:Date.now()});
+    if(hist.length>60)hist=hist.slice(-60);
+    localStorage.setItem('ob_chat_hist_v2',JSON.stringify(hist));
+  };
+})();
+
+/* ── 354: Phase: show % in header label as inline text ───────── */
+(function(){
+  function _phPct(){
+    document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+      var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+      var cbs=body.querySelectorAll('input[type=checkbox]');if(!cbs.length)return;
+      var done=0;cbs.forEach(function(c){if(c.checked)done++;});
+      var pct=Math.round(done/cbs.length*100);
+      var el=hd.querySelector('.ph-pct');
+      if(!el){el=document.createElement('span');el.className='ph-pct';
+        el.style.cssText='font-size:.58rem;font-weight:700;margin-left:4px';hd.appendChild(el);}
+      el.textContent=pct?pct+'%':'';
+      el.style.color=pct===100?'var(--accent)':pct>50?'var(--accent2)':'var(--muted)';
+    });
+  }
+  _phPct();
+  var _origUP354=updateProgress;
+  updateProgress=function(){_origUP354();_phPct();};
+})();
+
+/* ── 355: App: keyboard shortcut summary card improvement ─────── */
+(function(){
+  var _origKbd355=_showKbdHelp;
+  _showKbdHelp=function(){
+    _origKbd355();
+    setTimeout(function(){
+      var modals=document.querySelectorAll('.kbd-help-body,.modal-body');
+      modals.forEach(function(bd){
+        if(bd.querySelector('.kbd-355'))return;
+        var ex=document.createElement('div');ex.className='kbd-355';
+        ex.style.cssText='margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:.63rem;color:var(--muted)';
+        ex.innerHTML='<strong style="color:var(--text)">New this version:</strong> W=scratch pad &nbsp;\u00B7&nbsp; G=settings &nbsp;\u00B7&nbsp; Z=fullscreen &nbsp;\u00B7&nbsp; F=focus &nbsp;\u00B7&nbsp; P=print &nbsp;\u00B7&nbsp; I=info &nbsp;\u00B7&nbsp; 1-9=phases';
+        bd.appendChild(ex);
+      });
+    },50);
+  };
+})();
+
+
 </script></body></html>
