@@ -8884,4 +8884,246 @@ function _exportChat(){
 })();
 
 
+/* ── 436: quick All/Todo/Done/Starred filter chips ──────────────────────── */
+(function(){
+  if(document.getElementById("qfilterWrap"))return;
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var wrap=document.createElement("div");
+  wrap.id="qfilterWrap";
+  wrap.style.cssText="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;";
+  var CHIPS=[{l:"All",f:null},{l:"To Do",f:"todo"},{l:"Done",f:"done"},{l:"\u2605",f:"star"}];
+  var active=null;
+  CHIPS.forEach(function(c){
+    var btn=document.createElement("button");
+    btn.textContent=c.l;
+    btn.style.cssText="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer;";
+    btn.onclick=function(){
+      active=active===c.f?null:c.f;
+      wrap.querySelectorAll("button").forEach(function(b){b.style.background="rgba(255,255,255,.07)";b.style.borderColor="var(--border)";});
+      if(active!==null){btn.style.background="var(--accent2)";btn.style.borderColor="var(--accent)";}
+      document.querySelectorAll(".task-row,[data-task-id]").forEach(function(row){
+        var id=row.dataset.id||row.dataset.taskId;
+        if(!id){row.style.display="";return;}
+        var done=localStorage.getItem("ob_"+id)==="done";
+        var starred=localStorage.getItem("ob_star_"+id)==="1";
+        var show=active===null||(active==="done"&&done)||(active==="todo"&&!done)||(active==="star"&&starred);
+        row.style.display=show?"":"none";
+      });
+    };
+    wrap.appendChild(btn);
+  });
+  hdr.insertAdjacentElement("afterend",wrap);
+})();
+
+/* ── 437: task due date in detail panel ─────────────────────────────────── */
+(function(){
+  var _origSD437=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD437(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel||panel.querySelector("#dueDateWrap"))return;
+      var due=localStorage.getItem("ob_due_"+id)||"";
+      var wrap=document.createElement("div");
+      wrap.id="dueDateWrap";
+      wrap.style.cssText="margin:6px 0;display:flex;align-items:center;gap:6px;font-size:12px;";
+      var lbl=document.createElement("label");
+      lbl.textContent="Due date:";
+      lbl.style.cssText="color:var(--muted);font-size:11px;";
+      var inp=document.createElement("input");
+      inp.type="date";
+      inp.value=due;
+      inp.style.cssText="background:var(--panel);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 6px;font-size:11px;";
+      inp.addEventListener("change",function(){
+        localStorage.setItem("ob_due_"+id,inp.value);
+        _showToast(inp.value?"\u{1F4C5} Due date set: "+inp.value:"\u{1F4C5} Due date cleared","info",1500);
+      });
+      wrap.appendChild(lbl);wrap.appendChild(inp);
+      if(due){
+        var today=new Date().toISOString().slice(0,10);
+        if(due<today){
+          var overdueTag=document.createElement("span");
+          overdueTag.textContent="\u{26D4} Overdue";
+          overdueTag.style.cssText="color:#e07030;font-size:10px;font-weight:bold;";
+          wrap.appendChild(overdueTag);
+        } else if(due===today){
+          var todayTag=document.createElement("span");
+          todayTag.textContent="\u{23F0} Due today";
+          todayTag.style.cssText="color:var(--gold,#f0c453);font-size:10px;font-weight:bold;";
+          wrap.appendChild(todayTag);
+        }
+      }
+      var da=panel.querySelector(".detail-actions,#detailActions");
+      (da||panel.firstElementChild||panel).appendChild(wrap);
+    },80);
+  };
+})();
+
+/* ── 438: hot-streak motivational toast ─────────────────────────────────── */
+(function(){
+  var sessKey="ob_sess_done";
+  var MILESTONES={3:"\u{1F525} Hot streak! 3 tasks done this session.",5:"\u{26A1} On fire! 5 tasks done this session.",10:"\u{1F3C6} Incredible! 10 tasks done this session!"};
+  var _origTDD438=typeof toggleDetailDone==="function"?toggleDetailDone:null;
+  if(!_origTDD438)return;
+  toggleDetailDone=function(){
+    _origTDD438();
+    setTimeout(function(){
+      var id=typeof _curTask!=="undefined"?_curTask:null;
+      if(!id||localStorage.getItem("ob_"+id)!=="done")return;
+      var count=parseInt(sessionStorage.getItem(sessKey)||"0",10)+1;
+      sessionStorage.setItem(sessKey,String(count));
+      var msg=MILESTONES[count];
+      if(msg){
+        _showToast(msg,"info",5000);
+        if(typeof _launchConfetti==="function")_launchConfetti();
+      }
+    },200);
+  };
+})();
+
+/* ── 439: bulk mark-all-done button per phase ───────────────────────────── */
+(function(){
+  document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph,i){
+    if(ph.querySelector(".phAllDoneBtn"))return;
+    var phHdr=ph.querySelector(".phase-header,.phase-title,h3,h4");
+    if(!phHdr)return;
+    var btn=document.createElement("button");
+    btn.className="phAllDoneBtn";
+    btn.textContent="\u2713 All";
+    btn.title="Mark all phase tasks done";
+    btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:10px;cursor:pointer;margin-left:6px;opacity:.6;";
+    btn.onclick=function(e){
+      e.stopPropagation();
+      var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+      var count=0;
+      rows.forEach(function(r){
+        var id=r.dataset.id||r.dataset.taskId;
+        if(id&&localStorage.getItem("ob_"+id)!=="done"){
+          localStorage.setItem("ob_"+id,"done");
+          localStorage.setItem("ob_done_ts_"+id,String(Date.now()));
+          count++;
+        }
+      });
+      if(count>0){
+        if(typeof updateProgress==="function")updateProgress();
+        _showToast("\u2713 "+count+" tasks marked done","info",2000);
+      } else {
+        _showToast("Phase already complete","info",1500);
+      }
+    };
+    phHdr.appendChild(btn);
+  });
+})();
+
+/* ── 440: long-press on mobile task row opens detail ────────────────────── */
+(function(){
+  var HOLD_MS=500,_holdTimer=null,_holdRow=null;
+  document.addEventListener("touchstart",function(e){
+    var row=e.target.closest(".task-row,[data-task-id]");
+    if(!row)return;
+    _holdRow=row;
+    _holdTimer=setTimeout(function(){
+      var id=_holdRow&&(_holdRow.dataset.id||_holdRow.dataset.taskId);
+      if(id&&typeof showTaskDetail==="function"){
+        showTaskDetail(id);
+        _showToast("\u{1F4CB} Long-press: task detail opened","info",1200);
+      }
+    },HOLD_MS);
+  },{passive:true});
+  document.addEventListener("touchend",function(){clearTimeout(_holdTimer);_holdRow=null;},{passive:true});
+  document.addEventListener("touchmove",function(){clearTimeout(_holdTimer);_holdRow=null;},{passive:true});
+})();
+
+/* ── 441: task complexity score badge ───────────────────────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  Object.keys(TASK_DETAILS).forEach(function(id){
+    var t=TASK_DETAILS[id];
+    var steps=(t.steps||[]).length;
+    var links=(t.links||t.resources||[]).length;
+    var diff=parseInt(localStorage.getItem("ob_diff_"+id)||"0",10);
+    var score=steps+(links*2)+diff;
+    if(score<=0)return;
+    var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+    if(!row||row.querySelector(".cxbadge"))return;
+    var badge=document.createElement("span");
+    badge.className="cxbadge";
+    badge.title="Complexity: "+score+" (steps:"+steps+", links:"+links+", diff:"+diff+")";
+    badge.textContent=score;
+    badge.style.cssText="font-size:9px;background:rgba(255,255,255,.1);border-radius:8px;padding:0 5px;margin-left:4px;color:var(--muted);";
+    row.appendChild(badge);
+  });
+})();
+
+/* ── 442: estimated time left in current active phase ───────────────────── */
+(function(){
+  if(typeof TM==="undefined"||typeof TASK_DETAILS==="undefined")return;
+  var phases=Array.from(document.querySelectorAll(".phase-section,[data-phase]"));
+  var activePh=phases.find(function(ph){
+    var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+    var doneC=Array.from(rows).filter(function(r){var id=r.dataset.id||r.dataset.taskId;return id&&localStorage.getItem("ob_"+id)==="done";}).length;
+    return doneC>0&&doneC<rows.length;
+  })||phases[0];
+  if(!activePh)return;
+  var rows=activePh.querySelectorAll(".task-row,[data-task-id]");
+  var leftMins=Array.from(rows).reduce(function(sum,r){
+    var id=r.dataset.id||r.dataset.taskId;
+    if(!id||localStorage.getItem("ob_"+id)==="done")return sum;
+    return sum+(TM[id]||0);
+  },0);
+  if(leftMins<=0)return;
+  var phHdr=activePh.querySelector(".phase-header,.phase-title,h3,h4");
+  if(!phHdr||phHdr.querySelector(".phase-eta"))return;
+  var span=document.createElement("span");
+  span.className="phase-eta";
+  var hrs=leftMins>=60?Math.round(leftMins/60)+"h":leftMins+"m";
+  span.textContent=" ~"+hrs+" left";
+  span.style.cssText="font-size:11px;color:var(--muted);margin-left:6px;opacity:.6;";
+  phHdr.appendChild(span);
+})();
+
+/* ── 443: copy chat transcript button ───────────────────────────────────── */
+(function(){
+  if(document.getElementById("copyChatBtn"))return;
+  var chatHdr=document.querySelector(".chat-header,#chatHeader,.chat-title");
+  if(!chatHdr)return;
+  var btn=document.createElement("button");
+  btn.id="copyChatBtn";
+  btn.title="Copy chat transcript";
+  btn.textContent="\u{1F4CB}";
+  btn.style.cssText="background:transparent;border:none;font-size:14px;cursor:pointer;opacity:.6;float:right;";
+  btn.onclick=function(){
+    var msgs=Array.from(document.querySelectorAll(".chat-msg,.message,.msg-row")).map(function(el){
+      var cls=el.classList.contains("user")||el.classList.contains("msg-user")?"You":"Agent";
+      return cls+": "+(el.textContent||"").trim();
+    });
+    if(!msgs.length){_showToast("No messages to copy","warn");return;}
+    navigator.clipboard.writeText(msgs.join("\n")).then(function(){
+      _showToast("\u{1F4CB} "+msgs.length+" messages copied","info",1800);
+    }).catch(function(){_showToast("Copy failed","warn");});
+  };
+  chatHdr.appendChild(btn);
+})();
+
+/* ── 444: better keyboard focus-visible CSS ─────────────────────────────── */
+(function(){
+  var s=document.createElement("style");
+  s.textContent="*:focus-visible{outline:2px solid var(--accent,#00ffa8)!important;outline-offset:2px!important;border-radius:3px!important}.task-row:focus-visible{background:rgba(0,255,168,.07)!important}";
+  document.head.appendChild(s);
+})();
+
+/* ── 445: one-time tip: introduce slash commands ─────────────────────────── */
+(function(){
+  var key="ob_slash_tip_shown";
+  if(localStorage.getItem(key))return;
+  setTimeout(function(){
+    var chatInp=document.getElementById("chatInput");
+    if(!chatInp)return;
+    localStorage.setItem(key,"1");
+    _showToast("Tip: Type /done, /note <text>, or /stats in the chat box to use slash commands.","info",6000);
+  },4000);
+})();
+
+
 </script></body></html>
