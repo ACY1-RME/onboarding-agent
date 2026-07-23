@@ -12321,4 +12321,211 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp576: tab key cycles focus through tasks in list */
+(function(){
+  var tabIdx=0;
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Tab"||e.ctrlKey||e.altKey)return;
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(panel&&panel.offsetParent!==null)return;
+    var rows=Array.from(document.querySelectorAll(".task-row,.ob-task-row")).filter(function(r){return r.style.display!=="none";});
+    if(!rows.length)return;
+    e.preventDefault();
+    tabIdx=e.shiftKey?(tabIdx-1+rows.length)%rows.length:(tabIdx+1)%rows.length;
+    rows[tabIdx].focus&&rows[tabIdx].focus();
+    rows[tabIdx].scrollIntoView&&rows[tabIdx].scrollIntoView({block:"nearest",behavior:"smooth"});
+    var id=rows[tabIdx].dataset.id||rows[tabIdx].dataset.taskId;
+    if(id)showTaskDetail&&showTaskDetail(id);
+  });
+})();
+
+/* imp577: export completion report as HTML */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="_exportReport";
+  btn.innerHTML="\uD83D\uDCC4 HTML Report";
+  btn.style.cssText="position:fixed;bottom:360px;left:14px;z-index:800;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:0.7rem;cursor:pointer;opacity:0.65;";
+  btn.onclick=function(){
+    var la=window._la||[];
+    var td=window.TASK_DETAILS||{};
+    var rows=la.map(function(t){
+      var name=(td[t.id]&&td[t.id].name)||t.id;
+      var note=(localStorage.getItem("ob_note_"+t.id)||"").trim();
+      var phase=t.phase||"";
+      return "<tr style='background:"+(t.done?"rgba(0,255,168,0.05)":"")+"'><td>"+phase+"</td><td>"+(t.done?"\u2713":"\u25CB")+" "+name+"</td><td style='font-size:0.8em;opacity:0.7;'>"+note.slice(0,80)+"</td></tr>";
+    }).join("");
+    var html="<!DOCTYPE html><html><head><title>Onboarding Report</title><style>body{font-family:sans-serif;background:#06120c;color:#d0f0e0;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{padding:6px 10px;border:1px solid #1a3a28;text-align:left;}th{background:#0e2016;}</style></head><body><h1>Onboarding Progress Report</h1><p>Generated: "+new Date().toLocaleString()+"</p><table><tr><th>Phase</th><th>Task</th><th>Note</th></tr>"+rows+"</table></body></html>";
+    var blob=new Blob([html],{type:"text/html"});
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="onboarding_report_"+new Date().toISOString().slice(0,10)+".html";
+    a.click();
+    _showToast("Report exported","success",1800);
+  };
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);});
+})();
+
+/* imp578: phase collapse memory — remember which phases are open */
+(function(){
+  var KEY="ob_phase_open";
+  function getOpen(){try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch(e){return[];}}
+  function saveOpen(phases){localStorage.setItem(KEY,JSON.stringify(phases));}
+  var _origTP578=window.togglePhase;
+  window.togglePhase=function(id){
+    _origTP578&&_origTP578(id);
+    setTimeout(function(){
+      var open=[];
+      document.querySelectorAll(".phase-section[data-phase],.phase-header[data-phase]").forEach(function(el){
+        var phId=el.dataset.phase;
+        var content=el.parentElement&&el.parentElement.querySelector(".phase-content,.phase-tasks");
+        if(content&&content.style.display!=="none")open.push(phId);
+      });
+      saveOpen(open);
+    },50);
+  };
+})();
+
+/* imp579: sortable columns in task list header */
+(function(){
+  var sortState={col:"",asc:true};
+  function sortRows(col){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list)return;
+    var rows=Array.from(list.querySelectorAll(".task-row,.ob-task-row"));
+    if(sortState.col===col)sortState.asc=!sortState.asc;
+    else{sortState.col=col;sortState.asc=true;}
+    rows.sort(function(a,b){
+      var aid=a.dataset.id||a.dataset.taskId;
+      var bid=b.dataset.id||b.dataset.taskId;
+      var la=window._la||[];
+      var at=la.find(function(t){return t.id===aid;});
+      var bt=la.find(function(t){return t.id===bid;});
+      var av="",bv="";
+      if(col==="done"){av=at&&at.done?1:0;bv=bt&&bt.done?1:0;}
+      else if(col==="name"){var tda=window.TASK_DETAILS&&window.TASK_DETAILS[aid];var tdb=window.TASK_DETAILS&&window.TASK_DETAILS[bid];av=(tda&&tda.name)||"";bv=(tdb&&tdb.name)||"";}
+      else if(col==="due"){av=localStorage.getItem("ob_due_"+aid)||"";bv=localStorage.getItem("ob_due_"+bid)||"";}
+      return sortState.asc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+    });
+    rows.forEach(function(r){list.appendChild(r);});
+  }
+  function buildSortHeader(){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list||document.getElementById("_sortHeader"))return;
+    var header=document.createElement("div");
+    header.id="_sortHeader";
+    header.style.cssText="display:flex;gap:4px;margin-bottom:4px;font-size:0.65rem;opacity:0.55;";
+    [["name","Name"],["done","Status"],["due","Due"]].forEach(function(pair){
+      var btn=document.createElement("span");
+      btn.textContent=pair[1]+" \u21D5";
+      btn.style.cssText="cursor:pointer;padding:1px 6px;border-radius:4px;border:1px solid var(--border);";
+      btn.onmouseenter=function(){btn.style.background="rgba(0,255,168,0.08)";};
+      btn.onmouseleave=function(){btn.style.background="";};
+      btn.onclick=function(){sortRows(pair[0]);};
+      header.appendChild(btn);
+    });
+    list.parentNode.insertBefore(header,list);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildSortHeader,700);});
+})();
+
+/* imp580: animated typing indicator in chat (when waiting for AI response) */
+(function(){
+  var indicator=null;
+  var _origSM580=window.sendMsg;
+  window.sendMsg=function(){
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(chat&&!indicator){
+      indicator=document.createElement("div");
+      indicator.id="_typingIndicator";
+      indicator.style.cssText="padding:6px 10px;font-size:0.75rem;opacity:0.55;";
+      indicator.innerHTML="<span class='_dot' style='animation:dotBlink 1s infinite 0s'>&#183;</span><span class='_dot' style='animation:dotBlink 1s infinite 0.3s'>&#183;</span><span class='_dot' style='animation:dotBlink 1s infinite 0.6s'>&#183;</span>";
+      if(!document.getElementById("_dotBlink")){var s=document.createElement("style");s.id="_dotBlink";s.textContent="@keyframes dotBlink{0%,100%{opacity:0.2}50%{opacity:1}}._dot{font-size:1.5rem;line-height:1;}";document.head.appendChild(s);}
+      chat.appendChild(indicator);
+      chat.scrollTop=chat.scrollHeight;
+    }
+    _origSM580&&_origSM580();
+    setTimeout(function(){if(indicator){indicator.remove();indicator=null;}},3000);
+  };
+})();
+
+/* imp581: ctrl+A select all text in note textarea */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(!e.ctrlKey||e.key!=="a")return;
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel)return;
+    var ta=panel.querySelector("textarea");
+    if(ta&&document.activeElement===ta){ta.select();}
+  });
+})();
+
+/* imp582: display task creation/added date (from TASK_DETAILS if present) */
+(function(){
+  var _origSD582=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD582&&_origSD582(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_addedDate"))return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+      var added=td&&(td.added||td.created||td.date);
+      if(!added)return;
+      var el=document.createElement("div");
+      el.id="_addedDate";
+      el.style.cssText="font-size:0.65rem;opacity:0.4;margin:2px 0;";
+      el.textContent="Added: "+added;
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.parentNode.insertBefore(el,h.nextSibling);
+    },90);
+  };
+})();
+
+/* imp583: color-code task rows by type */
+(function(){
+  var typeColors={"Training":"rgba(0,200,127,0.07)","Safety":"rgba(224,92,92,0.08)","Systems":"rgba(99,179,255,0.07)","Admin":"rgba(240,196,83,0.07)","HR":"rgba(224,92,224,0.07)"};
+  function colorRows(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      if(!td||!td.type)return;
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row||row.dataset.typeColored)return;
+      var color=typeColors[td.type];
+      if(color){row.style.background=color;row.dataset.typeColored="1";}
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(colorRows,800);});
+})();
+
+/* imp584: show completion ETA in progress section */
+(function(){
+  function etaText(){
+    var la=window._la||[];
+    if(!la.length)return;
+    var done=la.filter(function(t){return t.done;}).length;
+    var remaining=la.length-done;
+    if(!remaining){var el=document.getElementById("_progressETA584");if(el)el.textContent="All done!";return;}
+    var times=JSON.parse(localStorage.getItem("ob_done_times")||"[]");
+    if(times.length<3)return;
+    var diffs=[];for(var i=1;i<times.length;i++)diffs.push(times[i]-times[i-1]);
+    var avgMs=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
+    var eta=new Date(Date.now()+remaining*avgMs);
+    var el=document.getElementById("_progressETA584");
+    if(!el){el=document.createElement("div");el.id="_progressETA584";el.style.cssText="font-size:0.7rem;opacity:0.5;margin:3px 0;";var prog=document.querySelector(".progress-section,.stats-panel,#statsBar");if(prog)prog.appendChild(el);}
+    if(el)el.textContent="\uD83C\uDFF1 ETA: "+eta.toLocaleDateString()+" "+eta.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(etaText,900);});
+  var _origTD584=window.toggleDetailDone;
+  window.toggleDetailDone=function(){_origTD584&&_origTD584();setTimeout(etaText,100);};
+})();
+
+/* imp585: 585-milestone and git log helper */
+(function(){
+  if(!localStorage.getItem("ob_imp585_shown")){
+    localStorage.setItem("ob_imp585_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDE80 585! 15 to go for 600.","info",3500);},2800);
+  }
+})();
+</script>
 </script></body></html>
