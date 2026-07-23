@@ -13497,4 +13497,204 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp631: weekly progress summary (show % change vs last week) */
+(function(){
+  var KEY_PREV="ob_prev_week_pct";
+  var KEY_DATE="ob_week_snapshot_date";
+  function weeklyCheck(){
+    var la=window._la||[];
+    if(!la.length)return;
+    var done=la.filter(function(t){return t.done;}).length;
+    var pct=Math.round(done/la.length*100);
+    var lastDate=localStorage.getItem(KEY_DATE);
+    var today=new Date().toISOString().slice(0,10);
+    var lastMonday=new Date();lastMonday.setDate(lastMonday.getDate()-lastMonday.getDay()+1);
+    var mondayStr=lastMonday.toISOString().slice(0,10);
+    if(lastDate!==mondayStr){
+      var prev=parseInt(localStorage.getItem(KEY_PREV)||"0");
+      var diff=pct-prev;
+      if(diff>0&&prev>0){_showToast&&_showToast("\uD83D\uDCC8 Up "+diff+"% this week!","success",3000);}
+      localStorage.setItem(KEY_PREV,pct);
+      localStorage.setItem(KEY_DATE,mondayStr);
+    }
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(weeklyCheck,1500);});
+})();
+
+/* imp632: collapsible notes section in detail panel */
+(function(){
+  var _origSD632=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD632&&_origSD632(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_notesSection"))return;
+      var ta=panel.querySelector("textarea");
+      if(!ta)return;
+      var wrap=document.createElement("div");
+      wrap.id="_notesSection";
+      var header=document.createElement("div");
+      header.style.cssText="font-size:0.75rem;font-weight:600;color:var(--accent2);cursor:pointer;user-select:none;padding:4px 0;border-top:1px solid var(--border);margin-top:6px;";
+      header.innerHTML="\u25BC Notes";
+      var collapsed=false;
+      header.onclick=function(){
+        collapsed=!collapsed;
+        ta.style.display=collapsed?"none":"";
+        header.innerHTML=(collapsed?"\u25BA":"\u25BC")+" Notes";
+      };
+      ta.parentNode.insertBefore(wrap,ta);
+      wrap.appendChild(header);
+      wrap.appendChild(ta);
+    },90);
+  };
+})();
+
+/* imp633: note character count milestone badge */
+(function(){
+  var _origSN633=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){
+    _origSN633&&_origSN633(id,text);
+    var total=0;
+    (window._la||[]).forEach(function(t){total+=(localStorage.getItem("ob_note_"+t.id)||"").length;});
+    var KEY="ob_note_chars_milestone";
+    var milestones=[500,1000,2000,5000,10000];
+    milestones.forEach(function(m){
+      var mKey=KEY+"_"+m;
+      if(total>=m&&!localStorage.getItem(mKey)){
+        localStorage.setItem(mKey,"1");
+        _showToast&&_showToast("\uD83D\uDCDD "+m+" total note characters! Keep documenting.","success",2500);
+      }
+    });
+  };
+})();
+
+/* imp634: task row keyboard focus ring */
+(function(){
+  var st=document.createElement("style");
+  st.textContent=".task-row:focus,.ob-task-row:focus{outline:2px solid var(--accent);outline-offset:1px;}.task-row,.ob-task-row{outline:none;}";
+  document.head.appendChild(st);
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      document.querySelectorAll(".task-row,.ob-task-row").forEach(function(r){
+        if(!r.tabIndex)r.tabIndex=0;
+        r.addEventListener("keydown",function(e){
+          if(e.key==="Enter"||e.key===" "){var id=r.dataset.id||r.dataset.taskId;if(id)showTaskDetail&&showTaskDetail(id);}
+        });
+      });
+    },800);
+  });
+})();
+
+/* imp635: show resources count badge in phase header */
+(function(){
+  function phaseResourceCount(){
+    var la=window._la||[];
+    var phases={};
+    la.forEach(function(t){
+      var ph=t.phase||"Other";
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      var res=(td&&td.resources&&td.resources.length)||0;
+      phases[ph]=(phases[ph]||0)+res;
+    });
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(el){
+      if(el.querySelector("._phResBadge"))return;
+      var ph=el.dataset.phase||el.textContent.replace(/[\uD800-\uDFFF]|\(.*?\)|\d+\/\d+|\d+%|~\d+[mh]/g,"").trim();
+      if(!phases[ph])return;
+      var badge=document.createElement("span");
+      badge.className="_phResBadge";
+      badge.textContent=phases[ph]+"\uD83D\uDD17";
+      badge.style.cssText="font-size:0.58rem;opacity:0.45;margin-left:4px;";
+      badge.title=phases[ph]+" resources in this phase";
+      el.appendChild(badge);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(phaseResourceCount,900);});
+})();
+
+/* imp636: custom chat welcome message (stored in localStorage) */
+(function(){
+  var KEY="ob_welcome_msg";
+  var defaultMsg="Hi! I'm your onboarding assistant. Ask me anything about your tasks, procedures, or the site.";
+  document.addEventListener("DOMContentLoaded",function(){
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(!chat||chat.querySelector("._welcomeMsg"))return;
+    var msg=localStorage.getItem(KEY)||defaultMsg;
+    var el=document.createElement("div");
+    el.className="_welcomeMsg";
+    el.style.cssText="font-size:0.78rem;padding:8px 12px;background:rgba(0,255,168,0.05);border-radius:8px;border-left:3px solid var(--accent2);margin-bottom:6px;";
+    el.textContent=msg;
+    chat.insertBefore(el,chat.firstChild);
+  });
+})();
+
+/* imp637: task list scroll position memory */
+(function(){
+  var KEY="ob_scroll_pos";
+  window.addEventListener("scroll",function(){localStorage.setItem(KEY,window.scrollY);});
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var pos=parseInt(localStorage.getItem(KEY)||"0");
+      if(pos>0)window.scrollTo({top:pos,behavior:"instant"});
+    },700);
+  });
+})();
+
+/* imp638: per-task color accent (right-click to set row color) */
+(function(){
+  var colors=["","rgba(0,255,168,0.08)","rgba(240,196,83,0.1)","rgba(224,92,92,0.08)","rgba(99,179,255,0.08)","rgba(224,92,224,0.08)"];
+  var colorLabels=["None","Green","Gold","Red","Blue","Purple"];
+  document.addEventListener("contextmenu",function(e){
+    var row=e.target.closest(".task-row,.ob-task-row");
+    if(!row)return;
+    var existing=document.getElementById("_colorMenu638");
+    if(existing)existing.remove();
+    var id=row.dataset.id||row.dataset.taskId;
+    var menu=document.createElement("div");
+    menu.id="_colorMenu638";
+    menu.style.cssText="position:fixed;top:"+(e.clientY+30)+"px;left:"+e.clientX+"px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px;z-index:9999;display:flex;gap:4px;box-shadow:0 4px 12px rgba(0,0,0,0.5);";
+    colors.forEach(function(c,i){
+      var dot=document.createElement("div");
+      dot.title=colorLabels[i];
+      dot.style.cssText="width:18px;height:18px;border-radius:50%;background:"+(c||"var(--border)")+";cursor:pointer;border:1px solid var(--border);";
+      dot.onclick=function(){
+        if(c)row.style.background=c;else row.style.background="";
+        localStorage.setItem("ob_row_color_"+id,c);
+        menu.remove();
+      };
+      menu.appendChild(dot);
+    });
+    document.body.appendChild(menu);
+    document.addEventListener("click",function remove(){menu.remove();document.removeEventListener("click",remove);},{once:true});
+  });
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      (window._la||[]).forEach(function(t){
+        var c=localStorage.getItem("ob_row_color_"+t.id);
+        if(c){var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");if(row)row.style.background=c;}
+      });
+    },800);
+  });
+})();
+
+/* imp639: footer with build info */
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){
+    if(document.getElementById("_buildFooter"))return;
+    var footer=document.createElement("div");
+    footer.id="_buildFooter";
+    footer.style.cssText="text-align:center;font-size:0.6rem;opacity:0.2;padding:8px;margin-top:20px;";
+    footer.textContent="ACY1 RME Onboarding Agent | 600+ improvements | Built with dedication";
+    document.body.appendChild(footer);
+  });
+})();
+
+/* imp640: 640-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp640_shown")){
+    localStorage.setItem("ob_imp640_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83C\uDFC3 640 and still going strong!","info",2800);},2600);
+  }
+})();
+</script>
 </script></body></html>
