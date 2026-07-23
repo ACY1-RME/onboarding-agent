@@ -13890,4 +13890,219 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp651: completion rate stats (tasks per day average) */
+(function(){
+  function compRate(){
+    var times=JSON.parse(localStorage.getItem("ob_done_times")||"[]");
+    if(times.length<2)return;
+    var span=(times[times.length-1]-times[0])/(1000*60*60*24);
+    var rate=span>0?(times.length/span).toFixed(1):times.length;
+    var el=document.getElementById("_compRate");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_compRate";
+      el.style.cssText="font-size:0.7rem;opacity:0.5;margin:3px 0;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    if(el)el.textContent="\uD83D\uDCC8 "+rate+" tasks/day avg";
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(compRate,900);});
+  var _origTD651=window.toggleDetailDone;
+  window.toggleDetailDone=function(){_origTD651&&_origTD651();setTimeout(compRate,100);};
+})();
+
+/* imp652: random tip of the day in chat */
+(function(){
+  var tips=[
+    "Tip: Press ? to see all keyboard shortcuts.",
+    "Tip: Right-click a task row for quick actions.",
+    "Tip: Swipe right on a task to mark it done (mobile).",
+    "Tip: Press H to jump to your first incomplete task.",
+    "Tip: Press D to toggle done on the current task.",
+    "Tip: Use /regex in the search box for advanced filtering.",
+    "Tip: Press T to log time on the current task.",
+    "Tip: Star a task row to pin it to the top of the list.",
+    "Tip: Press N to jump to the next incomplete task.",
+    "Tip: Export your notes as a .txt file using the export button."
+  ];
+  var KEY="ob_tip_idx";
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+      if(!chat||chat.querySelector("._tipOfDay"))return;
+      var idx=(parseInt(localStorage.getItem(KEY)||"0")+1)%tips.length;
+      localStorage.setItem(KEY,idx);
+      var el=document.createElement("div");
+      el.className="_tipOfDay";
+      el.style.cssText="font-size:0.7rem;padding:5px 10px;background:rgba(0,255,168,0.06);border-radius:6px;border-left:2px solid var(--accent2);margin:4px 0;opacity:0.75;";
+      el.textContent=tips[idx];
+      chat.appendChild(el);
+    },1200);
+  });
+})();
+
+/* imp653: per-phase note editor (long note for the whole phase) */
+(function(){
+  function buildPhaseNotes(){
+    document.querySelectorAll(".phase-section,[data-phase]").forEach(function(el){
+      if(el.querySelector("._phNoteArea"))return;
+      var ph=el.dataset.phase;
+      if(!ph)return;
+      var KEY="ob_phnote_long_"+ph;
+      var toggle=document.createElement("button");
+      toggle.style.cssText="font-size:0.62rem;padding:1px 6px;border-radius:6px;background:var(--panel);border:1px solid var(--border);cursor:pointer;margin:4px;opacity:0.6;color:var(--accent2);";
+      toggle.textContent="\u270F\uFE0F Phase note";
+      var area=document.createElement("textarea");
+      area.className="_phNoteArea";
+      area.value=localStorage.getItem(KEY)||"";
+      area.placeholder="Notes for this phase...";
+      area.style.cssText="display:none;width:95%;min-height:60px;padding:6px;border-radius:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:0.72rem;margin:4px;resize:vertical;";
+      area.addEventListener("input",function(){localStorage.setItem(KEY,area.value);});
+      toggle.onclick=function(){area.style.display=area.style.display==="none"?"block":"none";if(area.style.display!=="none")area.focus();};
+      var content=el.querySelector(".phase-content,.phase-tasks");
+      if(content){content.insertBefore(area,content.firstChild);content.insertBefore(toggle,content.firstChild);}
+      else{el.appendChild(toggle);el.appendChild(area);}
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildPhaseNotes,900);});
+  var _origTP653=window.togglePhase;
+  window.togglePhase=function(id){_origTP653&&_origTP653(id);setTimeout(buildPhaseNotes,150);};
+})();
+
+/* imp654: visual divider between done and undone tasks */
+(function(){
+  function insertDivider(){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list)return;
+    var existing=list.querySelector("._doneDivider");if(existing)existing.remove();
+    var rows=Array.from(list.querySelectorAll(".task-row,.ob-task-row"));
+    var la=window._la||[];
+    var firstDone=rows.findIndex(function(r){var id=r.dataset.id||r.dataset.taskId;var t=la.find(function(x){return x.id===id;});return t&&t.done;});
+    if(firstDone<=0)return;
+    var div=document.createElement("div");
+    div.className="_doneDivider";
+    div.style.cssText="display:flex;align-items:center;gap:6px;margin:6px 0;font-size:0.65rem;opacity:0.35;";
+    div.innerHTML="<div style='flex:1;height:1px;background:var(--border);'></div><span>Completed</span><div style='flex:1;height:1px;background:var(--border);'></div>";
+    list.insertBefore(div,rows[firstDone]);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(insertDivider,900);});
+  var _origUP654=window.updateProgress;
+  window.updateProgress=function(){_origUP654&&_origUP654();setTimeout(insertDivider,120);};
+})();
+
+/* imp655: show current user display name in header */
+(function(){
+  var KEY="ob_user_name";
+  document.addEventListener("DOMContentLoaded",function(){
+    var name=localStorage.getItem(KEY)||"";
+    if(!name){
+      setTimeout(function(){
+        var inp=prompt("Your name (for personalization):");
+        if(inp&&inp.trim()){localStorage.setItem(KEY,inp.trim());location.reload();}
+      },3000);
+      return;
+    }
+    var el=document.createElement("span");
+    el.style.cssText="font-size:0.72rem;opacity:0.5;margin-left:8px;";
+    el.textContent="Hi, "+name+" \uD83D\uDC4B";
+    var h=document.querySelector("h1,.app-title,.page-title");
+    if(h)h.appendChild(el);
+  });
+})();
+
+/* imp656: note timestamps — each save adds a timestamp line */
+(function(){
+  var KEY_PRE="ob_note_ts_";
+  var _origSD656=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD656&&_origSD656(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_noteTs656"))return;
+      var ts=localStorage.getItem(KEY_PRE+id);
+      if(!ts)return;
+      var el=document.createElement("div");
+      el.id="_noteTs656";
+      el.style.cssText="font-size:0.6rem;opacity:0.35;margin-bottom:3px;";
+      el.textContent="Last saved: "+ts;
+      var ta=panel.querySelector("textarea");
+      if(ta)ta.parentNode.insertBefore(el,ta);
+    },90);
+  };
+  var _origSN656=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){
+    _origSN656&&_origSN656(id,text);
+    localStorage.setItem(KEY_PRE+id,new Date().toLocaleString());
+    var el=document.getElementById("_noteTs656");
+    if(el)el.textContent="Last saved: "+new Date().toLocaleString();
+  };
+})();
+
+/* imp657: long-press on step to mark complete */
+(function(){
+  var pressTimer=null;
+  document.addEventListener("mousedown",function(e){
+    var cb=e.target.closest("._stepChecklist input[type='checkbox']");
+    if(!cb)return;
+    pressTimer=setTimeout(function(){
+      cb.checked=!cb.checked;
+      cb.dispatchEvent(new Event("change"));
+      _showToast&&_showToast("Step "+(cb.checked?"done":"undone"),"info",700);
+    },600);
+  });
+  document.addEventListener("mouseup",function(){clearTimeout(pressTimer);pressTimer=null;});
+})();
+
+/* imp658: chat message count badge */
+(function(){
+  var count=0;
+  var _origAM658=window.appendMsg;
+  window.appendMsg=function(text,cls){
+    _origAM658&&_origAM658(text,cls);
+    count++;
+    var badge=document.getElementById("_chatCount658");
+    if(!badge){
+      badge=document.createElement("span");
+      badge.id="_chatCount658";
+      badge.style.cssText="font-size:0.6rem;padding:0 5px;border-radius:8px;background:var(--accent2);color:#000;margin-left:4px;";
+      var chatTab=document.querySelector("[data-tab='chat'],[data-tab='assistant'],#chatTab,.chat-tab");
+      if(chatTab)chatTab.appendChild(badge);
+    }
+    if(badge)badge.textContent=count;
+  };
+})();
+
+/* imp659: show active time on task (time since first opened) */
+(function(){
+  function formatAge(ms){
+    var mins=Math.floor(ms/60000);if(mins<1)return "<1m";if(mins<60)return mins+"m";return Math.floor(mins/60)+"h";
+  }
+  var _origSD659=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD659&&_origSD659(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_activeTime659"))return;
+      var start=parseInt(localStorage.getItem("ob_task_start_"+id)||"0");
+      if(!start)return;
+      var el=document.createElement("div");
+      el.id="_activeTime659";
+      el.style.cssText="font-size:0.62rem;opacity:0.35;";
+      el.textContent="Opened "+formatAge(Date.now()-start)+" ago";
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.parentNode.insertBefore(el,h.nextSibling);
+    },90);
+  };
+})();
+
+/* imp660: 660-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp660_shown")){
+    localStorage.setItem("ob_imp660_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDE80 660! This agent is elite.","success",3000);},3000);
+  }
+})();
+</script>
 </script></body></html>
