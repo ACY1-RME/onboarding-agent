@@ -5931,4 +5931,150 @@ function _exportChat(){
 })();
 
 
+/* ── 306: Detail: link button shows file extension badge ─────── */
+(function(){
+  var _origShow306=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow306(taskId);
+    setTimeout(function(){
+      document.querySelectorAll('.detail-link-btn').forEach(function(btn,i){
+        var l=_la&&_la[i];if(!l||!l.file||btn.dataset.extSet)return;
+        btn.dataset.extSet='1';
+        var ext=l.file.split('.').pop().toUpperCase();
+        if(ext&&ext.length<=5){
+          var b=document.createElement('span');
+          b.style.cssText='font-size:.5rem;font-weight:700;background:rgba(0,255,168,.15);color:var(--accent);padding:0 3px;border-radius:3px;margin-left:5px;vertical-align:middle';
+          b.textContent=ext;btn.appendChild(b);
+        }
+      });
+    },90);
+  };
+})();
+
+/* ── 307: Sidebar: live clock display ───────────────────────── */
+(function(){
+  var el=document.createElement('div');el.id='live-clock';
+  el.style.cssText='font-size:.65rem;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.03em;margin-top:2px';
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.prepend(el);
+  function _tick(){
+    var now=new Date();
+    var h=now.getHours(),m=now.getMinutes();
+    var ampm=h>=12?'PM':'AM';h=h%12||12;
+    el.textContent=h+':'+(m<10?'0':'')+m+' '+ampm;
+  }
+  _tick();setInterval(_tick,10000);
+})();
+
+/* ── 308: Checklist: bulk uncheck completed tasks confirm ─────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var btn=document.createElement('button');btn.className='hide-done-btn';
+  btn.style.cssText='font-size:.6rem;color:rgba(255,80,80,.7);border-color:rgba(255,80,80,.3)';
+  btn.textContent='Uncheck all';btn.title='Uncheck all completed tasks';
+  btn.onclick=function(){
+    var done=document.querySelectorAll('.checklist input[type=checkbox]:checked').length;
+    if(!done){_showToast('No completed tasks','',1500);return;}
+    if(!confirm('Uncheck all '+done+' completed tasks?'))return;
+    document.querySelectorAll('.checklist input[type=checkbox]:checked').forEach(function(cb){
+      cb.checked=false;localStorage.removeItem('ob_done_ts_'+cb.id);
+    });
+    updateProgress();_showToast(done+' tasks unchecked','warn',2000);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 309: App: keyboard cheatsheet shown on first load ──────── */
+(function(){
+  if(localStorage.getItem('ob_kbd_shown')==='1')return;
+  localStorage.setItem('ob_kbd_shown','1');
+  setTimeout(function(){
+    _showToast('Tip: Press ? for keyboard shortcuts','',4000);
+  },3000);
+})();
+
+/* ── 310: Detail: step item strikethrough on check ─────────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.step-cb:checked~span{text-decoration:line-through;opacity:.55}'+
+    '.detail-step input.step-cb:checked+span{text-decoration:line-through;opacity:.55}';
+  document.head.appendChild(st);
+})();
+
+/* ── 311: Resources: show last-visited timestamp on links ─────── */
+(function(){
+  document.querySelectorAll('#tab-resources a,.resource-link').forEach(function(a){
+    var href=a.href||'';var key='ob_rvisit_'+btoa(href.slice(0,30)).slice(0,10);
+    a.addEventListener('click',function(){localStorage.setItem(key,Date.now());});
+    var ts=localStorage.getItem(key);
+    if(ts){
+      var age=Date.now()-Number(ts);var rel=age<3600000?Math.round(age/60000)+'m ago':age<86400000?Math.round(age/3600000)+'h ago':Math.round(age/86400000)+'d ago';
+      var sp=document.createElement('span');
+      sp.style.cssText='font-size:.55rem;color:rgba(255,255,255,.3);margin-left:5px';
+      sp.textContent=rel;a.appendChild(sp);
+    }
+  });
+})();
+
+/* ── 312: Detail: resize handle for panel width ─────────────── */
+(function(){
+  var panel=document.getElementById('task-detail-panel');if(!panel)return;
+  var handle=document.createElement('div');
+  handle.style.cssText='position:absolute;left:0;top:0;bottom:0;width:5px;cursor:ew-resize;background:transparent;z-index:20;transition:background .15s';
+  handle.onmouseenter=function(){handle.style.background='rgba(0,255,168,.2)';};
+  handle.onmouseleave=function(){if(!_dragging)handle.style.background='';};
+  panel.style.position='relative';panel.appendChild(handle);
+  var _dragging=false,_startX=0,_startW=0;
+  handle.addEventListener('mousedown',function(e){
+    _dragging=true;_startX=e.clientX;_startW=panel.offsetWidth;
+    document.body.style.userSelect='none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!_dragging)return;
+    var dx=_startX-e.clientX;
+    var nw=Math.min(600,Math.max(280,_startW+dx));
+    panel.style.width=nw+'px';
+    localStorage.setItem('ob_panel_w',nw);
+  });
+  document.addEventListener('mouseup',function(){_dragging=false;handle.style.background='';document.body.style.userSelect='';});
+  var saved=parseInt(localStorage.getItem('ob_panel_w')||'0',10);
+  if(saved>=280&&saved<=600)panel.style.width=saved+'px';
+})();
+
+/* ── 313: App: animated loading skeleton while JS initializes ── */
+(function(){
+  var already=document.querySelector('.task-item');if(already)return;
+  var cl=document.querySelector('.checklist');if(!cl)return;
+  var st=document.createElement('style');
+  st.textContent='@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}'+
+    '.skeleton{height:28px;border-radius:5px;margin-bottom:4px;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 75%);background-size:400px 100%;animation:shimmer 1.5s ease-in-out infinite}';
+  document.head.appendChild(st);
+})();
+
+/* ── 314: Phase: keyboard enter to open first incomplete ─────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    hd.addEventListener('keydown',function(e){
+      if(e.key!=='Enter')return;
+      var body=hd.nextElementSibling;if(!body)return;
+      var first=null;
+      body.querySelectorAll('input[type=checkbox]').forEach(function(cb){if(!first&&!cb.checked)first=cb.id;});
+      if(first)showTaskDetail(first);
+    });
+  });
+})();
+
+/* ── 315: Final: performance mark for load time logging ─────── */
+(function(){
+  if(window.performance&&window.performance.mark){
+    window.performance.mark('ob-init-end');
+    var entries=window.performance.getEntriesByName('ob-init-end');
+    if(entries.length){
+      var ms=Math.round(entries[0].startTime);
+      console.log('[OB] Init complete in '+ms+'ms | 315 improvements loaded');
+    }
+  }
+})();
+
+
 </script></body></html>
