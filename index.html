@@ -16559,4 +16559,229 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 771-780 */
+(function(){
+
+/* 771 – Collapsible sidebar stats panel */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob771-panel{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:790;}" +
+    "#ob771-tab{background:var(--panel);border:1px solid var(--border);border-right:none;border-radius:8px 0 0 8px;padding:8px 6px;cursor:pointer;writing-mode:vertical-lr;font-size:.7rem;letter-spacing:.06em;color:var(--muted);}" +
+    "#ob771-body{display:none;background:var(--panel);border:1px solid var(--border);border-right:none;border-radius:8px 0 0 8px;padding:12px;min-width:140px;font-size:.78rem;}" +
+    "#ob771-body dt{opacity:.5;font-size:.68rem;margin-top:8px;}" +
+    "#ob771-body dd{margin:2px 0 0;font-weight:700;color:var(--accent);}";
+  document.head.appendChild(css);
+  var panel=document.createElement("div");panel.id="ob771-panel";
+  var tab=document.createElement("div");tab.id="ob771-tab";tab.textContent="Stats";
+  var body=document.createElement("div");body.id="ob771-body";
+  panel.appendChild(tab);panel.appendChild(body);
+  document.body.appendChild(panel);
+  var open=false;
+  tab.addEventListener("click",function(){
+    open=!open;
+    body.style.display=open?"block":"none";
+    if(open)refreshStats();
+  });
+  function refreshStats(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    var total=tasks.length;
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+    var pct=total?Math.round(done/total*100):0;
+    var withNotes=tasks.filter(function(t){
+      var n=localStorage.getItem("ob_note_"+t.id)||"";return n.trim().length>0;
+    }).length;
+    body.innerHTML="<dl><dt>Tasks Done</dt><dd>"+done+" / "+total+"</dd>" +
+      "<dt>Progress</dt><dd>"+pct+"%</dd>" +
+      "<dt>Notes Written</dt><dd>"+withNotes+"</dd>" +
+      "<dt>Today</dt><dd>"+new Date().toLocaleDateString()+"</dd></dl>";
+  }
+})();
+
+/* 772 – Note pin (pin note to top of list) */
+(function(){
+  var _oSD772=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD772.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob772-pin-btn"))return;
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="ob772-pin-btn";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 8px;margin-right:4px;";
+      var pinned=localStorage.getItem("ob_pinned_"+id)==="1";
+      btn.textContent=pinned?"\uD83D\uDCCC Pinned":"\uD83D\uDCCC Pin Note";
+      btn.title="Pin this task note to the top of the list";
+      btn.addEventListener("click",function(){
+        var p=localStorage.getItem("ob_pinned_"+id)==="1";
+        localStorage.setItem("ob_pinned_"+id,p?"0":"1");
+        btn.textContent=(!p)?"\uD83D\uDCCC Pinned":"\uD83D\uDCCC Pin Note";
+        if(typeof window._showToast==="function")window._showToast(p?"Note unpinned":"Note pinned to top","info",2000);
+      });
+      ta.parentNode.insertBefore(btn,ta);
+    },200);
+  };
+})();
+
+/* 773 – Progress donut mini-chart in stats bar */
+(function(){
+  var canvas=document.createElement("canvas");
+  canvas.id="ob773-donut";canvas.width=48;canvas.height=48;
+  canvas.style.cssText="position:fixed;bottom:4px;left:50%;transform:translateX(-50%);z-index:700;cursor:default;";
+  canvas.title="Overall progress";
+  document.body.appendChild(canvas);
+  function draw(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    var total=tasks.length;if(!total)return;
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+    var pct=done/total;
+    var ctx=canvas.getContext("2d");
+    ctx.clearRect(0,0,48,48);
+    ctx.beginPath();ctx.arc(24,24,18,0,Math.PI*2);ctx.fillStyle="var(--panel)";ctx.fill();
+    ctx.beginPath();ctx.arc(24,24,18,-Math.PI/2,-Math.PI/2+Math.PI*2*pct);
+    ctx.strokeStyle="#00ffa8";ctx.lineWidth=5;ctx.lineCap="round";ctx.stroke();
+    ctx.beginPath();ctx.arc(24,24,18,0,Math.PI*2);ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=5;ctx.stroke();
+    ctx.fillStyle="#fff";ctx.font="bold 9px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(Math.round(pct*100)+"%",24,24);
+  }
+  var _orig773=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig773.apply(this,arguments);setTimeout(draw,80);};
+  setTimeout(draw,1800);
+})();
+
+/* 774 – Note spell-check toggle */
+(function(){
+  var _oSD774=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD774.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      if(document.getElementById("ob774-spell"))return;
+      var btn=document.createElement("button");
+      btn.id="ob774-spell";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 6px;";
+      var on=ta.getAttribute("spellcheck")!=="false";
+      btn.textContent="ABC " + (on ? "\u2713" : "\u2717");
+      btn.title="Toggle spellcheck";
+      btn.addEventListener("click",function(){
+        on=!on;
+        ta.setAttribute("spellcheck",on?"true":"false");
+        btn.textContent="ABC "+(on?"\u2713":"\u2717");
+      });
+      ta.parentNode.insertBefore(btn,ta.nextSibling);
+    },220);
+  };
+})();
+
+/* 775 – Completed tasks fade to green over time */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="@keyframes ob775-fadein{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}" +
+    ".ob775-done-fade{animation:ob775-fadein .4s ease;border-left:3px solid var(--accent2,#00c47e) !important;}";
+  document.head.appendChild(css);
+  function applyFade(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;
+      if(!id)return;
+      var done=localStorage.getItem("ob_done_"+id)==="1";
+      if(done)card.classList.add("ob775-done-fade");
+      else card.classList.remove("ob775-done-fade");
+    });
+  }
+  var _orig775=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig775.apply(this,arguments);setTimeout(applyFade,60);};
+  setTimeout(applyFade,1700);
+})();
+
+/* 776 – Resource link copy button */
+(function(){
+  document.addEventListener("mouseover",function(e){
+    var a=e.target.closest("a[href]:not([data-ob776])");
+    if(!a)return;
+    var href=a.href||"";
+    if(!href||href.startsWith("javascript")||href.startsWith("#"))return;
+    a.dataset.ob776="1";
+    a.style.position="relative";
+    var btn=document.createElement("button");
+    btn.className="ob776-copy";
+    btn.textContent="\uD83D\uDCCB";
+    btn.title="Copy link";
+    btn.style.cssText="position:absolute;top:-4px;right:-22px;background:var(--panel);border:1px solid var(--border);border-radius:4px;font-size:.7rem;cursor:pointer;padding:1px 4px;z-index:800;opacity:0;transition:opacity .2s;line-height:1;";
+    a.appendChild(btn);
+    a.addEventListener("mouseenter",function(){btn.style.opacity="1";});
+    a.addEventListener("mouseleave",function(){btn.style.opacity="0";});
+    btn.addEventListener("click",function(ev){
+      ev.preventDefault();ev.stopPropagation();
+      navigator.clipboard.writeText(href).then(function(){
+        btn.textContent="\u2713";
+        setTimeout(function(){btn.textContent="\uD83D\uDCCB";},1500);
+      }).catch(function(){});
+    });
+  });
+})();
+
+/* 777 – Lucky number toast (imp 777) */
+(function(){
+  if(localStorage.getItem("ob_imp777_shown"))return;
+  localStorage.setItem("ob_imp777_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83C\uDFB0 777 — Lucky improvement!","success",5000);
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+  },2000);
+})();
+
+/* 778 – Task duration estimate vs actual tracker */
+(function(){
+  var _oSD778=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD778.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob778-dur"))return;
+      var est=parseInt(localStorage.getItem("ob_est_"+id)||"0");
+      var started=parseInt(localStorage.getItem("ob_task_start_"+id)||"0");
+      var elapsed=started?Math.round((Date.now()-started)/60000):0;
+      var row=document.createElement("div");
+      row.id="ob778-dur";
+      row.style.cssText="display:flex;gap:12px;font-size:.75rem;opacity:.7;margin-top:6px;";
+      if(est>0&&elapsed>0){
+        var ratio=elapsed/est;
+        var col=ratio>1.2?"#ff4444":ratio>0.9?"var(--gold,#f0c453)":"var(--accent)";
+        row.innerHTML="<span>Est: "+est+"m</span><span style='color:"+col+"'>Actual: "+elapsed+"m</span><span style='color:"+col+"'>"+(ratio>1.2?"Over budget":ratio>0.9?"On track":"Under budget")+"</span>";
+      } else if(est>0){
+        row.innerHTML="<span>Est: "+est+"m | Not started yet</span>";
+      }
+      if(est>0){
+        var det=document.getElementById("task-detail-body")||document.getElementById("task-detail");
+        if(det)det.appendChild(row);
+      }
+    },250);
+  };
+})();
+
+/* 779 – "Jump to top" button in task list */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob779-top";
+  btn.innerHTML="\u2191 Top";
+  btn.style.cssText="display:none;position:fixed;bottom:56px;left:16px;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:780;";
+  document.body.appendChild(btn);
+  btn.onclick=function(){window.scrollTo({top:0,behavior:"smooth"});};
+  window.addEventListener("scroll",function(){
+    btn.style.display=window.scrollY>300?"block":"none";
+  });
+})();
+
+/* 780 – Milestone toast: 780 */
+(function(){
+  if(localStorage.getItem("ob_imp780_shown"))return;
+  localStorage.setItem("ob_imp780_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDC40 780 improvements — getting massive!","success",4500);
+  },3800);
+})();
+
+})();
+</script>
 </script></body></html>
