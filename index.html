@@ -7500,4 +7500,320 @@ function _exportChat(){
 })();
 
 
+/* ── 386: completion sound + stats toggle ───────────────────────────────── */
+(function(){
+  var soundOn=localStorage.getItem("ob_sound")!=="0";
+  function playBeep(){
+    if(!soundOn)return;
+    try{
+      var ac=new(window.AudioContext||window.webkitAudioContext)();
+      var osc=ac.createOscillator(),gain=ac.createGain();
+      osc.connect(gain);gain.connect(ac.destination);
+      osc.frequency.value=880;osc.type="sine";
+      gain.gain.setValueAtTime(0.1,ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.3);
+      osc.start();osc.stop(ac.currentTime+0.3);
+    }catch(err){}
+  }
+  var _origSTAB386=typeof showTab==="function"?showTab:null;
+  if(_origSTAB386){
+    showTab=function(name){
+      _origSTAB386(name);
+      if(name!=="stats")return;
+      requestAnimationFrame(function(){
+        var stats=document.getElementById("statsTab")||document.getElementById("stats");
+        if(!stats||stats.querySelector("#soundToggle"))return;
+        var wrap=document.createElement("div");
+        wrap.style.cssText="margin:6px 0;";
+        var btn=document.createElement("button");
+        btn.id="soundToggle";
+        btn.style.cssText="background:"+(soundOn?"var(--accent2)":"rgba(255,255,255,.08)")+";color:var(--text);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:11px;cursor:pointer;";
+        btn.textContent=soundOn?"\u{1F50A} Sound on":"\u{1F507} Sound off";
+        btn.onclick=function(){
+          soundOn=!soundOn;
+          localStorage.setItem("ob_sound",soundOn?"1":"0");
+          btn.textContent=soundOn?"\u{1F50A} Sound on":"\u{1F507} Sound off";
+          btn.style.background=soundOn?"var(--accent2)":"rgba(255,255,255,.08)";
+        };
+        wrap.appendChild(btn);
+        stats.insertBefore(wrap,stats.firstChild);
+      });
+    };
+  }
+  var _origTDD386=typeof toggleDetailDone==="function"?toggleDetailDone:null;
+  if(_origTDD386){
+    toggleDetailDone=function(){
+      _origTDD386();
+      setTimeout(function(){
+        var id=typeof _curTask!=="undefined"?_curTask:null;
+        if(id&&localStorage.getItem("ob_"+id)==="done")playBeep();
+      },50);
+    };
+  }
+})();
+
+/* ── 387: estimated completion date in stats ────────────────────────────── */
+(function(){
+  var _origSTAB387=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB387)return;
+  showTab=function(name){
+    _origSTAB387(name);
+    if(name!=="stats")return;
+    requestAnimationFrame(function(){
+      var stats=document.getElementById("statsTab")||document.getElementById("stats");
+      if(!stats||stats.querySelector("#etaLine"))return;
+      var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+      var doneC=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+      var remaining=tasks.length-doneC;
+      if(remaining<=0)return;
+      // estimate pace from last 7 days
+      var total7=0;
+      for(var i=0;i<7;i++){
+        var d=new Date();d.setDate(d.getDate()-i);
+        total7+=parseInt(localStorage.getItem("ob_day_"+d.toISOString().slice(0,10))||"0",10);
+      }
+      if(total7<=0)return;
+      var rate=total7/7;
+      var daysLeft=Math.ceil(remaining/rate);
+      var eta=new Date();eta.setDate(eta.getDate()+daysLeft);
+      var etaStr=eta.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+      var line=document.createElement("div");
+      line.id="etaLine";
+      line.style.cssText="font-size:12px;color:var(--muted);margin:4px 0;";
+      line.innerHTML="\u{1F4C5} Est. finish: <strong style='color:var(--accent);'>"+etaStr+"</strong> (~"+daysLeft+" day"+(daysLeft!==1?"s":"")+" at "+rate.toFixed(1)+"/day)";
+      stats.insertBefore(line,stats.firstChild);
+    });
+  };
+})();
+
+/* ── 388: favicon next to resource links ───────────────────────────────── */
+(function(){
+  var _origSD388=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD388(id);
+    setTimeout(function(){
+      var links=document.querySelectorAll(".resource-link a,.link-item a,[data-href]");
+      links.forEach(function(a){
+        if(a.querySelector(".favicon-img"))return;
+        var href=a.href||a.dataset.href||"";
+        if(!href.startsWith("http"))return;
+        try{
+          var host=new URL(href).hostname;
+          var img=document.createElement("img");
+          img.className="favicon-img";
+          img.src="https://www.google.com/s2/favicons?sz=16&domain="+host;
+          img.width=14;img.height=14;
+          img.style.cssText="margin-right:4px;vertical-align:middle;border-radius:2px;";
+          img.onerror=function(){this.style.display="none";};
+          a.prepend(img);
+        }catch(err){}
+      });
+    },120);
+  };
+})();
+
+/* ── 389: quick-note badge on task rows ─────────────────────────────────── */
+(function(){
+  var _origUP389=typeof updateProgress==="function"?updateProgress:null;
+  function addQuickNoteIcons(){
+    document.querySelectorAll(".task-row,[data-task-id]").forEach(function(row){
+      var id=row.dataset.id||row.dataset.taskId;
+      if(!id||row.querySelector(".qnbtn"))return;
+      var btn=document.createElement("button");
+      btn.className="qnbtn";
+      btn.title="Quick note";
+      btn.textContent="\u{1F4DD}";
+      btn.style.cssText="background:transparent;border:none;font-size:11px;cursor:pointer;opacity:.45;padding:0 2px;";
+      btn.onclick=function(e){
+        e.stopPropagation();
+        document.querySelectorAll(".qn-pop").forEach(function(p){p.remove();});
+        var pop=document.createElement("div");
+        pop.className="qn-pop";
+        pop.style.cssText="position:absolute;z-index:999;background:var(--panel);border:1px solid var(--accent);border-radius:8px;padding:8px;width:220px;box-shadow:0 4px 16px rgba(0,0,0,.5);";
+        var ta=document.createElement("textarea");
+        ta.value=localStorage.getItem("ob_note_"+id)||"";
+        ta.placeholder="Note for this task\u2026";
+        ta.style.cssText="width:100%;box-sizing:border-box;background:rgba(0,255,168,.05);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px;font-size:12px;resize:none;height:70px;";
+        var saveBtn=document.createElement("button");
+        saveBtn.textContent="Save";
+        saveBtn.style.cssText="background:var(--accent);color:#000;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;margin-top:4px;";
+        saveBtn.onclick=function(){
+          localStorage.setItem("ob_note_"+id,ta.value);
+          _showToast("\u{1F4DD} Note saved","info",1200);
+          pop.remove();
+          btn.style.opacity=ta.value.trim()?"1":".45";
+        };
+        pop.appendChild(ta);pop.appendChild(saveBtn);
+        document.body.appendChild(pop);
+        var rect=btn.getBoundingClientRect();
+        pop.style.top=(rect.bottom+window.scrollY+4)+"px";
+        pop.style.left=Math.min(rect.left+window.scrollX,window.innerWidth-240)+"px";
+        ta.focus();
+        document.addEventListener("click",function close(ev){
+          if(!pop.contains(ev.target)&&ev.target!==btn){pop.remove();document.removeEventListener("click",close);}
+        },{capture:true,once:false});
+        btn.style.opacity=localStorage.getItem("ob_note_"+id)?"1":".45";
+      };
+      if(localStorage.getItem("ob_note_"+id)) btn.style.opacity="1";
+      row.appendChild(btn);
+    });
+  }
+  if(_origUP389){
+    updateProgress=function(){
+      _origUP389();
+      setTimeout(addQuickNoteIcons,100);
+    };
+  }
+  setTimeout(addQuickNoteIcons,600);
+})();
+
+/* ── 390: browser-tab title shows progress % ───────────────────────────── */
+(function(){
+  var _origUP390=typeof updateProgress==="function"?updateProgress:null;
+  if(!_origUP390)return;
+  updateProgress=function(){
+    _origUP390();
+    setTimeout(function(){
+      var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+      if(!tasks.length)return;
+      var done=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+      var pct=Math.round(done/tasks.length*100);
+      var base=document.title.replace(/^\[\d+%\] /,"");
+      document.title="["+pct+"%] "+base;
+    },100);
+  };
+})();
+
+/* ── 391: session duration in stats ────────────────────────────────────── */
+(function(){
+  var key="ob_sess_start";
+  if(!sessionStorage.getItem(key))sessionStorage.setItem(key,String(Date.now()));
+  var _origSTAB391=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB391)return;
+  showTab=function(name){
+    _origSTAB391(name);
+    if(name!=="stats")return;
+    requestAnimationFrame(function(){
+      var stats=document.getElementById("statsTab")||document.getElementById("stats");
+      if(!stats)return;
+      var el=stats.querySelector("#sessDur")||document.createElement("div");
+      if(!el.id){el.id="sessDur";el.style.cssText="font-size:12px;color:var(--muted);margin:4px 0;";stats.insertBefore(el,stats.firstChild);}
+      var mins=Math.round((Date.now()-parseInt(sessionStorage.getItem(key),10))/60000);
+      el.textContent="\u{23F1}\uFE0F Session: "+mins+" min"+(mins!==1?"s":"");
+    });
+  };
+})();
+
+/* ── 392: copy remaining tasks as markdown ──────────────────────────────── */
+(function(){
+  if(document.getElementById("copyTodoBtn"))return;
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var btn=document.createElement("button");
+  btn.id="copyTodoBtn";
+  btn.title="Copy remaining tasks as markdown";
+  btn.textContent="\u{1F4CB} Copy list";
+  btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;opacity:.7;";
+  btn.onclick=function(){
+    var tasks=typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{};
+    var lines=Object.keys(tasks).filter(function(id){return localStorage.getItem("ob_"+id)!=="done";}).map(function(id){return "- [ ] "+(tasks[id].title||id);});
+    if(!lines.length){_showToast("All tasks done! \u{1F3C6}","info");return;}
+    navigator.clipboard.writeText(lines.join("\n")).then(function(){
+      _showToast("\u{1F4CB} "+lines.length+" tasks copied","info",2000);
+    }).catch(function(){_showToast("Copy failed","warn");});
+  };
+  hdr.appendChild(btn);
+})();
+
+/* ── 393: phase header detailed-stats tooltip ───────────────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph){
+    var phId=ph.dataset.phase||ph.dataset.id;
+    var phHdr=ph.querySelector(".phase-header,.phase-title,h3,h4");
+    if(!phHdr||phHdr.dataset.ttInited)return;
+    phHdr.dataset.ttInited="1";
+    phHdr.addEventListener("mouseenter",function(){
+      var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+      var total=rows.length;
+      var done=0,mins=0;
+      rows.forEach(function(r){
+        var id=r.dataset.id||r.dataset.taskId;
+        if(id&&localStorage.getItem("ob_"+id)==="done")done++;
+        if(id&&typeof TM!=="undefined"&&TM[id])mins+=TM[id];
+      });
+      var pct=total>0?Math.round(done/total*100):0;
+      var noteC=0;
+      rows.forEach(function(r){var id=r.dataset.id||r.dataset.taskId;if(id&&(localStorage.getItem("ob_note_"+id)||"").trim().length>0)noteC++;});
+      phHdr.title=pct+"% done ("+done+"/"+total+" tasks)"+(mins>0?", ~"+(mins>=60?Math.round(mins/60)+"h":mins+"min"):"")+", "+noteC+" note"+(noteC!==1?"s":"");
+    });
+  });
+})();
+
+/* ── 394: expanded tag-color palette ────────────────────────────────────── */
+(function(){
+  var EXTRA_COLORS=["#a855f7","#ec4899","#14b8a6","#f97316","#6366f1"];
+  var style=document.createElement("style");
+  style.textContent=".tag-purple{background:#a855f7!important}.tag-pink{background:#ec4899!important}.tag-teal{background:#14b8a6!important}.tag-orange{background:#f97316!important}.tag-indigo{background:#6366f1!important}";
+  document.head.appendChild(style);
+  // inject into any existing color picker when it appears
+  document.addEventListener("click",function(e){
+    var picker=document.querySelector(".tag-color-picker,.color-picker,[data-color-picker]");
+    if(!picker||picker.dataset.expanded)return;
+    picker.dataset.expanded="1";
+    var names=["purple","pink","teal","orange","indigo"];
+    EXTRA_COLORS.forEach(function(color,i){
+      if(picker.querySelector("[data-color='"+color+"']"))return;
+      var dot=document.createElement("button");
+      dot.dataset.color=color;
+      dot.style.cssText="width:18px;height:18px;border-radius:50%;background:"+color+";border:2px solid transparent;cursor:pointer;margin:2px;";
+      dot.title=names[i];
+      dot.onclick=function(ev){
+        ev.stopPropagation();
+        var id=picker.dataset.taskId||picker.closest("[data-id]")&&picker.closest("[data-id]").dataset.id;
+        if(id){
+          localStorage.setItem("ob_tag_"+id,color);
+          if(typeof updateProgress==="function")updateProgress();
+        }
+      };
+      picker.appendChild(dot);
+    });
+  });
+})();
+
+/* ── 395: update keyboard-help with new shortcuts ──────────────────────── */
+(function(){
+  var newKeys=[
+    {k:"/",   desc:"Focus search"},
+    {k:"M",   desc:"Mark task done"},
+    {k:"W",   desc:"Open scratch pad"},
+  ];
+  var _origSTAB395=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB395)return;
+  showTab=function(name){
+    _origSTAB395(name);
+    if(name!=="help"&&name!=="keyboard")return;
+    requestAnimationFrame(function(){
+      var panel=document.querySelector(".keyboard-help,#kbdHelp,.shortcut-list");
+      if(!panel||panel.dataset.upd395)return;
+      panel.dataset.upd395="1";
+      var tbl=panel.querySelector("table,ul,dl");
+      if(!tbl)return;
+      newKeys.forEach(function(item){
+        var row=document.createElement("tr");
+        var td1=document.createElement("td");
+        var td2=document.createElement("td");
+        td1.style.cssText="padding:2px 10px 2px 0;font-weight:bold;font-family:monospace;color:var(--accent);white-space:nowrap;";
+        td1.textContent=item.k;
+        td2.style.cssText="font-size:12px;color:var(--muted);";
+        td2.textContent=item.desc;
+        row.appendChild(td1);row.appendChild(td2);
+        if(tbl.tagName==="TABLE"){ var tbody=tbl.querySelector("tbody")||tbl; tbody.appendChild(row); }
+        else { var li=document.createElement("li"); li.innerHTML="<kbd>"+item.k+"</kbd> "+item.desc; li.style.cssText="font-size:12px;margin:2px 0;"; tbl.appendChild(li); }
+      });
+    });
+  };
+})();
+
+
 </script></body></html>
