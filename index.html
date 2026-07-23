@@ -7227,4 +7227,277 @@ function _exportChat(){
 })();
 
 
+/* ── 376: jump-to-phase dropdown ─────────────────────────────────────────── */
+(function(){
+  var phases=Array.from(document.querySelectorAll(".phase-section,[data-phase]"));
+  if(!phases.length)return;
+  if(document.getElementById("jumpPhaseSelect"))return;
+  var hdr=document.querySelector(".checklist-header,#checklistHeader")||document.querySelector(".app-header")||document.body;
+  var sel=document.createElement("select");
+  sel.id="jumpPhaseSelect";
+  sel.title="Jump to phase";
+  sel.style.cssText="background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;margin-left:8px;max-width:140px;";
+  var o0=document.createElement("option");
+  o0.value="";o0.textContent="Jump to phase\u2026";
+  sel.appendChild(o0);
+  phases.forEach(function(ph,i){
+    var opt=document.createElement("option");
+    opt.value=String(i);
+    var lbl=ph.querySelector(".phase-name,.phase-title,h3,h4");
+    opt.textContent=((lbl?lbl.textContent:"Phase "+(i+1))||"").trim().slice(0,28);
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change",function(){
+    var ph=phases[+this.value];
+    if(ph){ph.scrollIntoView({behavior:"smooth",block:"start"});this.value="";}
+  });
+  hdr.appendChild(sel);
+})();
+
+/* ── 377: flag task as blocked ───────────────────────────────────────────── */
+(function(){
+  var _origSD377=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD377(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel||panel.querySelector("#blockFlagBtn"))return;
+      var blocked=localStorage.getItem("ob_flag_"+id)==="1";
+      var btn=document.createElement("button");
+      btn.id="blockFlagBtn";
+      btn.textContent=blocked?"\u26A0 Unblock":"\u26A0 Flag Blocked";
+      btn.style.cssText="background:"+(blocked?"var(--accent2)":"rgba(220,100,30,.2)")+";color:var(--text);border:1px solid "+(blocked?"var(--accent)":"rgba(220,100,30,.5)")+";border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;margin:4px 0;";
+      btn.onclick=function(){
+        var was=localStorage.getItem("ob_flag_"+id)==="1";
+        localStorage.setItem("ob_flag_"+id,was?"0":"1");
+        document.querySelectorAll(".blkbdg_"+id).forEach(function(b){b.remove();});
+        if(!was){
+          document.querySelectorAll(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']").forEach(function(r){
+            var b=document.createElement("span");
+            b.className="blkbdg_"+id;
+            b.textContent=" \u26A0";
+            b.style.cssText="color:#e07030;font-size:11px;";
+            r.appendChild(b);
+          });
+          _showToast("\u26A0 Task flagged as blocked","warn");
+        } else {
+          _showToast("Block flag removed","info");
+        }
+        showTaskDetail(id);
+      };
+      var da=panel.querySelector(".detail-actions,#detailActions");
+      (da||panel.firstElementChild||panel).appendChild(btn);
+    },80);
+  };
+})();
+
+/* ── 378: live word count in note textarea ───────────────────────────────── */
+(function(){
+  document.addEventListener("focusin",function(e){
+    var ta=e.target;
+    if(!ta||ta.tagName!=="TEXTAREA"||ta.id!=="taskNote"||ta._wcOk)return;
+    ta._wcOk=true;
+    var wc=document.createElement("span");
+    wc.style.cssText="font-size:10px;color:var(--muted);display:block;text-align:right;margin-top:2px;";
+    var upd=function(){
+      var w=ta.value.trim().split(/\s+/).filter(Boolean).length;
+      wc.textContent=w+" word"+(w!==1?"s":"");
+    };
+    upd();
+    ta.addEventListener("input",upd);
+    if(ta.parentElement)ta.parentElement.insertBefore(wc,ta.nextSibling);
+  });
+})();
+
+/* ── 379: 7-day task-done sparkline in stats ─────────────────────────────── */
+(function(){
+  var _origSTAB379=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB379)return;
+  showTab=function(name){
+    _origSTAB379(name);
+    if(name!=="stats")return;
+    requestAnimationFrame(function(){
+      var stats=document.getElementById("statsTab")||document.getElementById("stats");
+      if(!stats||stats.querySelector("#spkCv"))return;
+      var today=new Date();
+      var days=[];
+      for(var i=6;i>=0;i--){var d=new Date(today);d.setDate(d.getDate()-i);days.push(d.toISOString().slice(0,10));}
+      var counts=days.map(function(d){return parseInt(localStorage.getItem("ob_day_"+d)||"0",10);});
+      var maxV=Math.max.apply(null,[1].concat(counts));
+      var wrap=document.createElement("div");
+      wrap.style.cssText="margin:10px 0;";
+      var lbl=document.createElement("div");
+      lbl.style.cssText="font-size:11px;color:var(--muted);margin-bottom:4px;";
+      lbl.textContent="Tasks done (last 7 days)";
+      wrap.appendChild(lbl);
+      var cv=document.createElement("canvas");
+      cv.id="spkCv";cv.width=182;cv.height=52;
+      cv.style.cssText="display:block;";
+      wrap.appendChild(cv);
+      stats.insertBefore(wrap,stats.firstChild);
+      var ctx=cv.getContext("2d"),bw=20,gap=6,ox=6;
+      days.forEach(function(d,i){
+        var h=Math.max(4,Math.round(counts[i]/maxV*38));
+        var x=ox+i*(bw+gap),y=48-h;
+        ctx.fillStyle=counts[i]>0?"#00ffa8":"#1a3a28";
+        ctx.beginPath();ctx.rect(x,y,bw,h);ctx.fill();
+        ctx.fillStyle="#6a8a7a";ctx.font="9px sans-serif";ctx.textAlign="center";
+        var dn=new Date(d+"T12:00:00");
+        ctx.fillText(["S","M","T","W","T","F","S"][dn.getDay()],x+bw/2,52);
+      });
+    });
+  };
+})();
+
+/* ── 380: print checklist button ─────────────────────────────────────────── */
+(function(){
+  if(document.getElementById("printChkBtn"))return;
+  var s=document.createElement("style");
+  s.textContent="@media print{.chat-panel,.detail-panel,.app-nav,button,.keyboard-help{display:none!important}.task-row{break-inside:avoid;padding:4px 0!important}}";
+  document.head.appendChild(s);
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var btn=document.createElement("button");
+  btn.id="printChkBtn";
+  btn.title="Print checklist";
+  btn.textContent="\u{1F5A8} Print";
+  btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;opacity:.7;";
+  btn.onclick=function(){window.print();};
+  hdr.appendChild(btn);
+})();
+
+/* ── 381: per-phase sticky note ─────────────────────────────────────────── */
+(function(){
+  document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph,i){
+    if(ph.querySelector(".ph-note-wrap"))return;
+    var pid=ph.dataset.phase||ph.dataset.id||("ph"+i);
+    var lsKey="ob_phnote_"+pid;
+    var toggle=document.createElement("button");
+    toggle.textContent="\u{1F4DD}";toggle.title="Phase notes";
+    toggle.style.cssText="background:transparent;border:none;font-size:12px;cursor:pointer;opacity:.5;vertical-align:middle;padding:0 4px;";
+    var wrap=document.createElement("div");
+    wrap.className="ph-note-wrap";
+    wrap.style.cssText="overflow:hidden;max-height:0;transition:max-height .3s;";
+    var ta=document.createElement("textarea");
+    ta.placeholder="Phase notes\u2026";
+    ta.value=localStorage.getItem(lsKey)||"";
+    ta.style.cssText="width:100%;box-sizing:border-box;background:rgba(0,255,168,.04);border:1px dashed var(--border);border-radius:6px;color:var(--text);padding:6px;font-size:12px;resize:vertical;min-height:48px;";
+    ta.addEventListener("input",function(){localStorage.setItem(lsKey,ta.value);});
+    wrap.appendChild(ta);
+    var open381=false;
+    toggle.onclick=function(e){
+      e.stopPropagation();
+      open381=!open381;
+      wrap.style.maxHeight=open381?"160px":"0";
+      toggle.style.opacity=open381?"1":".5";
+    };
+    var phHdr=ph.querySelector(".phase-header,.phase-title,h3,h4");
+    if(phHdr){phHdr.appendChild(toggle);phHdr.insertAdjacentElement("afterend",wrap);}
+  });
+})();
+
+/* ── 382: achievement badges in stats ───────────────────────────────────── */
+(function(){
+  var BDGS=[
+    {id:"first",icon:"\u{1F680}",name:"First Step",  desc:"Complete first task"},
+    {id:"half", icon:"\u{1F3AF}",name:"Halfway",     desc:"50% tasks done"},
+    {id:"notes",icon:"\u{1F4DD}",name:"Note Taker",  desc:"5+ notes saved"},
+    {id:"speed",icon:"\u26A1",   name:"Quick Start", desc:"3 tasks in one day"},
+    {id:"all",  icon:"\u{1F3C6}",name:"Finisher",    desc:"All tasks complete"},
+  ];
+  function chkBdgs(){
+    var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+    var doneC=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+    var total=tasks.length||1;
+    var noteC=tasks.filter(function(t){return(localStorage.getItem("ob_note_"+t)||"").trim().length>5;}).length;
+    var todayK="ob_day_"+new Date().toISOString().slice(0,10);
+    var todayD=parseInt(localStorage.getItem(todayK)||"0",10);
+    var e={};
+    if(doneC>=1)e.first=true;
+    if(doneC/total>=0.5)e.half=true;
+    if(noteC>=5)e.notes=true;
+    if(todayD>=3)e.speed=true;
+    if(doneC===total&&total>0)e.all=true;
+    return e;
+  }
+  var _origSTAB382=typeof showTab==="function"?showTab:null;
+  if(!_origSTAB382)return;
+  showTab=function(name){
+    _origSTAB382(name);
+    if(name!=="stats")return;
+    requestAnimationFrame(function(){
+      var stats=document.getElementById("statsTab")||document.getElementById("stats");
+      if(!stats||stats.querySelector("#achWrap"))return;
+      var earned=chkBdgs();
+      var wrap=document.createElement("div");
+      wrap.id="achWrap";
+      wrap.style.cssText="margin:8px 0;";
+      var lbl=document.createElement("div");
+      lbl.style.cssText="font-size:11px;color:var(--muted);margin-bottom:5px;";
+      lbl.textContent="Achievements";
+      wrap.appendChild(lbl);
+      BDGS.forEach(function(b){
+        var got=!!earned[b.id];
+        var pill=document.createElement("span");
+        pill.title=b.desc;
+        pill.style.cssText="display:inline-flex;align-items:center;gap:3px;background:"+(got?"rgba(0,255,168,.15)":"rgba(255,255,255,.04)")+";border:1px solid "+(got?"var(--accent)":"var(--border)")+";border-radius:20px;padding:3px 9px;font-size:11px;margin:2px;opacity:"+(got?"1":".4")+";";
+        pill.innerHTML=b.icon+" "+b.name;
+        wrap.appendChild(pill);
+      });
+      stats.insertBefore(wrap,stats.firstChild);
+    });
+  };
+})();
+
+/* ── 383: task time-weight bar on rows ──────────────────────────────────── */
+(function(){
+  if(typeof TM==="undefined"||typeof TASK_DETAILS==="undefined")return;
+  var vals=Object.values(TM).filter(function(v){return v>0;});
+  if(!vals.length)return;
+  var maxT=Math.max.apply(null,vals);
+  document.querySelectorAll(".task-row,[data-task-id]").forEach(function(row){
+    var id=row.dataset.id||row.dataset.taskId;
+    if(!id||!TM[id]||row.querySelector(".twbar"))return;
+    var pct=Math.round(TM[id]/maxT*100);
+    var bar=document.createElement("div");
+    bar.className="twbar";
+    bar.title=(typeof fmtDur==="function"?fmtDur(TM[id]):TM[id]+" min");
+    bar.style.cssText="height:2px;width:"+pct+"%;background:var(--accent);opacity:.45;border-radius:1px;margin-top:2px;";
+    row.appendChild(bar);
+  });
+})();
+
+/* ── 384: reading-progress bar in detail body ───────────────────────────── */
+(function(){
+  var _origSD384=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD384(id);
+    setTimeout(function(){
+      var body=document.querySelector(".detail-body,#detailBody,.task-detail-body");
+      if(!body||body.querySelector("#rdPct"))return;
+      var bar=document.createElement("div");
+      bar.id="rdPct";
+      bar.style.cssText="position:sticky;top:0;height:3px;background:var(--accent);width:0;border-radius:2px;z-index:3;transition:width .1s;pointer-events:none;";
+      body.prepend(bar);
+      body.addEventListener("scroll",function(){
+        var sh=body.scrollHeight-body.clientHeight;
+        bar.style.width=(sh>0?Math.round(body.scrollTop/sh*100):100)+"%";
+      },{passive:true});
+    },80);
+  };
+})();
+
+/* ── 385: / key focuses search ─────────────────────────────────────────── */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.isContentEditable)return;
+    if(e.key==="/"&&!e.ctrlKey&&!e.metaKey){
+      e.preventDefault();
+      var s=document.getElementById("taskSearch")||document.querySelector("input[type='search']");
+      if(s){s.focus();s.select();_showToast("\u{1F50D} Search focused","info",1200);}
+    }
+  });
+})();
+
+
 </script></body></html>
