@@ -18601,4 +18601,223 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 861-870 */
+(function(){
+
+/* 861 – Accessibility: ARIA live region for toasts */
+(function(){
+  var live=document.createElement("div");
+  live.id="ob861-aria";live.setAttribute("aria-live","polite");live.setAttribute("aria-atomic","true");
+  live.style.cssText="position:absolute;left:-9999px;height:1px;overflow:hidden;";
+  document.body.appendChild(live);
+  var _oST=window._showToast||function(){};
+  window._showToast=function(msg,type,dur){
+    _oST.apply(this,arguments);
+    live.textContent="";setTimeout(function(){live.textContent=msg;},50);
+  };
+})();
+
+/* 862 – Task note line numbers */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob862-wrap{display:flex;gap:0;position:relative;}" +
+    "#ob862-lnums{font-size:.78rem;line-height:1.5;font-family:monospace;color:var(--muted);opacity:.35;text-align:right;padding:8px 4px 8px 8px;user-select:none;pointer-events:none;min-width:28px;border:1px solid var(--border);border-right:none;border-radius:6px 0 0 6px;background:var(--panel);overflow:hidden;}" +
+    "#task-note.ob862{border-radius:0 6px 6px 0 !important;}";
+  document.head.appendChild(css);
+  var _oSD862=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD862.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");
+      if(!ta||ta.classList.contains("ob862"))return;
+      ta.classList.add("ob862");
+      var wrap=document.createElement("div");wrap.id="ob862-wrap";
+      ta.parentNode.insertBefore(wrap,ta);wrap.appendChild(ta);
+      var lnums=document.createElement("div");lnums.id="ob862-lnums";
+      wrap.insertBefore(lnums,ta);
+      function update(){
+        var n=ta.value.split("\n").length;
+        lnums.innerHTML=Array.from({length:n},function(_,i){return i+1;}).join("<br>");
+        lnums.style.height=ta.style.height||ta.offsetHeight+"px";
+      }
+      ta.addEventListener("input",update);ta.addEventListener("scroll",function(){lnums.scrollTop=ta.scrollTop;});
+      update();
+    },200);
+  };
+})();
+
+/* 863 – Phase time budget alert */
+(function(){
+  var _orig863=window.updateProgress||function(){};
+  window.updateProgress=function(){
+    _orig863.apply(this,arguments);
+    if(!window.TM)return;
+    var phases={};
+    Object.values(window.TM).forEach(function(t){
+      if(!t.phase)return;
+      if(!phases[t.phase])phases[t.phase]={total:0,done:0,est:0};
+      phases[t.phase].total++;
+      phases[t.phase].est+=parseInt(localStorage.getItem("ob_est_"+t.id)||"30");
+      if(localStorage.getItem("ob_done_"+t.id)==="1")phases[t.phase].done++;
+    });
+    Object.keys(phases).forEach(function(p){
+      var d=phases[p];
+      if(d.est>120&&d.done<d.total){
+        var key="ob_budget_alert_"+p;
+        if(!localStorage.getItem(key)){
+          localStorage.setItem(key,"1");
+          if(typeof window._showToast==="function")window._showToast("\u23F0 Phase "+p+" est "+Math.round(d.est/60)+"h — plan your time!","warn",5000);
+        }
+      }
+    });
+  };
+})();
+
+/* 864 – Note export as plain text */
+(function(){
+  var _oSD864=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD864.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob864-txt"))return;
+      var ta=document.getElementById("task-note");if(!ta)return;
+      var btn=document.createElement("button");
+      btn.id="ob864-txt";btn.type="button";
+      btn.style.cssText="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 8px;";
+      btn.textContent="\u2B07 .txt";btn.title="Export note as plain text";
+      btn.addEventListener("click",function(){
+        var text=ta.value;if(!text.trim())return;
+        var blob=new Blob([text],{type:"text/plain"});
+        var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+        var t=window.TM&&window.TM[id]?window.TM[id].title:"task";
+        a.download=t.replace(/[^a-z0-9]/gi,"_").substring(0,30)+"_note.txt";
+        a.click();URL.revokeObjectURL(a.href);
+      });
+      ta.parentNode.insertBefore(btn,ta.nextSibling);
+    },280);
+  };
+})();
+
+/* 865 – Gamification XP bar */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob865-xp{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.04);z-index:9400;pointer-events:none;}" +
+    "#ob865-xpfill{height:100%;background:linear-gradient(90deg,var(--accent2,#00c47e),var(--accent,#00ffa8));transition:width .5s;}";
+  document.head.appendChild(css);
+  var bar=document.createElement("div");bar.id="ob865-xp";
+  var fill=document.createElement("div");fill.id="ob865-xpfill";fill.style.width="0%";
+  bar.appendChild(fill);document.body.appendChild(bar);
+  function calcXP(){
+    if(!window.TM)return 0;
+    var tasks=Object.values(window.TM);
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+    var notes=tasks.filter(function(t){return (localStorage.getItem("ob_note_"+t.id)||"").length>50;}).length;
+    return done*10+notes*5;
+  }
+  function updateXP(){
+    var xp=calcXP();var level=Math.floor(xp/100);var rem=xp%100;
+    fill.style.width=rem+"%";bar.title="XP: "+xp+" (Level "+level+")";
+  }
+  var _orig865=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig865.apply(this,arguments);setTimeout(updateXP,100);};
+  setTimeout(updateXP,3300);
+})();
+
+/* 866 – Task complete sound toggle button */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob866-sound";
+  btn.style.cssText="position:fixed;top:8px;right:228px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:800;";
+  var on=localStorage.getItem("ob_sound_on")!=="0";
+  btn.textContent=on?"\uD83D\uDD0A Sound":"\uD83D\uDD07 Muted";
+  btn.title="Toggle completion sounds";
+  btn.addEventListener("click",function(){
+    on=!on;localStorage.setItem("ob_sound_on",on?"1":"0");
+    btn.textContent=on?"\uD83D\uDD0A Sound":"\uD83D\uDD07 Muted";
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 867 – Scroll to first incomplete task */
+(function(){
+  var btn=document.createElement("button");
+  btn.id="ob867-first";
+  btn.style.cssText="position:fixed;bottom:86px;left:16px;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:.72rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\u25B6 Next Task";btn.title="Jump to first incomplete task";
+  btn.addEventListener("click",function(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    var first=tasks.find(function(t){return localStorage.getItem("ob_done_"+t.id)!=="1";});
+    if(!first)return;
+    var card=document.querySelector("[data-id='"+first.id+"'],[data-task-id='"+first.id+"']");
+    if(card)card.scrollIntoView({behavior:"smooth",block:"center"});
+  });
+  document.body.appendChild(btn);
+})();
+
+/* 868 – Chat: /xp command */
+(function(){
+  var _oSM868=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp&&inp.value.trim()==="/xp"){
+      if(window.TM){
+        var tasks=Object.values(window.TM);
+        var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+        var notes=tasks.filter(function(t){return (localStorage.getItem("ob_note_"+t.id)||"").length>50;}).length;
+        var xp=done*10+notes*5;
+        var level=Math.floor(xp/100);
+        var msg="XP: "+xp+" | Level "+level+" ("+done+" tasks done, "+notes+" notes)";
+        if(typeof window.appendMsg==="function")window.appendMsg(msg,"bot");
+        inp.value="";return;
+      }
+    }
+    _oSM868.apply(this,arguments);
+  };
+})();
+
+/* 869 – Phase notes (notes per-phase not per-task) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".ob869-pnote{display:none;padding:6px 10px;font-size:.78rem;background:rgba(0,0,0,.2);border-top:1px solid var(--border);}" +
+    ".ob869-pnote textarea{width:100%;background:transparent;border:none;outline:none;color:inherit;font-size:.78rem;resize:vertical;min-height:40px;}" +
+    ".ob869-toggle{font-size:.7rem;opacity:.5;cursor:pointer;margin-left:8px;}" +
+    ".ob869-toggle:hover{opacity:1;}";
+  document.head.appendChild(css);
+  function attachPhaseNotes(){
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(h){
+      if(h.querySelector(".ob869-toggle"))return;
+      var ph=h.closest(".phase-block")||h.closest("[data-phase]");if(!ph)return;
+      var phId=ph.dataset.phase||ph.id||"phase";
+      var tog=document.createElement("span");tog.className="ob869-toggle";tog.textContent="\uD83D\uDCDD";tog.title="Phase note";
+      h.appendChild(tog);
+      var noteEl=document.createElement("div");noteEl.className="ob869-pnote";
+      var ta=document.createElement("textarea");
+      ta.value=localStorage.getItem("ob_phase_note_"+phId)||"";
+      ta.placeholder="Phase notes...";
+      ta.addEventListener("input",function(){localStorage.setItem("ob_phase_note_"+phId,ta.value);});
+      noteEl.appendChild(ta);
+      ph.appendChild(noteEl);
+      tog.addEventListener("click",function(e){
+        e.stopPropagation();
+        noteEl.style.display=noteEl.style.display==="block"?"none":"block";
+        if(noteEl.style.display==="block")ta.focus();
+      });
+    });
+  }
+  setTimeout(attachPhaseNotes,3400);
+})();
+
+/* 870 – Milestone toast: 870 */
+(function(){
+  if(localStorage.getItem("ob_imp870_shown"))return;
+  localStorage.setItem("ob_imp870_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDE4C 870 — almost to 900!","success",4500);
+  },5800);
+})();
+
+})();
+</script>
 </script></body></html>
