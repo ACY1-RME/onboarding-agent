@@ -12862,4 +12862,248 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp601: task notes character limit warning (500 chars) */
+(function(){
+  var LIMIT=500;
+  var _origSD601=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD601&&_origSD601(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var ta=panel.querySelector("textarea");
+      if(!ta||ta.dataset._charWarn)return;
+      ta.dataset._charWarn="1";
+      var warn=document.createElement("div");
+      warn.style.cssText="font-size:0.62rem;margin-top:2px;transition:color 0.3s;";
+      ta.parentNode.insertBefore(warn,ta.nextSibling);
+      function update(){
+        var left=LIMIT-ta.value.length;
+        warn.textContent=left<0?Math.abs(left)+" over limit":left+" chars remaining";
+        warn.style.color=left<0?"#e05c5c":left<50?"var(--gold)":"var(--muted,#555)";
+      }
+      update();
+      ta.addEventListener("input",update);
+    },90);
+  };
+})();
+
+/* imp602: sidebar task filter by done/undone status */
+(function(){
+  var statusFilter="all";
+  function buildStatusFilter(){
+    if(document.getElementById("_statusFilter"))return;
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list)return;
+    var wrap=document.createElement("div");
+    wrap.id="_statusFilter";
+    wrap.style.cssText="display:flex;gap:4px;margin-bottom:6px;";
+    [["all","All"],["undone","Remaining"],["done","Done"]].forEach(function(pair){
+      var btn=document.createElement("button");
+      btn.textContent=pair[1];
+      btn.dataset.val=pair[0];
+      btn.style.cssText="font-size:0.68rem;padding:2px 10px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:"+(statusFilter===pair[0]?"var(--accent)":"var(--panel)")+";color:"+(statusFilter===pair[0]?"#000":"var(--text)");
+      btn.onclick=function(){
+        statusFilter=pair[0];
+        wrap.querySelectorAll("button").forEach(function(b){
+          var active=b.dataset.val===statusFilter;
+          b.style.background=active?"var(--accent)":"var(--panel)";
+          b.style.color=active?"#000":"var(--text)";
+        });
+        var la=window._la||[];
+        la.forEach(function(t){
+          var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+          if(!row)return;
+          if(statusFilter==="all")row.style.display="";
+          else if(statusFilter==="done")row.style.display=t.done?"":"none";
+          else row.style.display=t.done?"none":"";
+        });
+      };
+      wrap.appendChild(btn);
+    });
+    list.parentNode.insertBefore(wrap,list);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildStatusFilter,800);});
+})();
+
+/* imp603: highlight matching search text in task row names */
+(function(){
+  function highlightRows(q){
+    document.querySelectorAll(".task-row,.ob-task-row").forEach(function(row){
+      var nameEl=row.querySelector(".task-name,.row-name,span:first-of-type");
+      if(!nameEl||nameEl.dataset._hl_orig===undefined){
+        if(nameEl)nameEl.dataset._hl_orig=nameEl.innerHTML;
+      }
+      if(!nameEl)return;
+      var orig=nameEl.dataset._hl_orig;
+      if(!q){nameEl.innerHTML=orig;return;}
+      var re=new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi");
+      nameEl.innerHTML=orig.replace(re,"<mark style='background:rgba(0,255,168,0.3);color:inherit;border-radius:2px;'>$1</mark>");
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(si)si.addEventListener("input",function(){highlightRows((si.value||"").trim());});
+    },700);
+  });
+})();
+
+/* imp604: per-task time budget (set expected time, show over/under) */
+(function(){
+  var _origSD604=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD604&&_origSD604(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_timeBudget604"))return;
+      var KEY="ob_budget_"+id;
+      var KEY_LOG="ob_log_"+id;
+      var budget=localStorage.getItem(KEY)||"";
+      var logs=JSON.parse(localStorage.getItem(KEY_LOG)||"[]");
+      var logged=logs.reduce(function(a,b){return a+b.m;},0);
+      var wrap=document.createElement("div");
+      wrap.id="_timeBudget604";
+      wrap.style.cssText="margin:4px 0;font-size:0.72rem;";
+      var row=document.createElement("div");
+      row.style.cssText="display:flex;gap:6px;align-items:center;";
+      var inp=document.createElement("input");
+      inp.type="number";inp.min="0";inp.placeholder="Budget (min)";inp.value=budget;
+      inp.style.cssText="width:90px;padding:2px 6px;border-radius:6px;background:var(--panel);color:var(--text);border:1px solid var(--border);font-size:0.7rem;";
+      inp.onchange=function(){localStorage.setItem(KEY,inp.value);updateDisplay();};
+      var display=document.createElement("span");
+      display.style.cssText="font-size:0.68rem;opacity:0.65;";
+      function updateDisplay(){
+        var b=parseInt(localStorage.getItem(KEY)||"0");
+        if(!b||!logged){display.textContent="";return;}
+        var diff=logged-b;
+        display.textContent=logged+"m logged / "+b+"m budget";
+        display.style.color=diff>0?"#e05c5c":diff<-10?"var(--accent)":"var(--gold)";
+        display.title=diff>0?"Over by "+diff+"m":"Under by "+Math.abs(diff)+"m";
+      }
+      updateDisplay();
+      row.appendChild(inp);row.appendChild(display);
+      wrap.appendChild(row);
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.parentNode.insertBefore(wrap,h.nextSibling);
+      else panel.appendChild(wrap);
+    },95);
+  };
+})();
+
+/* imp605: daily goal setter — set N tasks per day target */
+(function(){
+  var KEY_GOAL="ob_daily_goal";
+  var KEY_DATE="ob_daily_goal_date";
+  var KEY_COUNT="ob_daily_done_count";
+  var today=new Date().toISOString().slice(0,10);
+  if(localStorage.getItem(KEY_DATE)!==today){
+    localStorage.setItem(KEY_DATE,today);
+    localStorage.setItem(KEY_COUNT,"0");
+  }
+  function getDailyGoal(){return parseInt(localStorage.getItem(KEY_GOAL)||"0");}
+  function getDailyCount(){return parseInt(localStorage.getItem(KEY_COUNT)||"0");}
+  function updateDailyWidget(){
+    var goal=getDailyGoal();var count=getDailyCount();
+    var el=document.getElementById("_dailyGoalWidget");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_dailyGoalWidget";
+      el.style.cssText="position:fixed;top:100px;right:14px;z-index:700;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:0.72rem;min-width:120px;";
+      document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(el);});
+    }
+    if(!goal){el.innerHTML="<div style='opacity:0.5;font-size:0.65rem;'>No daily goal</div><input id='_goalInput' type='number' min='1' placeholder='Set goal' style='width:70px;margin-top:4px;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:0.68rem;'>";setTimeout(function(){var inp=document.getElementById("_goalInput");if(inp)inp.onchange=function(){localStorage.setItem(KEY_GOAL,inp.value);updateDailyWidget();};},50);return;}
+    var pct=Math.min(100,Math.round(count/goal*100));
+    el.innerHTML="<div style='font-size:0.65rem;opacity:0.55;margin-bottom:3px;'>Today</div><div style='font-size:1.4rem;font-weight:700;color:var(--accent);line-height:1;'>"+count+"<span style='font-size:0.8rem;color:var(--text);opacity:0.5;'>/"+goal+"</span></div><div style='height:3px;background:var(--border);border-radius:2px;margin-top:4px;'><div style='height:100%;background:var(--accent);width:"+pct+"%;border-radius:2px;transition:width 0.3s;'></div></div><div style='font-size:0.58rem;opacity:0.4;margin-top:3px;cursor:pointer;' id='_resetGoal'>reset</div>";
+    setTimeout(function(){var r=document.getElementById("_resetGoal");if(r)r.onclick=function(){localStorage.removeItem(KEY_GOAL);updateDailyWidget();};},50);
+    if(count>=goal)_showToast&&_showToast("\uD83C\uDFC6 Daily goal reached! "+count+" tasks done!","success",3000);
+  }
+  var _origTD605=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD605&&_origTD605();
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(task&&task.done){
+      var c=getDailyCount()+1;
+      localStorage.setItem(KEY_COUNT,c);
+      updateDailyWidget();
+    }
+  };
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(updateDailyWidget,800);});
+})();
+
+/* imp606: task row subtle hover tooltip with step count */
+(function(){
+  document.addEventListener("mouseover",function(e){
+    var row=e.target.closest(".task-row,.ob-task-row");
+    if(!row||row.title)return;
+    var id=row.dataset.id||row.dataset.taskId;
+    var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+    if(!td)return;
+    var parts=[];
+    if(td.steps&&td.steps.length)parts.push(td.steps.length+" steps");
+    if(td.resources&&td.resources.length)parts.push(td.resources.length+" resources");
+    if(parts.length)row.title=parts.join(", ");
+  });
+})();
+
+/* imp607: auto-number task rows */
+(function(){
+  function numberRows(){
+    var rows=Array.from(document.querySelectorAll(".task-row,.ob-task-row")).filter(function(r){return r.style.display!=="none";});
+    rows.forEach(function(r,i){
+      var n=r.querySelector("._rowNum");
+      if(!n){n=document.createElement("span");n.className="_rowNum";n.style.cssText="font-size:0.6rem;opacity:0.3;margin-right:4px;min-width:18px;display:inline-block;text-align:right;";r.insertBefore(n,r.firstChild);}
+      n.textContent=(i+1)+".";
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(numberRows,900);});
+  var _origUP607=window.updateProgress;
+  window.updateProgress=function(){_origUP607&&_origUP607();setTimeout(numberRows,120);};
+})();
+
+/* imp608: expand note textarea on focus */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="#task-detail-panel textarea,#taskDetailPanel textarea{transition:min-height 0.25s ease;}#task-detail-panel textarea:focus,#taskDetailPanel textarea:focus{min-height:140px!important;}";
+  document.head.appendChild(st);
+})();
+
+/* imp609: phase completion timestamp label */
+(function(){
+  function phaseTimestamps(){
+    var la=window._la||[];
+    var phases={};
+    la.forEach(function(t){var ph=t.phase||"Other";if(!phases[ph])phases[ph]={d:0,n:0};phases[ph].n++;if(t.done)phases[ph].d++;});
+    Object.keys(phases).forEach(function(ph){
+      if(phases[ph].d!==phases[ph].n)return;
+      var KEY="ob_phase_completed_"+ph;
+      if(!localStorage.getItem(KEY))localStorage.setItem(KEY,new Date().toLocaleDateString());
+      var ts=localStorage.getItem(KEY);
+      document.querySelectorAll(".phase-header,.phase-title").forEach(function(el){
+        var elPh=el.dataset.phase||el.textContent.replace(/\(.*?\)/g,"").trim();
+        if(elPh!==ph||el.querySelector("._phaseDoneTs"))return;
+        var span=document.createElement("span");
+        span.className="_phaseDoneTs";
+        span.style.cssText="font-size:0.6rem;opacity:0.45;margin-left:6px;";
+        span.textContent="\u2713 "+ts;
+        el.appendChild(span);
+      });
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(phaseTimestamps,800);});
+  var _origUP609=window.updateProgress;
+  window.updateProgress=function(){_origUP609&&_origUP609();setTimeout(phaseTimestamps,120);};
+})();
+
+/* imp610: 610-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp610_shown")){
+    localStorage.setItem("ob_imp610_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDD25 610! Sprint to 700?","info",3000);},2000);
+  }
+})();
+</script>
 </script></body></html>
