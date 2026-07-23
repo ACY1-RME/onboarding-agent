@@ -5629,4 +5629,153 @@ function _exportChat(){
 })();
 
 
+/* ── 286: Checklist: visual grouping by time category ──────────  */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.task-item[data-timecat="quick"]{border-left:2px solid rgba(0,255,168,.4)!important}'+
+    '.task-item[data-timecat="standard"]{border-left:2px solid rgba(240,196,83,.3)!important}'+
+    '.task-item[data-timecat="deep"]{border-left:2px solid rgba(200,128,255,.3)!important}';
+  document.head.appendChild(st);
+  document.querySelectorAll('.task-item').forEach(function(item){
+    var cb=item.querySelector('input[type=checkbox]');if(!cb)return;
+    var m=TM[cb.id]||0;
+    item.dataset.timecat=m<=15?'quick':m<=60?'standard':'deep';
+  });
+})();
+
+/* ── 287: Resources tab: search also searches link titles ──────  */
+(function(){
+  var _origResFilter=_filterResources;
+  _filterResources=function(q){
+    _origResFilter(q);
+    if(!q)return;
+    var ql=q.toLowerCase();
+    document.querySelectorAll('#tab-resources a,.resource-link').forEach(function(a){
+      var text=(a.textContent||'').toLowerCase();
+      var item=a.closest('.res-item,.resource-item')||a;
+      item.style.display=text.includes(ql)?'':'none';
+    });
+  };
+})();
+
+/* ── 288: App: detect mobile and adjust UI hints ───────────────  */
+(function(){
+  var isMobile='ontouchstart' in window||window.innerWidth<600;
+  if(!isMobile)return;
+  var st=document.createElement('style');
+  st.textContent='.task-time{display:none}.diff-badge{display:none}'+
+    '.task-item{min-height:38px!important;padding:8px 10px!important}'+
+    '.task-label{font-size:.8rem!important}';
+  document.head.appendChild(st);
+  setTimeout(function(){_showToast('Tip: swipe right to check tasks','',3000);},2000);
+})();
+
+/* ── 289: Sidebar: collapsible recent tasks section ────────────  */
+(function(){
+  var rec=document.getElementById('recent-strip');if(!rec)return;
+  var collapsed=localStorage.getItem('ob_rec_collapsed')==='1';
+  rec.style.display=collapsed?'none':'';
+  var btn=document.createElement('button');
+  btn.style.cssText='background:none;border:none;font-size:.65rem;color:var(--muted);cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:3px;width:100%';
+  btn.innerHTML='Recent <span id="rec-chev">'+(collapsed?'&#9658;':'&#9660;')+'</span>';
+  btn.onclick=function(){
+    collapsed=!collapsed;
+    localStorage.setItem('ob_rec_collapsed',collapsed?'1':'0');
+    rec.style.display=collapsed?'none':'';
+    document.getElementById('rec-chev').innerHTML=collapsed?'&#9658;':'&#9660;';
+  };
+  rec.before(btn);
+})();
+
+/* ── 290: Detail: step item drag-to-reorder hint ───────────────  */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.detail-step{cursor:grab}.detail-step:active{cursor:grabbing;opacity:.7}'+
+    '.detail-step.drag-over{border-top:2px dashed var(--accent)!important}';
+  document.head.appendChild(st);
+  var _origShow290=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow290(taskId);
+    var stepsEl=document.getElementById('detail-steps');if(!stepsEl)return;
+    var steps=Array.from(stepsEl.querySelectorAll('.detail-step'));
+    var dragged=null;
+    steps.forEach(function(step){
+      step.setAttribute('draggable','true');
+      step.addEventListener('dragstart',function(){dragged=step;step.style.opacity='.5';});
+      step.addEventListener('dragend',function(){step.style.opacity='';dragged=null;stepsEl.querySelectorAll('.detail-step').forEach(function(s){s.classList.remove('drag-over');});});
+      step.addEventListener('dragover',function(e){e.preventDefault();step.classList.add('drag-over');});
+      step.addEventListener('dragleave',function(){step.classList.remove('drag-over');});
+      step.addEventListener('drop',function(e){e.preventDefault();step.classList.remove('drag-over');if(dragged&&dragged!==step){stepsEl.insertBefore(dragged,step);}});
+    });
+  };
+})();
+
+/* ── 291: Checklist: flash completed item green briefly ─────────  */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes flashDone{0%{background:rgba(0,255,168,.25)}100%{background:transparent}}'+
+    '.task-item.flash-done{animation:flashDone .7s ease-out}';
+  document.head.appendChild(st);
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      if(!cb.checked)return;
+      var item=cb.closest('.task-item');
+      if(item){item.classList.remove('flash-done');void item.offsetWidth;item.classList.add('flash-done');}
+    });
+  });
+})();
+
+/* ── 292: Chat: message count in header ─────────────────────────  */
+(function(){
+  var box=document.getElementById('chatbox');if(!box)return;
+  var hdr=document.querySelector('.chat-header,.chat-title');if(!hdr)return;
+  var cnt=document.createElement('span');cnt.id='chat-msg-count';
+  cnt.style.cssText='font-size:.58rem;color:var(--muted);margin-left:6px;font-weight:400';
+  hdr.appendChild(cnt);
+  function _updateCount(){
+    var n=box.querySelectorAll('.msg.user,.msg.ai').length;
+    cnt.textContent=n?'('+n+' messages)':'';
+  }
+  var _origAppend5=appendMsg;
+  appendMsg=function(text,cls){var el=_origAppend5(text,cls);_updateCount();return el;};
+  _updateCount();
+})();
+
+/* ── 293: Keyboard: number keys 1-9 jump to phase ───────────────  */
+(function(){
+  var _heads=Array.from(document.querySelectorAll('.phase-head,.phase-header'));
+  document.addEventListener('keydown',function(e){
+    var n=parseInt(e.key,10);
+    if(isNaN(n)||n<1||n>9)return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    var hd=_heads[n-1];if(!hd)return;
+    hd.scrollIntoView({behavior:'smooth',block:'start'});
+    hd.focus();
+  });
+})();
+
+/* ── 294: Detail: show task ID in dev tooltip ───────────────────  */
+(function(){
+  var _origShow294=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow294(taskId);
+    var icon=document.getElementById('detail-icon');
+    if(icon)icon.title='Task ID: '+taskId;
+  };
+})();
+
+/* ── 295: App: auto-reopen detail panel after page visibility ──  */
+(function(){
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)return;
+    var last=localStorage.getItem('ob_last_task');
+    if(!last)return;
+    var panel=document.getElementById('task-detail-panel');
+    if(panel&&!panel.classList.contains('active')){
+    }
+    _updateStreak&&_updateStreak();
+  });
+})();
+
+
 </script></body></html>
