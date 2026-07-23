@@ -21018,4 +21018,205 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 981-990 */
+(function(){
+
+/* 981 – Task card glow on recent completion */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="@keyframes ob981-glow{0%{box-shadow:0 0 0 0 rgba(0,255,168,.6)}60%{box-shadow:0 0 20px 6px rgba(0,255,168,.2)}100%{box-shadow:none}}"+
+    ".ob981-glow{animation:ob981-glow 1.5s ease-out;}";
+  document.head.appendChild(css);
+  var _orig981=window.updateProgress||function(){};
+  window.updateProgress=function(){
+    _orig981.apply(this,arguments);
+    setTimeout(function(){
+      document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+        var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+        var ts=localStorage.getItem("ob_done_ts_"+id);if(!ts)return;
+        var age=(Date.now()-new Date(ts).getTime())/1000;
+        if(age<5&&!card.classList.contains("ob981-glow")){
+          card.classList.add("ob981-glow");
+          setTimeout(function(){card.classList.remove("ob981-glow");},1600);
+        }
+      });
+    },100);
+  };
+})();
+
+/* 982 – Note: select all shortcut (Ctrl+A in note) */
+(function(){
+  // Already native but ensure it doesn't bubble to list-select
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="a"&&document.activeElement&&document.activeElement.id==="task-note"){
+      // Native behavior is fine — just stop propagation
+      e.stopPropagation();
+    }
+  },true);
+})();
+
+/* 983 – Task dependency: /dep command to add dependency */
+(function(){
+  var _oSM983=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp){
+      var val=inp.value.trim();
+      if(val.startsWith("/dep ")){
+        var depId=val.substring(5).trim();
+        var id=window._curTask;
+        if(id&&depId){
+          var deps=JSON.parse(localStorage.getItem("ob_deps_"+id)||"[]");
+          if(deps.indexOf(depId)===-1)deps.push(depId);
+          localStorage.setItem("ob_deps_"+id,JSON.stringify(deps));
+          var dname=window.TM&&window.TM[depId]?window.TM[depId].title:depId;
+          if(typeof window.appendMsg==="function")window.appendMsg("Dependency added: "+dname,"bot");
+          inp.value="";return;
+        }
+      }
+    }
+    _oSM983.apply(this,arguments);
+  };
+})();
+
+/* 984 – All notes search modal */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob984-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9600;padding:40px 20px;overflow-y:auto;}" +
+    "#ob984-box{max-width:560px;margin:0 auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;}" +
+    "#ob984-box input{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:6px;color:inherit;padding:8px 12px;font-size:.9rem;box-sizing:border-box;margin-bottom:10px;}" +
+    ".ob984-result{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer;font-size:.8rem;}" +
+    ".ob984-result:hover{background:rgba(255,255,255,.05);}" +
+    ".ob984-hl{background:rgba(0,255,168,.2);border-radius:2px;}";
+  document.head.appendChild(css);
+  var modal=document.createElement("div");modal.id="ob984-modal";
+  modal.innerHTML="<div id='ob984-box'><input id='ob984-inp' placeholder='Search all notes...' autofocus><div id='ob984-results'></div></div>";
+  document.body.appendChild(modal);
+  modal.addEventListener("click",function(e){if(e.target===modal)modal.style.display="none";});
+  document.getElementById("ob984-inp").addEventListener("input",function(){
+    var q=this.value.trim().toLowerCase();var res=document.getElementById("ob984-results");
+    if(!q||!window.TM){res.innerHTML="";return;}
+    var matches=Object.values(window.TM).filter(function(t){
+      return (localStorage.getItem("ob_note_"+t.id)||"").toLowerCase().indexOf(q)!==-1;
+    });
+    res.innerHTML=matches.slice(0,10).map(function(t){
+      var note=localStorage.getItem("ob_note_"+t.id)||"";
+      var idx=note.toLowerCase().indexOf(q);var snippet=note.substring(Math.max(0,idx-30),idx+80);
+      snippet=snippet.replace(new RegExp(q,"gi"),function(m){return "<span class='ob984-hl'>"+m+"</span>";});
+      return "<div class='ob984-result' data-id='"+t.id+"'><b>"+t.title+"</b><br>..."+snippet+"...</div>";
+    }).join("");
+    res.querySelectorAll(".ob984-result").forEach(function(r){
+      r.addEventListener("click",function(){
+        if(typeof window.showTaskDetail==="function")window.showTaskDetail(r.dataset.id);
+        modal.style.display="none";
+      });
+    });
+    if(!matches.length)res.innerHTML="<div style='padding:8px;opacity:.5;font-size:.8rem;'>No notes match</div>";
+  });
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==="F"){e.preventDefault();modal.style.display="block";setTimeout(function(){document.getElementById("ob984-inp").focus();},50);}
+    if(e.key==="Escape"&&modal.style.display==="block")modal.style.display="none";
+  });
+  var btn=document.createElement("button");
+  btn.id="ob984-sbtn";
+  btn.style.cssText="position:fixed;bottom:218px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;z-index:770;";
+  btn.textContent="\uD83D\uDD0D Search Notes";btn.title="Search all notes (Ctrl+Shift+F)";
+  btn.addEventListener("click",function(){modal.style.display="block";setTimeout(function(){document.getElementById("ob984-inp").focus();},50);});
+  document.body.appendChild(btn);
+})();
+
+/* 985 – Task timer auto-pause on browser tab hide */
+(function(){
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden){
+      var sw=document.getElementById("ob823-start");
+      if(sw&&sw.textContent==="Pause"){sw.click();}
+    }
+  });
+})();
+
+/* 986 – Chat: /tag-all command to tag all tasks in phase */
+(function(){
+  var _oSM986=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp){
+      var val=inp.value.trim();
+      if(val.startsWith("/tag-all ")){
+        var tag=val.substring(9).trim();if(!tag.startsWith("#"))tag="#"+tag;
+        var id=window._curTask;if(!id||!window.TM)return;
+        var t=window.TM[id];if(!t)return;
+        var phTasks=Object.values(window.TM).filter(function(tx){return tx.phase===t.phase;});
+        phTasks.forEach(function(tx){
+          var n=localStorage.getItem("ob_note_"+tx.id)||"";
+          if(n.indexOf(tag)===-1)localStorage.setItem("ob_note_"+tx.id,n+(n?" ":"")+tag);
+        });
+        if(typeof window.appendMsg==="function")window.appendMsg("Tagged "+phTasks.length+" tasks with "+tag,"bot");
+        inp.value="";return;
+      }
+    }
+    _oSM986.apply(this,arguments);
+  };
+})();
+
+/* 987 – Note: Ctrl+Shift+C copy selection as code block */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==="C"){
+      var ta=document.activeElement;if(!ta||ta.id!=="task-note")return;
+      var sel=ta.value.substring(ta.selectionStart,ta.selectionEnd);
+      if(!sel)return;
+      navigator.clipboard.writeText("```\n"+sel+"\n```").then(function(){
+        if(typeof window._showToast==="function")window._showToast("Copied as code block","info",2000);
+      }).catch(function(){});
+    }
+  });
+})();
+
+/* 988 – Task health score (composite metric) */
+(function(){
+  var _oSD988=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD988.apply(this,arguments);
+    setTimeout(function(){
+      if(document.getElementById("ob988-health"))return;
+      var score=0;
+      var noteLen=(localStorage.getItem("ob_note_"+id)||"").length;
+      if(noteLen>50)score+=20;if(noteLen>200)score+=20;
+      var est=parseInt(localStorage.getItem("ob_est_"+id)||"0");if(est>0)score+=20;
+      var assign=localStorage.getItem("ob_assign_"+id)||"";if(assign)score+=20;
+      var ts=localStorage.getItem("ob_done_ts_"+id);if(ts)score+=20;
+      var el=document.createElement("div");el.id="ob988-health";
+      el.style.cssText="font-size:.72rem;padding:4px 8px;border-radius:4px;margin-top:4px;display:inline-block;";
+      el.style.background=score>=80?"rgba(0,255,168,.12)":score>=40?"rgba(240,196,83,.12)":"rgba(255,68,68,.1)";
+      el.style.color=score>=80?"var(--accent)":score>=40?"var(--gold,#f0c453)":"#ff9999";
+      el.innerHTML="\uD83D\uDC9A Task health: "+score+"/100";el.title="Score: note(40)+est(20)+assign(20)+done(20)";
+      var det=document.getElementById("task-detail-body")||document.getElementById("task-detail");
+      if(det)det.appendChild(el);
+    },260);
+  };
+})();
+
+/* 989 – Pre-1000 final countdown */
+(function(){
+  if(localStorage.getItem("ob_imp989_shown"))return;
+  localStorage.setItem("ob_imp989_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\u23F3 One more improvement to 990... then 10 more to go!","info",5000);
+  },2000);
+})();
+
+/* 990 – Milestone toast: 990 */
+(function(){
+  if(localStorage.getItem("ob_imp990_shown"))return;
+  localStorage.setItem("ob_imp990_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDD0A 990 — the final stretch to 1000!","success",6000);
+    if(typeof window._launchConfetti==="function"){window._launchConfetti();setTimeout(window._launchConfetti,700);}
+  },4500);
+})();
+
+})();
+</script>
 </script></body></html>
