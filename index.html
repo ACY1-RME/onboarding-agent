@@ -20042,4 +20042,183 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 931-940 */
+(function(){
+
+/* 931 – Quick note from any screen (global Ctrl+Q) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob931-quick{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--accent);border-radius:10px;padding:16px;min-width:300px;z-index:10001;box-shadow:0 8px 32px rgba(0,0,0,.6);}" +
+    "#ob931-quick textarea{width:100%;height:80px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;color:inherit;padding:6px;font-size:.85rem;resize:none;}" +
+    "#ob931-quick .ob931-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end;}" +
+    "#ob931-quick .ob931-save{background:var(--accent2,#00c47e);border:none;border-radius:4px;color:#000;cursor:pointer;padding:5px 14px;font-size:.8rem;}" +
+    "#ob931-quick .ob931-cancel{background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;padding:5px 12px;font-size:.8rem;}";
+  document.head.appendChild(css);
+  var box=document.createElement("div");box.id="ob931-quick";
+  box.innerHTML="<div style='font-size:.78rem;opacity:.6;margin-bottom:8px;'>Quick Note (Ctrl+Q)</div><textarea id='ob931-ta' placeholder='Write a quick note...'></textarea><div class='ob931-actions'><button class='ob931-cancel'>Cancel</button><button class='ob931-save'>Save to current task</button></div>";
+  document.body.appendChild(box);
+  function open(){box.style.display="block";document.getElementById("ob931-ta").focus();}
+  function close(){box.style.display="none";document.getElementById("ob931-ta").value="";}
+  box.querySelector(".ob931-cancel").addEventListener("click",close);
+  box.querySelector(".ob931-save").addEventListener("click",function(){
+    var text=document.getElementById("ob931-ta").value.trim();if(!text){close();return;}
+    var id=window._curTask;
+    if(id){
+      var existing=localStorage.getItem("ob_note_"+id)||"";
+      localStorage.setItem("ob_note_"+id,existing+(existing?"\n":"")+text);
+      var ta=document.getElementById("task-note");if(ta)ta.value=localStorage.getItem("ob_note_"+id);
+      if(typeof window._showToast==="function")window._showToast("Quick note saved!","success",2000);
+    } else{
+      localStorage.setItem("ob_scratch_pad",(localStorage.getItem("ob_scratch_pad")||"")+(text+"\n"));
+      if(typeof window._showToast==="function")window._showToast("Saved to scratch pad!","info",2000);
+    }
+    close();
+  });
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="q"){e.preventDefault();open();}
+    if(e.key==="Escape"&&box.style.display==="block")close();
+  });
+})();
+
+/* 932 – Task done confetti burst (enhanced) */
+(function(){
+  function burst(){
+    if(typeof window._launchConfetti887==="function")window._launchConfetti887();
+    else if(typeof window._launchConfetti==="function")window._launchConfetti();
+  }
+  var _orig932=window.toggleDetailDone||function(){};
+  window.toggleDetailDone=function(){
+    var wasDone=window._curTask&&localStorage.getItem("ob_done_"+window._curTask)==="1";
+    _orig932.apply(this,arguments);
+    var nowDone=window._curTask&&localStorage.getItem("ob_done_"+window._curTask)==="1";
+    if(!wasDone&&nowDone)setTimeout(burst,200);
+  };
+})();
+
+/* 933 – Notes backup reminder */
+(function(){
+  var lastBackup=parseInt(localStorage.getItem("ob_last_backup")||"0");
+  var THREE_DAYS=3*24*60*60*1000;
+  if(Date.now()-lastBackup>THREE_DAYS){
+    setTimeout(function(){
+      if(typeof window._showToast==="function")window._showToast("\uD83D\uDCAC Back up your notes! Use All Notes export.","warn",6000);
+    },8000);
+  }
+})();
+
+/* 934 – Task dependency auto-complete check */
+(function(){
+  var _orig934=window.updateProgress||function(){};
+  window.updateProgress=function(){
+    _orig934.apply(this,arguments);
+    if(!window.TM)return;
+    Object.values(window.TM).forEach(function(t){
+      var deps=JSON.parse(localStorage.getItem("ob_deps_"+t.id)||"[]");
+      if(!deps.length)return;
+      var allDone=deps.every(function(did){return localStorage.getItem("ob_done_"+did)==="1";});
+      var card=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(card)card.style.opacity=allDone||!deps.length?"1":"0.5";
+    });
+  };
+})();
+
+/* 935 – Chat: /notes command shows all notes summary */
+(function(){
+  var _oSM935=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp&&inp.value.trim()==="/notes"){
+      if(window.TM){
+        var tasks=Object.values(window.TM).filter(function(t){return (localStorage.getItem("ob_note_"+t.id)||"").trim();});
+        var msg=tasks.length?tasks.slice(0,5).map(function(t){var n=localStorage.getItem("ob_note_"+t.id)||"";return t.title+": "+n.substring(0,60);}).join("\n"):("No notes found.");
+        if(tasks.length>5)msg+="\n...and "+(tasks.length-5)+" more";
+        if(typeof window.appendMsg==="function")window.appendMsg(msg,"bot");
+        inp.value="";return;
+      }
+    }
+    _oSM935.apply(this,arguments);
+  };
+})();
+
+/* 936 – Task card pulsing border when first opened (new) */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="@keyframes ob936-new{0%,100%{border-color:var(--accent,#00ffa8)}50%{border-color:transparent}}" +
+    ".ob936-new{animation:ob936-new 1.5s 3;}";
+  document.head.appendChild(css);
+  var KEY="ob_seen_tasks";
+  var seen=JSON.parse(localStorage.getItem(KEY)||"[]");
+  function markNew(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+      if(seen.indexOf(id)===-1){card.classList.add("ob936-new");seen.push(id);}
+    });
+    localStorage.setItem(KEY,JSON.stringify(seen));
+  }
+  setTimeout(markNew,500);
+  var _orig936=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig936.apply(this,arguments);setTimeout(markNew,200);};
+})();
+
+/* 937 – Keyboard: Ctrl+Enter submit chat */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){
+      var chatInp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+      if(document.activeElement===chatInp&&typeof window.sendMsg==="function"){
+        window.sendMsg();
+      }
+    }
+  });
+})();
+
+/* 938 – Active work session timer */
+(function(){
+  var startTime=Date.now();
+  var el=document.createElement("div");
+  el.id="ob938-session";
+  el.style.cssText="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);font-size:.65rem;opacity:.3;z-index:700;pointer-events:none;font-variant-numeric:tabular-nums;";
+  document.body.appendChild(el);
+  setInterval(function(){
+    var secs=Math.round((Date.now()-startTime)/1000);
+    var h=Math.floor(secs/3600),m=Math.floor(secs%3600/60),s=secs%60;
+    el.textContent="Session: "+h+"h "+String(m).padStart(2,"0")+"m "+String(s).padStart(2,"0")+"s";
+  },1000);
+})();
+
+/* 939 – Smart note: detect potential action items */
+(function(){
+  var _oSD939=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD939.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta)return;
+      ta.addEventListener("input",function(){
+        var text=ta.value;
+        var actionPhrases=["TODO","FIXME","FOLLOW UP","ACTION:","NEED TO","MUST","IMPORTANT"];
+        var found=actionPhrases.filter(function(p){return text.toUpperCase().indexOf(p)!==-1;});
+        if(found.length>0){
+          var key="ob_action_hint_"+id;
+          if(!localStorage.getItem(key)){
+            localStorage.setItem(key,"1");
+            if(typeof window._showToast==="function")window._showToast("\uD83D\uDCCC Action item detected in note!","info",3000);
+          }
+        }
+      });
+    },200);
+  };
+})();
+
+/* 940 – Milestone toast: 940 */
+(function(){
+  if(localStorage.getItem("ob_imp940_shown"))return;
+  localStorage.setItem("ob_imp940_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDD25 940 — burning bright!","success",4500);
+  },7200);
+})();
+
+})();
+</script>
 </script></body></html>
