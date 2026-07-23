@@ -11848,4 +11848,257 @@ function _exportChat(){
   window.updateProgress=function(){_origUP555&&_origUP555();setTimeout(markQuickWins,100);};
 })();
 </script>
+<script>
+/* imp556: task completion heatmap (last 30 days mini grid) */
+(function(){
+  function buildHeatmap(){
+    if(document.getElementById("_heatmap"))return;
+    var KEY="ob_done_dates";
+    var dates=JSON.parse(localStorage.getItem(KEY)||"{}");
+    var today=new Date();
+    var cells=[];
+    for(var i=29;i>=0;i--){
+      var d=new Date(today);d.setDate(d.getDate()-i);
+      var key=d.toISOString().slice(0,10);
+      cells.push({key:key,count:dates[key]||0});
+    }
+    var maxCount=Math.max(1,...cells.map(function(c){return c.count;}));
+    var wrap=document.createElement("div");
+    wrap.id="_heatmap";
+    wrap.style.cssText="display:flex;flex-wrap:wrap;gap:2px;margin:8px 0;";
+    cells.forEach(function(cell){
+      var div=document.createElement("div");
+      var intensity=cell.count/maxCount;
+      var alpha=cell.count?0.2+intensity*0.8:0.08;
+      div.style.cssText="width:14px;height:14px;border-radius:2px;background:rgba(0,255,168,"+alpha.toFixed(2)+");";
+      div.title=cell.key+(cell.count?" — "+cell.count+" done":"");
+      wrap.appendChild(div);
+    });
+    var sidebar=document.querySelector(".sidebar,.left-panel,#leftPanel");
+    if(sidebar){
+      var h=document.createElement("div");
+      h.style.cssText="font-size:0.68rem;opacity:0.55;margin:8px 8px 2px;";
+      h.textContent="30-day activity";
+      sidebar.appendChild(h);
+      sidebar.appendChild(wrap);
+    }
+  }
+  function logDoneDate(){
+    var KEY="ob_done_dates";
+    var dates=JSON.parse(localStorage.getItem(KEY)||"{}");
+    var today=new Date().toISOString().slice(0,10);
+    dates[today]=(dates[today]||0)+1;
+    localStorage.setItem(KEY,JSON.stringify(dates));
+  }
+  var _origTD556=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD556&&_origTD556();
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(task&&task.done){logDoneDate();var hm=document.getElementById("_heatmap");if(hm)hm.remove();buildHeatmap();}
+  };
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildHeatmap,1000);});
+})();
+
+/* imp557: auto-suggest similar tasks in chat */
+(function(){
+  var _origSM557=window.sendMsg;
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.getElementById("chatInput");
+    var q=(inp&&inp.value)||"";
+    _origSM557&&_origSM557();
+    if(!q.trim())return;
+    setTimeout(function(){
+      var la=window._la||[];
+      var td=window.TASK_DETAILS||{};
+      var words=q.toLowerCase().split(/\s+/);
+      var matches=la.filter(function(t){
+        var name=(td[t.id]&&td[t.id].name||"").toLowerCase();
+        return words.some(function(w){return w.length>3&&name.includes(w);});
+      }).slice(0,3);
+      if(!matches.length)return;
+      var suggText="Related tasks: "+matches.map(function(t){var n=(td[t.id]&&td[t.id].name)||t.id;return n+(t.done?" \u2713":"");}).join(", ");
+      var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+      if(!chat)return;
+      var div=document.createElement("div");
+      div.style.cssText="font-size:0.7rem;opacity:0.55;padding:3px 8px;background:rgba(0,255,168,0.05);border-radius:6px;margin:2px 0;";
+      div.textContent=suggText;
+      chat.appendChild(div);
+      chat.scrollTop=chat.scrollHeight;
+    },300);
+  };
+})();
+
+/* imp558: long-form description toggle (truncate at 200 chars, expand on click) */
+(function(){
+  var _origSD558=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD558&&_origSD558(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var desc=panel.querySelector(".task-desc,.detail-desc,.description-text");
+      if(!desc||desc.dataset.truncated)return;
+      var full=desc.textContent;
+      if(full.length<=200)return;
+      desc.dataset.truncated="1";
+      desc.dataset.full=full;
+      desc.textContent=full.slice(0,200)+"...";
+      var toggle=document.createElement("span");
+      toggle.style.cssText="color:var(--accent);cursor:pointer;font-size:0.75rem;margin-left:4px;";
+      toggle.textContent="Show more";
+      var expanded=false;
+      toggle.onclick=function(){
+        expanded=!expanded;
+        desc.textContent=expanded?full:full.slice(0,200)+"...";
+        toggle.textContent=expanded?"Show less":"Show more";
+        if(!expanded)desc.appendChild(toggle);
+        else desc.parentNode.insertBefore(toggle,desc.nextSibling);
+      };
+      desc.parentNode.insertBefore(toggle,desc.nextSibling);
+    },85);
+  };
+})();
+
+/* imp559: chat clear confirmation */
+(function(){
+  var _origCC559=window.clearChat||null;
+  window.clearChat=function(){
+    if(!confirm("Clear all chat messages?"))return;
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(chat){while(chat.firstChild)chat.removeChild(chat.firstChild);}
+    _origCC559&&_origCC559();
+    _showToast("Chat cleared","info",1200);
+  };
+})();
+
+/* imp560: keyboard shortcut R to reload/refresh task list */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="r"&&e.key!=="R")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    if(e.ctrlKey||e.metaKey)return;
+    updateProgress&&updateProgress();
+    _showToast("Refreshed","info",800);
+  });
+})();
+
+/* imp561: ambient background color shift based on progress */
+(function(){
+  var _origUP561=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP561&&_origUP561();
+    setTimeout(function(){
+      var la=window._la||[];
+      if(!la.length)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var pct=done/la.length;
+      var g=Math.round(18+pct*16);
+      document.body.style.background="rgb(6,"+g+",12)";
+    },60);
+  };
+})();
+
+/* imp562: task tag editing in detail panel */
+(function(){
+  var _origSD562=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD562&&_origSD562(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_tagEdit562"))return;
+      var KEY="ob_tags_"+id;
+      var tags=JSON.parse(localStorage.getItem(KEY)||"[]");
+      var wrap=document.createElement("div");
+      wrap.id="_tagEdit562";
+      wrap.style.cssText="margin:6px 0;";
+      var label=document.createElement("div");
+      label.style.cssText="font-size:0.68rem;opacity:0.6;margin-bottom:3px;";
+      label.textContent="Tags:";
+      var chipWrap=document.createElement("div");
+      chipWrap.style.cssText="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px;";
+      function renderTags(){
+        chipWrap.innerHTML="";
+        tags.forEach(function(tag,i){
+          var chip=document.createElement("span");
+          chip.style.cssText="font-size:0.65rem;padding:1px 8px;border-radius:10px;background:var(--panel);border:1px solid var(--border);cursor:pointer;";
+          chip.innerHTML=tag+" <span style='opacity:0.5;'>&#10005;</span>";
+          chip.onclick=function(){tags.splice(i,1);localStorage.setItem(KEY,JSON.stringify(tags));renderTags();};
+          chipWrap.appendChild(chip);
+        });
+      }
+      renderTags();
+      var row=document.createElement("div");
+      row.style.cssText="display:flex;gap:4px;";
+      var inp=document.createElement("input");
+      inp.placeholder="Add tag...";
+      inp.style.cssText="flex:1;font-size:0.68rem;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);";
+      var btn=document.createElement("button");
+      btn.textContent="+";
+      btn.style.cssText="padding:2px 8px;border-radius:6px;background:var(--accent2);color:#000;border:none;cursor:pointer;";
+      btn.onclick=function(){var t=inp.value.trim();if(!t)return;tags.push(t);inp.value="";localStorage.setItem(KEY,JSON.stringify(tags));renderTags();};
+      inp.addEventListener("keydown",function(e){if(e.key==="Enter")btn.click();});
+      row.appendChild(inp);row.appendChild(btn);
+      wrap.appendChild(label);wrap.appendChild(chipWrap);wrap.appendChild(row);
+      var h=panel.querySelector("h2,h3,.detail-title");
+      if(h)h.parentNode.insertBefore(wrap,h.nextSibling.nextSibling||h.nextSibling);
+      else panel.appendChild(wrap);
+    },95);
+  };
+})();
+
+/* imp563: zoom level preference saved */
+(function(){
+  var KEY="ob_zoom";
+  var z=parseFloat(localStorage.getItem(KEY)||"1");
+  document.body.style.zoom=z;
+  var btn=document.createElement("button");
+  btn.id="_zoomReset";
+  btn.title="Reset zoom";
+  btn.textContent=Math.round(z*100)+"%";
+  btn.style.cssText="position:fixed;top:8px;left:8px;z-index:900;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:2px 8px;font-size:0.65rem;cursor:pointer;opacity:0.5;";
+  document.addEventListener("keydown",function(e){
+    if(!e.ctrlKey)return;
+    if(e.key==="="||e.key==="+"){z=Math.min(1.5,z+0.1);document.body.style.zoom=z;localStorage.setItem(KEY,z);btn.textContent=Math.round(z*100)+"%";e.preventDefault();}
+    else if(e.key==="-"){z=Math.max(0.7,z-0.1);document.body.style.zoom=z;localStorage.setItem(KEY,z);btn.textContent=Math.round(z*100)+"%";e.preventDefault();}
+    else if(e.key==="0"){z=1;document.body.style.zoom=1;localStorage.setItem(KEY,1);btn.textContent="100%";}
+  });
+  btn.onclick=function(){z=1;document.body.style.zoom=1;localStorage.setItem(KEY,1);btn.textContent="100%";};
+  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(btn);});
+})();
+
+/* imp564: show total logged time across all tasks in stats */
+(function(){
+  function totalLogged(){
+    var total=0;
+    var la=window._la||[];
+    la.forEach(function(t){
+      var logs=JSON.parse(localStorage.getItem("ob_log_"+t.id)||"[]");
+      total+=logs.reduce(function(a,b){return a+b.m;},0);
+    });
+    if(!total)return;
+    var el=document.getElementById("_totalLogged");
+    if(!el){
+      el=document.createElement("div");
+      el.id="_totalLogged";
+      el.style.cssText="font-size:0.7rem;opacity:0.55;margin:4px 0;";
+      var stats=document.querySelector(".stats-row,.stats-panel,#statsBar");
+      if(stats)stats.appendChild(el);
+    }
+    if(el)el.textContent="\u23F1\uFE0F Total logged: "+(total<60?total+"m":Math.floor(total/60)+"h "+(total%60)+"m");
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(totalLogged,900);});
+  var _origTD564=window.toggleDetailDone;
+  window.toggleDetailDone=function(){_origTD564&&_origTD564();setTimeout(totalLogged,100);};
+})();
+
+/* imp565: 565-milestone toast + ruff checkpoint note */
+(function(){
+  if(!localStorage.getItem("ob_imp565_shown")){
+    localStorage.setItem("ob_imp565_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83C\uDFC6 565 features! Quality onboarding machine.","success",3500);},2200);
+  }
+})();
+</script>
 </script></body></html>
