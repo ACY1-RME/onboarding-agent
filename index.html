@@ -13285,4 +13285,216 @@ function _exportChat(){
   }
 })();
 </script>
+<script>
+/* imp621: task completion sound pitch varies by streak */
+(function(){
+  var _origTD621=window.toggleDetailDone;
+  window.toggleDetailDone=function(){
+    _origTD621&&_origTD621();
+    if(localStorage.getItem("ob_sound")==="0")return;
+    var id=window._curTask;
+    var la=window._la||[];
+    var task=la.find(function(t){return t.id===id;});
+    if(!(task&&task.done))return;
+    var streak=parseInt(localStorage.getItem("ob_streak10")||"0");
+    var baseFreq=440+Math.min(streak,20)*10;
+    try{
+      var ac=new (window.AudioContext||window.webkitAudioContext)();
+      [0,0.1,0.2].forEach(function(delay,i){
+        var osc=ac.createOscillator();var gain=ac.createGain();
+        osc.connect(gain);gain.connect(ac.destination);
+        osc.type="sine";osc.frequency.value=baseFreq*(1+i*0.25);
+        gain.gain.setValueAtTime(0.12,ac.currentTime+delay);
+        gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+delay+0.25);
+        osc.start(ac.currentTime+delay);osc.stop(ac.currentTime+delay+0.3);
+      });
+    }catch(e){}
+  };
+})();
+
+/* imp622: show note snippet in search results */
+(function(){
+  var _origUP622=window.updateProgress||null;
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      var si=document.getElementById("search-input")||document.getElementById("searchInput");
+      if(!si||si.dataset._noteSnip)return;
+      si.dataset._noteSnip="1";
+      si.addEventListener("input",function(){
+        var q=(si.value||"").toLowerCase().trim();
+        if(!q)return;
+        var la=window._la||[];
+        la.forEach(function(t){
+          var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+          if(!row)return;
+          var note=(localStorage.getItem("ob_note_"+t.id)||"").toLowerCase();
+          var old=row.querySelector("._noteSnippet");
+          if(note.includes(q)){
+            var idx=note.indexOf(q);
+            var snip=note.slice(Math.max(0,idx-15),idx+q.length+30);
+            if(!old){old=document.createElement("div");old.className="_noteSnippet";old.style.cssText="font-size:0.6rem;opacity:0.5;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;";row.appendChild(old);}
+            old.textContent="\u201C"+snip+"...\u201D";
+          } else {if(old)old.remove();}
+        });
+      });
+    },700);
+  });
+})();
+
+/* imp623: keyboard shortcut H for home — jump to first incomplete task */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="h"&&e.key!=="H")return;
+    if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+    var la=window._la||[];
+    var first=la.find(function(t){return !t.done;});
+    if(first){
+      showTaskDetail&&showTaskDetail(first.id);
+      var row=document.querySelector("[data-id='"+first.id+"'],[data-task-id='"+first.id+"']");
+      if(row)row.scrollIntoView({behavior:"smooth",block:"center"});
+    }
+  });
+})();
+
+/* imp624: tab badge with overdue count */
+(function(){
+  function updateTabBadge(){
+    var la=window._la||[];
+    var overdue=la.filter(function(t){
+      if(t.done)return false;
+      var due=localStorage.getItem("ob_due_"+t.id);
+      return due&&new Date(due)<new Date();
+    }).length;
+    var title=document.title.replace(/^\(\d+\) /,"");
+    document.title=overdue?"("+overdue+") "+title:title;
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(updateTabBadge,700);});
+  var _origUP624=window.updateProgress;
+  window.updateProgress=function(){_origUP624&&_origUP624();setTimeout(updateTabBadge,80);};
+})();
+
+/* imp625: note links — auto-create task reference links in notes (#taskId) */
+(function(){
+  var _origSD625=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD625&&_origSD625(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel)return;
+      var preview=panel.querySelector("._mdPreview,#_mdPreview");
+      if(!preview)return;
+      var html=preview.innerHTML;
+      html=html.replace(/#([a-z0-9_-]+)/gi,function(match,tid){
+        var td2=window.TASK_DETAILS&&window.TASK_DETAILS[tid];
+        if(!td2)return match;
+        return "<a href='#' onclick='showTaskDetail&&showTaskDetail(\""+tid+"\");return false;' style='color:var(--accent);text-decoration:none;'>"+match+"</a>";
+      });
+      preview.innerHTML=html;
+    },200);
+  };
+})();
+
+/* imp626: phase progress percentage text label next to ring */
+(function(){
+  function phasePctLabels(){
+    var la=window._la||[];
+    var phases={};
+    la.forEach(function(t){var ph=t.phase||"Other";if(!phases[ph])phases[ph]={d:0,n:0};phases[ph].n++;if(t.done)phases[ph].d++;});
+    document.querySelectorAll(".phase-header,.phase-title").forEach(function(el){
+      if(el.querySelector("._phPctLabel"))return;
+      var ph=el.dataset.phase||el.textContent.replace(/[\uD800-\uDFFF]|\(.*?\)|\d+\/\d+|\d+%|~\d+[mh]/g,"").trim();
+      if(!phases[ph])return;
+      var p=phases[ph];
+      var pct=Math.round(p.d/p.n*100);
+      var span=document.createElement("span");
+      span.className="_phPctLabel";
+      span.style.cssText="font-size:0.62rem;opacity:0.55;margin-left:4px;color:var(--accent);";
+      span.textContent=pct+"%";
+      el.appendChild(span);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(phasePctLabels,900);});
+  var _origUP626=window.updateProgress;
+  window.updateProgress=function(){_origUP626&&_origUP626();setTimeout(function(){document.querySelectorAll("._phPctLabel").forEach(function(e){e.remove();});phasePctLabels();},120);};
+})();
+
+/* imp627: random motivational quote on load */
+(function(){
+  var quotes=[
+    "The secret of getting ahead is getting started.",
+    "Small steps every day lead to big results.",
+    "Every task you complete is progress made.",
+    "You don't have to be great to start, but you have to start to be great.",
+    "Done is better than perfect.",
+    "One task at a time. That's all it takes.",
+    "Your first week sets the tone. Make it count.",
+    "Ask questions. Everyone was new once.",
+    "Onboarding is the beginning of something great.",
+    "You belong here. Now let's get to work."
+  ];
+  document.addEventListener("DOMContentLoaded",function(){
+    var q=quotes[Math.floor(Math.random()*quotes.length)];
+    var el=document.createElement("div");
+    el.style.cssText="font-size:0.72rem;font-style:italic;opacity:0.4;text-align:center;padding:6px 12px;margin:4px 0;";
+    el.textContent="\u201C"+q+"\u201D";
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(chat)chat.insertBefore(el,chat.firstChild);
+  });
+})();
+
+/* imp628: task completion percentage ring in list item */
+(function(){
+  function taskMiniRings(){
+    var la=window._la||[];
+    la.forEach(function(t){
+      var row=document.querySelector("[data-id='"+t.id+"'],[data-task-id='"+t.id+"']");
+      if(!row||row.querySelector("._miniRing"))return;
+      var td=window.TASK_DETAILS&&window.TASK_DETAILS[t.id];
+      if(!td||!td.steps||td.steps.length<2)return;
+      var done=Object.values(JSON.parse(localStorage.getItem("ob_step_done_"+t.id)||"{}")).filter(Boolean).length;
+      var pct=done/td.steps.length;
+      var r=6;var c=2*Math.PI*r;
+      var svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+      svg.setAttribute("width","16");svg.setAttribute("height","16");svg.setAttribute("viewBox","0 0 16 16");
+      svg.className="_miniRing";svg.style.cssText="vertical-align:middle;margin-right:3px;flex-shrink:0;";
+      var bg=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      bg.setAttribute("cx","8");bg.setAttribute("cy","8");bg.setAttribute("r",r);
+      bg.setAttribute("fill","none");bg.setAttribute("stroke","#1a3a28");bg.setAttribute("stroke-width","2.5");
+      var fg=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      fg.setAttribute("cx","8");fg.setAttribute("cy","8");fg.setAttribute("r",r);
+      fg.setAttribute("fill","none");fg.setAttribute("stroke",pct>=1?"#00ffa8":"#00c47e");fg.setAttribute("stroke-width","2.5");
+      fg.setAttribute("stroke-dasharray",c);fg.setAttribute("stroke-dashoffset",c*(1-pct));
+      fg.setAttribute("stroke-linecap","round");fg.setAttribute("transform","rotate(-90 8 8)");
+      svg.appendChild(bg);svg.appendChild(fg);
+      row.insertBefore(svg,row.querySelector("._rowNum")?row.querySelector("._rowNum").nextSibling:row.firstChild);
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(taskMiniRings,900);});
+})();
+
+/* imp629: auto-mark resources as visited when clicked */
+(function(){
+  document.addEventListener("click",function(e){
+    var link=e.target.closest("a[href]");
+    if(!link)return;
+    var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+    if(!panel||!panel.contains(link))return;
+    var id=window._curTask;
+    if(!id)return;
+    var visited=JSON.parse(localStorage.getItem("ob_visited_res_"+id)||"[]");
+    var href=link.href;
+    if(!visited.includes(href)){visited.push(href);localStorage.setItem("ob_visited_res_"+id,JSON.stringify(visited));}
+    link.style.opacity="0.55";
+    link.title=(link.title||"")+" (visited)";
+  });
+})();
+
+/* imp630: 630-toast */
+(function(){
+  if(!localStorage.getItem("ob_imp630_shown")){
+    localStorage.setItem("ob_imp630_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\uD83D\uDCA5 630 improvements! Unstoppable.","info",3000);},2400);
+  }
+})();
+</script>
 </script></body></html>
