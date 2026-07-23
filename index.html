@@ -10101,4 +10101,236 @@ function _exportChat(){
 })();
 
 
+<script>
+/* imp486: phase transition CSS - animated phase section expand */
+(function(){
+  var st=document.createElement("style");
+  st.textContent=".phase-section{transition:background 0.4s,border-color 0.4s,box-shadow 0.4s}.phase-section.just-opened{animation:phaseIn 0.35s ease forwards}@keyframes phaseIn{from{opacity:0.4;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}";
+  document.head.appendChild(st);
+  var _origTP486=window.togglePhase;
+  window.togglePhase=function(id){
+    _origTP486&&_origTP486(id);
+    setTimeout(function(){
+      var el=document.querySelector(".phase-section[data-phase='"+id+"']");
+      if(!el)return;
+      var content=el.querySelector(".phase-content");
+      if(content&&content.style.display!=="none"){el.classList.add("just-opened");setTimeout(function(){el.classList.remove("just-opened");},400);}
+    },20);
+  };
+})();
+
+/* imp487: chat message timestamps */
+(function(){
+  var _origAM487=window.appendMsg;
+  window.appendMsg=function(text,cls){
+    _origAM487&&_origAM487(text,cls);
+    var chat=document.getElementById("chat-messages")||document.getElementById("chatMessages");
+    if(!chat)return;
+    var last=chat.lastElementChild;
+    if(last&&!last.querySelector("._ts")){
+      var ts=document.createElement("span");
+      ts.className="_ts";
+      var now=new Date();
+      ts.textContent=" "+now.getHours().toString().padStart(2,"0")+":"+now.getMinutes().toString().padStart(2,"0");
+      ts.style.cssText="font-size:0.65rem;opacity:0.45;margin-left:6px;";
+      last.appendChild(ts);
+    }
+  };
+})();
+
+/* imp488: category filter chips above task list */
+(function(){
+  function buildCatChips(){
+    var list=document.getElementById("task-list")||document.querySelector(".task-list");
+    if(!list||document.getElementById("_catChips"))return;
+    var types=[...new Set(Object.values(window.TASK_DETAILS||{}).map(function(t){return t.type||"General";}))].sort();
+    if(types.length<2)return;
+    var bar=document.createElement("div");
+    bar.id="_catChips";
+    bar.style.cssText="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px;";
+    var all=document.createElement("span");
+    all.className="_cchip active";
+    all.textContent="All";
+    all.dataset.cat="";
+    all.style.cssText="padding:2px 10px;border-radius:12px;cursor:pointer;font-size:0.75rem;background:var(--accent);color:#000;";
+    bar.appendChild(all);
+    types.forEach(function(tp){
+      var ch=document.createElement("span");
+      ch.className="_cchip";
+      ch.textContent=tp;
+      ch.dataset.cat=tp;
+      ch.style.cssText="padding:2px 10px;border-radius:12px;cursor:pointer;font-size:0.75rem;background:var(--panel);color:var(--text);border:1px solid var(--border);";
+      bar.appendChild(ch);
+    });
+    bar.addEventListener("click",function(e){
+      var chip=e.target.closest("._cchip");
+      if(!chip)return;
+      bar.querySelectorAll("._cchip").forEach(function(c){c.style.background="var(--panel)";c.style.color="var(--text)";c.classList.remove("active");});
+      chip.style.background="var(--accent)";chip.style.color="#000";chip.classList.add("active");
+      var cat=chip.dataset.cat;
+      document.querySelectorAll(".task-row, .ob-task-row").forEach(function(row){
+        if(!cat){row.style.display="";return;}
+        var id=row.dataset.id||row.dataset.taskId;
+        var td=window.TASK_DETAILS&&window.TASK_DETAILS[id];
+        row.style.display=(td&&td.type===cat)?"":"none";
+      });
+    });
+    list.parentNode.insertBefore(bar,list);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(buildCatChips,800);});
+  var _origST488=window.showTab;
+  window.showTab=function(n){_origST488&&_origST488(n);setTimeout(buildCatChips,400);};
+})();
+
+/* imp489: custom task badge label (stored per task) */
+(function(){
+  var _origSD489=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD489&&_origSD489(id);
+    setTimeout(function(){
+      var panel=document.getElementById("task-detail-panel")||document.getElementById("taskDetailPanel");
+      if(!panel||document.getElementById("_labelEdit489"))return;
+      var existing=localStorage.getItem("ob_label_"+id)||"";
+      var wrap=document.createElement("div");
+      wrap.id="_labelEdit489";
+      wrap.style.cssText="margin:6px 0;display:flex;gap:6px;align-items:center;";
+      var inp=document.createElement("input");
+      inp.placeholder="Badge label (e.g. PRIORITY)";
+      inp.value=existing;
+      inp.style.cssText="flex:1;padding:3px 8px;border-radius:6px;background:var(--panel);color:var(--text);border:1px solid var(--border);font-size:0.75rem;";
+      var btn=document.createElement("button");
+      btn.textContent="Set";
+      btn.style.cssText="padding:3px 10px;border-radius:6px;background:var(--accent2);color:#000;border:none;cursor:pointer;font-size:0.75rem;";
+      btn.onclick=function(){
+        localStorage.setItem("ob_label_"+id,inp.value.trim());
+        _showToast("Label saved","success",1400);
+        var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+        if(row){var old=row.querySelector("._customLabel");if(old)old.remove();if(inp.value.trim()){var b=document.createElement("span");b.className="_customLabel";b.textContent=inp.value.trim().toUpperCase();b.style.cssText="font-size:0.6rem;padding:1px 5px;border-radius:4px;background:var(--gold);color:#000;margin-left:4px;";row.appendChild(b);}}
+      };
+      wrap.appendChild(inp);wrap.appendChild(btn);
+      var heading=panel.querySelector("h2,h3,.detail-title");
+      if(heading)heading.parentNode.insertBefore(wrap,heading.nextSibling);
+      else panel.insertBefore(wrap,panel.firstChild);
+    },80);
+  };
+})();
+
+/* imp490: sticky detail action buttons */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="#task-detail-panel .detail-actions,#taskDetailPanel .detail-actions{position:sticky;top:0;z-index:10;background:var(--bg);padding:4px 0 6px;border-bottom:1px solid var(--border);}";
+  document.head.appendChild(st);
+})();
+
+/* imp491: active-row glow highlight */
+(function(){
+  var st=document.createElement("style");
+  st.textContent=".task-row.active-row,.ob-task-row.active-row{box-shadow:0 0 0 2px var(--accent)!important;background:rgba(0,255,168,0.06)!important;}";
+  document.head.appendChild(st);
+  var _origSD491=window.showTaskDetail;
+  window.showTaskDetail=function(id){
+    _origSD491&&_origSD491(id);
+    document.querySelectorAll(".task-row,.ob-task-row").forEach(function(r){r.classList.remove("active-row");});
+    var row=document.querySelector("[data-id='"+id+"'],[data-task-id='"+id+"']");
+    if(row)row.classList.add("active-row");
+  };
+})();
+
+/* imp492: notes coverage stats in sidebar */
+(function(){
+  function coverageStats(){
+    var el=document.getElementById("_notesCoverage");
+    var tasks=Object.keys(window.TASK_DETAILS||{});
+    if(!tasks.length)return;
+    var withNotes=tasks.filter(function(id){return (localStorage.getItem("ob_note_"+id)||"").trim().length>0;}).length;
+    var pct=Math.round(withNotes/tasks.length*100);
+    var text=withNotes+"/"+tasks.length+" tasks noted ("+pct+"%)";
+    if(el){el.textContent=text;return;}
+    var sidebar=document.querySelector(".sidebar,.left-panel,#leftPanel");
+    if(!sidebar)return;
+    var div=document.createElement("div");
+    div.id="_notesCoverage";
+    div.style.cssText="font-size:0.68rem;opacity:0.55;margin:4px 8px;color:var(--accent);";
+    div.textContent=text;
+    sidebar.appendChild(div);
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(coverageStats,900);});
+  var _origSN492=window._saveTaskNote;
+  window._saveTaskNote=function(id,text){_origSN492&&_origSN492(id,text);setTimeout(coverageStats,100);};
+})();
+
+/* imp493: saved searches with dropdown */
+(function(){
+  var KEY="ob_saved_searches";
+  function getSaved(){try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch(e){return[];}}
+  function addSearch(q){if(!q)return;var arr=getSaved().filter(function(x){return x!==q;});arr.unshift(q);if(arr.length>8)arr=arr.slice(0,8);localStorage.setItem(KEY,JSON.stringify(arr));}
+  var injected=false;
+  function injectSaveBtn(){
+    if(injected)return;
+    var si=document.getElementById("search-input")||document.getElementById("searchInput");
+    if(!si||si.parentNode.querySelector("._saveSearch"))return;
+    injected=true;
+    var btn=document.createElement("button");
+    btn.className="_saveSearch";
+    btn.title="Save search";
+    btn.innerHTML="&#9733;";
+    btn.style.cssText="padding:0 6px;background:transparent;color:var(--gold);border:none;cursor:pointer;font-size:1rem;";
+    btn.onclick=function(){
+      var q=(si.value||"").trim();
+      if(!q)return;
+      addSearch(q);_showToast("Search saved","success",1200);
+      buildDropdown(si);
+    };
+    var saved=document.createElement("select");
+    saved.id="_savedSearchDrop";
+    saved.style.cssText="font-size:0.72rem;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:2px 4px;max-width:120px;";
+    saved.onchange=function(){
+      if(!this.value)return;
+      si.value=this.value;
+      si.dispatchEvent(new Event("input"));
+      this.value="";
+    };
+    function buildDropdown(input){
+      saved.innerHTML="<option value=''>Saved...</option>";
+      getSaved().forEach(function(q){var o=document.createElement("option");o.value=q;o.textContent=q;saved.appendChild(o);});
+    }
+    buildDropdown(si);
+    si.parentNode.appendChild(btn);
+    si.parentNode.appendChild(saved);
+    si.addEventListener("keydown",function(e){if(e.key==="Enter")addSearch(si.value.trim());});
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(injectSaveBtn,700);});
+})();
+
+/* imp494: progress donut pulse on milestone */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="@keyframes donutPulse{0%{transform:scale(1)}50%{transform:scale(1.07)}100%{transform:scale(1)}}.donut-pulse{animation:donutPulse 0.5s ease;}";
+  document.head.appendChild(st);
+  var _lastPct494=0;
+  var _origUP494=window.updateProgress;
+  window.updateProgress=function(){
+    _origUP494&&_origUP494();
+    setTimeout(function(){
+      var la=window._la;
+      if(!la)return;
+      var done=la.filter(function(t){return t.done;}).length;
+      var pct=la.length?Math.round(done/la.length*100):0;
+      if(pct>_lastPct494&&(pct%10===0||pct===100)){
+        var donut=document.querySelector(".progress-donut,.donut-ring,#progressDonut,svg.donut,canvas#donutCanvas");
+        if(donut){donut.classList.add("donut-pulse");setTimeout(function(){donut.classList.remove("donut-pulse");},550);}
+      }
+      _lastPct494=pct;
+    },60);
+  };
+})();
+
+/* imp495: 495-milestone toast */
+(function(){
+  if(!localStorage.getItem("ob_imp495_shown")){
+    localStorage.setItem("ob_imp495_shown","1");
+    setTimeout(function(){_showToast&&_showToast("\u26A1 495 improvements! Sprint toward 500!","info",4500);},1800);
+  }
+})();
+</script>
 </script></body></html>
