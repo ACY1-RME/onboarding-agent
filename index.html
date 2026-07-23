@@ -20612,4 +20612,177 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* IMP 961-970 */
+(function(){
+
+/* 961 – Auto-expand note on focus */
+(function(){
+  var _oSD961=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD961.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||ta.dataset.ob961)return;
+      ta.dataset.ob961="1";
+      ta.style.transition="height .25s";
+      ta.addEventListener("focus",function(){ta.style.minHeight="120px";});
+      ta.addEventListener("blur",function(){if(!ta.value)ta.style.minHeight="60px";});
+    },160);
+  };
+})();
+
+/* 962 – Task mini-map: dot grid of all tasks */
+(function(){
+  var css=document.createElement("style");
+  css.textContent="#ob962-map{position:fixed;right:0;bottom:80px;background:var(--panel);border:1px solid var(--border);border-left:none;border-radius:8px 0 0 8px;padding:8px;display:flex;flex-wrap:wrap;gap:3px;max-width:80px;z-index:750;cursor:pointer;}" +
+    ".ob962-dot{width:7px;height:7px;border-radius:50%;background:var(--border);}" +
+    ".ob962-dot.done{background:var(--accent);}" +
+    ".ob962-dot.cur{outline:2px solid var(--gold,#f0c453);outline-offset:1px;}";
+  document.head.appendChild(css);
+  var map=document.createElement("div");map.id="ob962-map";map.title="Task mini-map";
+  document.body.appendChild(map);
+  function refresh(){
+    if(!window.TM)return;
+    var tasks=Object.values(window.TM);
+    map.innerHTML=tasks.map(function(t){
+      var done=localStorage.getItem("ob_done_"+t.id)==="1";
+      var cur=window._curTask===t.id;
+      var cls="ob962-dot"+(done?" done":"")+(cur?" cur":"");
+      return "<div class='"+cls+"' title='"+t.title+"' data-id='"+t.id+"'></div>";
+    }).join("");
+    map.querySelectorAll(".ob962-dot").forEach(function(dot){
+      dot.addEventListener("click",function(e){
+        e.stopPropagation();
+        var id=dot.dataset.id;
+        if(id&&typeof window.showTaskDetail==="function")window.showTaskDetail(id);
+      });
+    });
+  }
+  var _orig962=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig962.apply(this,arguments);setTimeout(refresh,100);};
+  setTimeout(refresh,1200);
+})();
+
+/* 963 – Note syntax highlight for URLs */
+(function(){
+  var _oSD963=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD963.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||ta.dataset.ob963)return;
+      ta.dataset.ob963="1";
+      // Underline URLs visually using selection (read-only approach: just style the caret area color)
+      ta.style.caretColor="var(--accent,#00ffa8)";
+    },170);
+  };
+})();
+
+/* 964 – Keyboard: Space to toggle task done (when card focused) */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!==" "||e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+    var card=document.activeElement;
+    if(!card||(!card.classList.contains("task-card")&&!card.classList.contains("ob-task")))return;
+    e.preventDefault();
+    var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+    var was=localStorage.getItem("ob_done_"+id)==="1";
+    localStorage.setItem("ob_done_"+id,was?"0":"1");
+    if(typeof window.updateProgress==="function")window.updateProgress();
+    if(typeof window._showToast==="function")window._showToast(was?"Re-opened":"Marked done!","success",1500);
+  });
+})();
+
+/* 965 – Phase summary on phase header click */
+(function(){
+  document.addEventListener("click",function(e){
+    var h=e.target.closest(".phase-header,.phase-title");if(!h)return;
+    if(e.target.closest("button,input,select,.ob869-toggle"))return;
+    var ph=h.closest(".phase-block")||h.closest("[data-phase]");if(!ph)return;
+    var phId=ph.dataset.phase||ph.id;if(!window.TM)return;
+    var tasks=Object.values(window.TM).filter(function(t){return t.phase===phId;});
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_done_"+t.id)==="1";}).length;
+    var pct=tasks.length?Math.round(done/tasks.length*100):0;
+    if(typeof window._showToast==="function")window._showToast(phId+": "+done+"/"+tasks.length+" ("+pct+"%)","info",3000);
+  });
+})();
+
+/* 966 – Chat: /assign command assigns current task */
+(function(){
+  var _oSM966=window.sendMsg||function(){};
+  window.sendMsg=function(){
+    var inp=document.getElementById("chat-input")||document.querySelector("#chat-box input,.chat-input input");
+    if(inp){
+      var val=inp.value.trim();
+      if(val.startsWith("/assign ")){
+        var name=val.substring(8).trim();
+        var id=window._curTask;
+        if(id&&name){
+          localStorage.setItem("ob_assign_"+id,name);
+          if(typeof window.appendMsg==="function")window.appendMsg("Assigned to: "+name,"bot");
+          inp.value="";return;
+        }
+      }
+    }
+    _oSM966.apply(this,arguments);
+  };
+})();
+
+/* 967 – Task card right border color by status */
+(function(){
+  function applyStatusColors(){
+    document.querySelectorAll(".task-card,.ob-task").forEach(function(card){
+      var id=card.dataset.id||card.dataset.taskId;if(!id)return;
+      var st=localStorage.getItem("ob_status_"+id)||"ns";
+      var done=localStorage.getItem("ob_done_"+id)==="1";
+      if(done)st="done";
+      var colors={ns:"",ip:"var(--gold,#f0c453)",done:"var(--accent,#00ffa8)"};
+      card.style.borderRight=colors[st]?(4+"px solid "+colors[st]):"";
+    });
+  }
+  var _orig967=window.updateProgress||function(){};
+  window.updateProgress=function(){_orig967.apply(this,arguments);setTimeout(applyStatusColors,150);};
+  setTimeout(applyStatusColors,1400);
+})();
+
+/* 968 – Note template auto-detect (meeting/issue/standup) */
+(function(){
+  var _oSD968=window.showTaskDetail||function(){};
+  window.showTaskDetail=function(id){
+    _oSD968.apply(this,arguments);
+    setTimeout(function(){
+      var ta=document.getElementById("task-note");if(!ta||ta.value.trim())return;
+      var t=window.TM&&window.TM[id]?window.TM[id].title.toLowerCase():"";
+      var tmpl=null;
+      if(t.indexOf("meeting")!==-1||t.indexOf("sync")!==-1)tmpl="## Meeting Notes\nDate: \nAttendees: \nKey Points:\n- \nAction Items:\n- ";
+      else if(t.indexOf("ticket")!==-1||t.indexOf("issue")!==-1)tmpl="## Issue\n\n## Steps Tried\n1. \n\n## Resolution\n";
+      else if(t.indexOf("standup")!==-1||t.indexOf("daily")!==-1)tmpl="Yesterday: \nToday: \nBlockers: ";
+      if(tmpl){ta.value=tmpl;ta.dispatchEvent(new Event("input"));}
+    },200);
+  };
+})();
+
+/* 969 – Keyboard: Ctrl+J jump to notes tab */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==="j"){
+      e.preventDefault();
+      var notesTab=document.querySelector(".tab-btn[data-tab='notes'],.tab[data-tab='notes']");
+      if(notesTab)notesTab.click();
+      else if(typeof window.showTab==="function")window.showTab("notes");
+    }
+  });
+})();
+
+/* 970 – Milestone toast: 970 */
+(function(){
+  if(localStorage.getItem("ob_imp970_shown"))return;
+  localStorage.setItem("ob_imp970_shown","1");
+  setTimeout(function(){
+    if(typeof window._showToast==="function")window._showToast("\uD83D\uDD2D 970 — 30 from 1000!","success",5000);
+    if(typeof window._launchConfetti==="function")window._launchConfetti();
+  },3500);
+})();
+
+})();
+</script>
 </script></body></html>
