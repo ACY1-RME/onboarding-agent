@@ -4935,4 +4935,181 @@ function _exportChat(){
 })();
 
 
+/* ── 246: Sidebar: pin a custom reminder message ────────────── */
+(function(){
+  var key='ob_reminder';
+  var el=document.createElement('div');
+  el.id='reminder-box';
+  el.style.cssText='background:rgba(240,196,83,.1);border:1px solid rgba(240,196,83,.3);border-radius:7px;padding:5px 8px;margin:5px 8px;font-size:.65rem;color:var(--gold);display:none;position:relative;line-height:1.45';
+  var editBtn=document.createElement('button');
+  editBtn.style.cssText='position:absolute;top:3px;right:22px;background:none;border:none;font-size:.65rem;color:var(--gold);cursor:pointer;opacity:.7';
+  editBtn.textContent='\u270F';editBtn.title='Edit reminder';
+  var clearBtn=document.createElement('button');
+  clearBtn.style.cssText='position:absolute;top:3px;right:4px;background:none;border:none;font-size:.75rem;color:var(--gold);cursor:pointer;opacity:.7';
+  clearBtn.textContent='\xD7';clearBtn.title='Clear reminder';
+  function _show(){
+    var r=localStorage.getItem(key)||'';
+    if(r){el.innerHTML='';el.appendChild(document.createTextNode(r));el.appendChild(editBtn);el.appendChild(clearBtn);el.style.display='block';}
+    else el.style.display='none';
+  }
+  editBtn.onclick=function(){
+    var r=prompt('Set a reminder (shows at top of sidebar):',localStorage.getItem(key)||'');
+    if(r!==null){if(r.trim())localStorage.setItem(key,r.trim());else localStorage.removeItem(key);_show();}
+  };
+  clearBtn.onclick=function(){localStorage.removeItem(key);_show();};
+  var ft=document.querySelector('.sidebar-footer');
+  if(ft){
+    var addBtn=document.createElement('button');
+    addBtn.style.cssText='font-size:.58rem;background:none;border:1px solid rgba(240,196,83,.3);color:rgba(240,196,83,.7);padding:1px 5px;border-radius:5px;cursor:pointer;margin:2px 4px';
+    addBtn.textContent='\uD83D\uDCCC Reminder';addBtn.title='Pin a reminder message';
+    addBtn.onclick=editBtn.onclick;
+    ft.appendChild(addBtn);
+  }
+  var cl=document.querySelector('.checklist');if(cl)cl.before(el);
+  _show();
+})();
+
+/* ── 247: Checklist: filter tasks by difficulty ─────────────── */
+(function(){
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var row=document.createElement('div');
+  row.style.cssText='display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px;align-items:center';
+  var _activeDiff=null;
+  function _diffFilter(diff){
+    document.querySelectorAll('.checklist .task-item').forEach(function(item){
+      if(!diff){item.style.display='';return;}
+      var badge=item.querySelector('.diff-badge');
+      item.style.display=(badge&&badge.textContent===diff)?'':'none';
+    });
+  }
+  ['All','Quick','Standard','Deep'].forEach(function(lbl){
+    var btn=document.createElement('button');btn.className='hide-done-btn';
+    btn.style.cssText='font-size:.58rem;padding:1px 5px';btn.textContent=lbl;
+    if(lbl==='All')btn.style.background='rgba(0,255,168,.1)';
+    btn.onclick=function(){
+      _activeDiff=lbl==='All'?null:lbl;
+      _diffFilter(_activeDiff);
+      row.querySelectorAll('button').forEach(function(b){b.style.background='';b.style.color='';});
+      btn.style.background='rgba(0,255,168,.12)';btn.style.color='var(--accent)';
+      if(lbl!=='All')_showToast('Showing '+lbl+' tasks','',1500);
+    };
+    row.appendChild(btn);
+  });
+  var firstDiv=sb.querySelector('div');if(firstDiv)firstDiv.before(row);else sb.prepend(row);
+})();
+
+/* ── 248: App: focus trap inside detail panel on mobile ─────── */
+(function(){
+  var panel=document.getElementById('task-detail-panel');if(!panel)return;
+  panel.addEventListener('keydown',function(e){
+    if(e.key!=='Tab')return;
+    var focusable=panel.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])');
+    if(!focusable.length)return;
+    var first=focusable[0],last=focusable[focusable.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  });
+})();
+
+/* ── 249: Detail: task body text responsive font size ───────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='#detail-desc{font-size:.78rem;line-height:1.65}'+
+    '@media(max-width:500px){#detail-desc{font-size:.72rem}}'+
+    '#detail-steps .detail-step span:last-child{font-size:.77rem;line-height:1.55}';
+  document.head.appendChild(st);
+})();
+
+/* ── 250: Progress ring: gradient stroke ─────────────────────── */
+(function(){
+  var arc=document.getElementById('ring-arc');if(!arc)return;
+  var svg=arc.closest('svg');if(!svg)return;
+  var defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  var grad=document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+  grad.setAttribute('id','ring-grad');grad.setAttribute('x1','0%');grad.setAttribute('y1','0%');grad.setAttribute('x2','100%');grad.setAttribute('y2','0%');
+  var s1=document.createElementNS('http://www.w3.org/2000/svg','stop');
+  s1.setAttribute('offset','0%');s1.setAttribute('stop-color','#00c47e');
+  var s2=document.createElementNS('http://www.w3.org/2000/svg','stop');
+  s2.setAttribute('offset','100%');s2.setAttribute('stop-color','#00ffa8');
+  grad.appendChild(s1);grad.appendChild(s2);defs.appendChild(grad);svg.prepend(defs);
+  arc.setAttribute('stroke','url(#ring-grad)');
+})();
+
+/* ── 251: Sidebar: "You are ahead/behind pace" indicator ─────── */
+(function(){
+  function _paceCheck(){
+    var start=localStorage.getItem('ob_start');if(!start)return;
+    var days=Math.max(1,Math.floor((Date.now()-new Date(start+'T00:00:00').getTime())/86400000)+1);
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var done=0,total=cbs.length;cbs.forEach(function(c){if(c.checked)done++;});
+    var expected=Math.round(total*Math.min(days,30)/30);
+    var diff=done-expected;
+    var el=document.getElementById('pace-indicator');
+    if(!el){
+      el=document.createElement('div');el.id='pace-indicator';
+      el.style.cssText='font-size:.6rem;text-align:center;padding:2px;margin-top:1px;font-weight:600';
+      var rc=document.getElementById('remaining-badge');if(rc)rc.after(el);
+    }
+    if(diff>0){el.textContent='+'+diff+' tasks ahead of pace';el.style.color='var(--accent)';}
+    else if(diff<0){el.textContent=Math.abs(diff)+' tasks behind pace';el.style.color='var(--warn,#f0c453)';}
+    else{el.textContent='On pace';el.style.color='var(--muted)';}
+  }
+  _paceCheck();
+  var _origUP251=updateProgress;
+  updateProgress=function(){_origUP251();_paceCheck();};
+})();
+
+/* ── 252: Chat: character count changes color at limit ───────── */
+(function(){
+  var cc=document.getElementById('chat-char-count');if(!cc)return;
+  var inp=document.getElementById('chatInput');if(!inp)return;
+  inp.addEventListener('input',function(){
+    var len=inp.value.length;var max=500;
+    cc.style.color=len>450?'var(--warn,#f0c453)':len>400?'var(--gold)':'var(--muted)';
+    if(len>=max)cc.style.color='#ff6b6b';
+  });
+})();
+
+/* ── 253: Detail: keyboard shortcut P to print ──────────────── */
+(function(){
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='p'&&e.key!=='P')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    if(e.ctrlKey||e.metaKey)return;
+    if(_curTask)_printTask&&_printTask();
+  });
+})();
+
+/* ── 254: Phase: show first incomplete task hint on hover ────── */
+(function(){
+  document.querySelectorAll('.phase-head,.phase-header').forEach(function(hd){
+    var body=hd.nextElementSibling;if(!body||!body.classList.contains('phase-body'))return;
+    hd.addEventListener('mouseenter',function(){
+      var first=null;
+      body.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+        if(!first&&!cb.checked)first=cb.id;
+      });
+      if(!first){hd.title='Phase complete!';return;}
+      var d=TASK_DETAILS[first];
+      hd.title=d?'Next: '+d.title:'';
+    });
+  });
+})();
+
+/* ── 255: App: "good morning/afternoon" greeting in chat ─────── */
+(function(){
+  if(localStorage.getItem('ob_greeted_today')===new Date().toLocaleDateString())return;
+  localStorage.setItem('ob_greeted_today',new Date().toLocaleDateString());
+  var h=new Date().getHours();
+  var greeting=h<12?'Good morning':'h<17?Good afternoon':'Good evening';
+  if(h>=12&&h<17)greeting='Good afternoon';
+  else if(h>=17)greeting='Good evening';
+  var name=localStorage.getItem('ob_name');
+  var msg=greeting+(name?' '+name.split(' ')[0]:'')+'! Ready to tackle some onboarding tasks today?';
+  setTimeout(function(){
+    if(typeof appendMsg==='function')appendMsg(msg,'ai');
+  },1000);
+})();
+
+
 </script></body></html>
