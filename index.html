@@ -5112,4 +5112,171 @@ function _exportChat(){
 })();
 
 
+/* ── 256: Detail: sticky header (title stays while scrolling) ── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.detail-sticky-hdr{position:sticky;top:0;background:var(--panel);z-index:10;padding:6px 14px 4px;margin:-8px -14px 6px;border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter:blur(6px)}';
+  document.head.appendChild(st);
+  var hdr=document.querySelector('.detail-header,.detail-hdr');
+  if(hdr)hdr.classList.add('detail-sticky-hdr');
+})();
+
+/* ── 257: Checklist: show "0 tasks" empty state when filtered ── */
+(function(){
+  var _origHide=_applyHideDone;
+  function _checkEmpty(){
+    var cl=document.querySelector('.checklist');if(!cl)return;
+    var vis=0;cl.querySelectorAll('.task-item').forEach(function(it){if(it.style.display!=='none')vis++;});
+    var existing=cl.querySelector('.empty-state-msg');
+    if(vis===0){
+      if(!existing){var m=document.createElement('div');m.className='empty-state-msg';
+        m.style.cssText='text-align:center;color:var(--muted);font-size:.72rem;padding:20px;';
+        m.innerHTML='<div style="font-size:1.5rem;margin-bottom:6px">\u2705</div>No tasks match this filter';
+        cl.appendChild(m);}
+    }else{if(existing)existing.remove();}
+  }
+  var _origUP256=updateProgress;
+  updateProgress=function(){_origUP256();setTimeout(_checkEmpty,50);};
+  var _origSearch5=searchTasks;
+  searchTasks=function(q){_origSearch5(q);setTimeout(_checkEmpty,50);};
+})();
+
+/* ── 258: Detail links: open count tracker ───────────────────── */
+(function(){
+  var _origShow31=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow31(taskId);
+    setTimeout(function(){
+      document.querySelectorAll('.detail-link-btn').forEach(function(btn,i){
+        var l=_la&&_la[i];if(!l)return;
+        var href=l.url||l.file||'';
+        var key='ob_lopen_'+btoa(href.slice(0,30)).slice(0,10);
+        var cnt=parseInt(localStorage.getItem(key)||'0',10);
+        if(cnt>0&&!btn.querySelector('.lopen-cnt')){
+          var s=document.createElement('span');s.className='lopen-cnt';
+          s.style.cssText='font-size:.55rem;opacity:.6;margin-left:4px';
+          s.textContent='x'+cnt;btn.appendChild(s);
+        }
+        if(!btn.dataset.openTrack){
+          btn.dataset.openTrack='1';
+          var origClick=btn.onclick;
+          btn.onclick=function(){
+            var c=parseInt(localStorage.getItem(key)||'0',10)+1;
+            localStorage.setItem(key,c);
+            var existing=btn.querySelector('.lopen-cnt');
+            if(existing)existing.textContent='x'+c;
+            else{var s=document.createElement('span');s.className='lopen-cnt';
+              s.style.cssText='font-size:.55rem;opacity:.6;margin-left:4px';s.textContent='x'+c;btn.appendChild(s);}
+            if(origClick)origClick.call(btn);
+          };
+        }
+      });
+    },80);
+  };
+})();
+
+/* ── 259: Phase bodies: visual separator between phases ─────── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.phase-wrap+.phase-wrap,.phase-section+.phase-section{margin-top:6px}'+
+    '.phase-head,.phase-header{border-radius:7px 7px 0 0}'+
+    '.phase-body:last-child,.phase-body{border-radius:0 0 7px 7px;border-bottom:1px solid rgba(255,255,255,.05)}';
+  document.head.appendChild(st);
+})();
+
+/* ── 260: Checklist: tab-specific filtering (role) ───────────── */
+(function(){
+  var role=localStorage.getItem('ob_role');
+  if(!role)return;
+  var badge=document.createElement('div');
+  badge.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;padding:2px 6px;background:rgba(0,255,168,.06);border:1px solid rgba(0,255,168,.15);border-radius:5px;margin:4px 8px 0';
+  badge.textContent='Filtered for: '+(role==='mhe'?'MHE Tech':role==='ar'?'AR Tech':'All roles');
+  var cl=document.querySelector('.checklist');if(cl)cl.before(badge);
+})();
+
+/* ── 261: Chat: input auto-grows with content ────────────────── */
+(function(){
+  var inp=document.getElementById('chatInput');if(!inp||inp.tagName!=='TEXTAREA')return;
+  inp.style.overflowY='hidden';inp.style.resize='none';
+  function _resize(){
+    inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,90)+'px';
+  }
+  inp.addEventListener('input',_resize);
+  _resize();
+})();
+
+/* ── 262: Detail: estimated total time for all remaining ─────── */
+(function(){
+  function _updateRemainingTime(){
+    var cbs=document.querySelectorAll('.checklist input[type=checkbox]');
+    var left=0;cbs.forEach(function(cb){if(!cb.checked)left+=(TM[cb.id]||0);});
+    var el=document.getElementById('remaining-time-lbl');
+    if(!el){
+      el=document.createElement('div');el.id='remaining-time-lbl';
+      el.style.cssText='font-size:.6rem;color:var(--muted);text-align:center;margin-top:1px';
+      var wb=document.getElementById('time-left-badge');if(wb)wb.after(el);
+    }
+    el.textContent=left?fmtDur(left)+' of work remaining':'';
+  }
+  _updateRemainingTime();
+  var _origUP262=updateProgress;
+  updateProgress=function(){_origUP262();_updateRemainingTime();};
+})();
+
+/* ── 263: Sidebar: show top 3 incomplete high-time tasks ─────── */
+(function(){
+  function _topTasks(){
+    var list=[];
+    document.querySelectorAll('.checklist input[type=checkbox]').forEach(function(cb){
+      if(!cb.checked&&TM[cb.id])list.push({id:cb.id,mins:TM[cb.id]});
+    });
+    list.sort(function(a,b){return b.mins-a.mins;});
+    var el=document.getElementById('top-tasks-list');
+    if(!el){
+      el=document.createElement('div');el.id='top-tasks-list';
+      el.style.cssText='margin:4px 0;padding:0';
+      var hdr=document.createElement('div');
+      hdr.style.cssText='font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px;font-weight:600';
+      hdr.textContent='Biggest remaining';
+      var rc=document.getElementById('remaining-time-lbl')||document.getElementById('time-left-badge');
+      if(rc){rc.after(hdr);hdr.after(el);}
+    }
+    el.innerHTML='';
+    list.slice(0,3).forEach(function(t){
+      var d=TASK_DETAILS[t.id];if(!d)return;
+      var row=document.createElement('div');
+      row.style.cssText='font-size:.62rem;color:var(--text);padding:2px 4px;cursor:pointer;display:flex;justify-content:space-between;border-radius:4px;transition:background .15s';
+      row.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">'+(d.icon||'')+' '+d.title+'</span>'+
+        '<span style="color:var(--muted);flex-shrink:0;margin-left:5px">'+fmtDur(t.mins)+'</span>';
+      row.onmouseenter=function(){row.style.background='rgba(0,255,168,.06)';};
+      row.onmouseleave=function(){row.style.background='';};
+      row.onclick=function(){showTaskDetail(t.id);};
+      el.appendChild(row);
+    });
+    if(!list.length)el.style.display='none';else el.style.display='';
+  }
+  _topTasks();
+  var _origUP263=updateProgress;
+  updateProgress=function(){_origUP263();_topTasks();};
+})();
+
+/* ── 264: App: graceful error boundary for each IIFE ─────────── */
+/* (Pattern already used throughout — this just verifies key fns exist) */
+(function(){
+  var required=['updateProgress','showTaskDetail','closeTaskDetail','togglePhase','sendMsg','appendMsg'];
+  required.forEach(function(fn){
+    if(typeof window[fn]!=='function')console.warn('[OB] Missing function:',fn);
+  });
+})();
+
+/* ── 265: Checklist: smooth scroll to active task on load ────── */
+(function(){
+  setTimeout(function(){
+    var last=localStorage.getItem('ob_last_task');if(!last)return;
+    var item=document.querySelector('[onclick="showTaskDetail(\''+last+'\')"]');
+    if(item)item.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },600);
+})();
+
+
 </script></body></html>
