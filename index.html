@@ -8620,4 +8620,268 @@ function _exportChat(){
 })();
 
 
+/* ── 426: extend search to also match task notes ────────────────────────── */
+(function(){
+  var _origSR426=typeof searchTasks==="function"?searchTasks:null;
+  if(!_origSR426)return;
+  searchTasks=function(q){
+    _origSR426(q);
+    if(!q||!q.trim())return;
+    var ql=q.toLowerCase();
+    document.querySelectorAll(".task-row,[data-task-id]").forEach(function(row){
+      var id=row.dataset.id||row.dataset.taskId;
+      if(!id)return;
+      var note=(localStorage.getItem("ob_note_"+id)||"").toLowerCase();
+      if(note.indexOf(ql)>=0&&row.style.display==="none"){
+        row.style.display="";
+        row.style.opacity=".65";
+        row.title="Matched in note";
+      }
+    });
+  };
+})();
+
+/* ── 427: share progress summary to clipboard ───────────────────────────── */
+(function(){
+  if(document.getElementById("shareProgressBtn"))return;
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var btn=document.createElement("button");
+  btn.id="shareProgressBtn";
+  btn.title="Copy progress summary";
+  btn.textContent="\u{1F4E4} Share";
+  btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;opacity:.7;";
+  btn.onclick=function(){
+    var name=localStorage.getItem("ob_name")||"New hire";
+    var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+    var pct=tasks.length>0?Math.round(done/tasks.length*100):0;
+    var streak=parseInt(localStorage.getItem("ob_streak_count")||"0",10);
+    var msg="Onboarding Progress Update\n"+name+"\n"+new Date().toLocaleDateString()+"\n\nTasks completed: "+done+"/"+tasks.length+" ("+pct+"%)"+(streak>0?"\nCurrent streak: "+streak+" day"+(streak!==1?"s":""):"");
+    navigator.clipboard.writeText(msg).then(function(){
+      _showToast("\u{1F4E4} Progress summary copied!","info",2000);
+    }).catch(function(){_showToast("Copy failed","warn");});
+  };
+  hdr.appendChild(btn);
+})();
+
+/* ── 428: Pomodoro 25-min timer widget ──────────────────────────────────── */
+(function(){
+  if(document.getElementById("pomodoroWrap"))return;
+  var MINS=25,SECS=MINS*60;
+  var remaining=SECS,running=false,tmr=null;
+  var wrap=document.createElement("div");
+  wrap.id="pomodoroWrap";
+  wrap.style.cssText="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);";
+  var display=document.createElement("span");
+  display.id="pomDisp";
+  display.style.cssText="font-family:monospace;font-size:13px;min-width:40px;color:var(--accent);";
+  display.textContent="25:00";
+  var startBtn=document.createElement("button");
+  startBtn.textContent="\u25B6";
+  startBtn.title="Start/Pause Pomodoro";
+  startBtn.style.cssText="background:var(--accent2);color:#000;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;";
+  var resetBtn=document.createElement("button");
+  resetBtn.textContent="\u21BA";
+  resetBtn.title="Reset Pomodoro";
+  resetBtn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;";
+  function fmt(){var m=Math.floor(remaining/60),s=remaining%60;return (m<10?"0":"")+m+":"+(s<10?"0":"")+s;}
+  function tick(){
+    if(!running)return;
+    remaining--;
+    display.textContent=fmt();
+    if(remaining<=0){
+      clearInterval(tmr);running=false;
+      startBtn.textContent="\u25B6";
+      _showToast("\u{1F345} Pomodoro done! Take a 5-minute break.","info",8000);
+      try{var ac=new(window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator();var g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=660;g.gain.setValueAtTime(0.2,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.6);o.start();o.stop(ac.currentTime+0.6);}catch(err){}
+    }
+  }
+  startBtn.onclick=function(){
+    running=!running;
+    startBtn.textContent=running?"\u23F8":"\u25B6";
+    if(running)tmr=setInterval(tick,1000);else clearInterval(tmr);
+  };
+  resetBtn.onclick=function(){running=false;clearInterval(tmr);remaining=SECS;display.textContent=fmt();startBtn.textContent="\u25B6";};
+  wrap.appendChild(display);wrap.appendChild(startBtn);wrap.appendChild(resetBtn);
+  var hdr=document.querySelector(".app-header,.page-header,header");
+  if(hdr)hdr.appendChild(wrap);
+})();
+
+/* ── 429: chat slash commands (/done /note /stats /help) ─────────────────── */
+(function(){
+  var chatInp=document.getElementById("chatInput");
+  if(!chatInp||chatInp._slashInited)return;
+  chatInp._slashInited=true;
+  chatInp.addEventListener("keydown",function(e){
+    if(e.key!=="Enter"||!chatInp.value.startsWith("/"))return;
+    var cmd=chatInp.value.trim();
+    var parts=cmd.split(" ");
+    var command=parts[0].toLowerCase();
+    chatInp.value="";
+    e.preventDefault();
+    if(command==="/done"){
+      var id=typeof _curTask!=="undefined"?_curTask:null;
+      if(id&&typeof toggleDetailDone==="function"){toggleDetailDone();appendMsg("Marked current task done.","bot");}
+      else appendMsg("No task open. Open a task first.","bot");
+    } else if(command==="/note"){
+      var id2=typeof _curTask!=="undefined"?_curTask:null;
+      var text=parts.slice(1).join(" ");
+      if(id2&&text){
+        localStorage.setItem("ob_note_"+id2,text);
+        appendMsg("Note saved for current task.","bot");
+        _showToast("\u{1F4DD} Note saved","info",1500);
+      } else appendMsg("Usage: /note <text>. Open a task first.","bot");
+    } else if(command==="/stats"){
+      var tasks2=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+      var done2=tasks2.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+      appendMsg("Progress: "+done2+"/"+tasks2.length+" tasks ("+Math.round(done2/tasks2.length*100)+"%). Streak: "+localStorage.getItem("ob_streak_count")+" days.","bot");
+    } else if(command==="/help"){
+      appendMsg("Slash commands: /done, /note <text>, /stats, /help","bot");
+    } else {
+      appendMsg("Unknown command: "+command+". Try /help","bot");
+    }
+  });
+})();
+
+/* ── 430: resource link count badge on task row ─────────────────────────── */
+(function(){
+  if(typeof TASK_DETAILS==="undefined")return;
+  Object.keys(TASK_DETAILS).forEach(function(id){
+    var t=TASK_DETAILS[id];
+    var links=t.links||t.resources||[];
+    if(!links.length)return;
+    var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+    if(!row||row.querySelector(".lnk-cnt"))return;
+    var badge=document.createElement("span");
+    badge.className="lnk-cnt";
+    badge.textContent="\u{1F517} "+links.length;
+    badge.title=links.length+" resource link"+(links.length!==1?"s":"");
+    badge.style.cssText="font-size:10px;color:var(--muted);margin-left:4px;";
+    row.appendChild(badge);
+  });
+})();
+
+/* ── 431: warn before closing detail if note has unsaved changes ─────────── */
+(function(){
+  var _origClose431=typeof closeTaskDetail==="function"?closeTaskDetail:null;
+  if(!_origClose431)return;
+  closeTaskDetail=function(){
+    var ta=document.getElementById("taskNote");
+    var id=typeof _curTask!=="undefined"?_curTask:null;
+    if(ta&&id&&ta.value.trim()!==( localStorage.getItem("ob_note_"+id)||"").trim()){
+      if(!confirm("Save note before closing?")){ _origClose431(); return; }
+      if(typeof _saveTaskNote==="function")_saveTaskNote(id,ta.value);
+      else localStorage.setItem("ob_note_"+id,ta.value);
+    }
+    _origClose431();
+  };
+})();
+
+/* ── 432: sort tasks by difficulty rating ───────────────────────────────── */
+(function(){
+  if(document.getElementById("sortDiffBtn"))return;
+  var hdr=document.querySelector(".checklist-header,#checklistHeader");
+  if(!hdr)return;
+  var btn=document.createElement("button");
+  btn.id="sortDiffBtn";
+  btn.title="Sort visible tasks by difficulty";
+  btn.textContent="\u2605 Sort";
+  btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;opacity:.7;";
+  var sorted=false;
+  btn.onclick=function(){
+    sorted=!sorted;
+    btn.style.opacity=sorted?"1":".7";
+    btn.style.color=sorted?"var(--gold,#f0c453)":"";
+    document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph){
+      var list=ph.querySelector(".phase-tasks,.phase-body,.task-list");
+      if(!list)return;
+      var rows=Array.from(list.querySelectorAll(":scope > .task-row,:scope > [data-task-id]"));
+      if(!rows.length)return;
+      var ordered=rows.slice().sort(function(a,b){
+        var da=parseInt(localStorage.getItem("ob_diff_"+(a.dataset.id||a.dataset.taskId))||"0",10);
+        var db=parseInt(localStorage.getItem("ob_diff_"+(b.dataset.id||b.dataset.taskId))||"0",10);
+        return sorted?db-da:da-db;
+      });
+      ordered.forEach(function(r){list.appendChild(r);});
+    });
+  };
+  hdr.appendChild(btn);
+})();
+
+/* ── 433: progress donut chart in header ────────────────────────────────── */
+(function(){
+  if(document.getElementById("progDonut"))return;
+  var hdr=document.querySelector(".app-header,.page-header,header");
+  if(!hdr)return;
+  var cv=document.createElement("canvas");
+  cv.id="progDonut";
+  cv.width=36;cv.height=36;
+  cv.title="Overall progress";
+  cv.style.cssText="display:inline-block;vertical-align:middle;margin-left:8px;cursor:default;";
+  hdr.appendChild(cv);
+  function drawDonut(){
+    var tasks=Object.keys(typeof TASK_DETAILS!=="undefined"?TASK_DETAILS:{});
+    var done=tasks.filter(function(t){return localStorage.getItem("ob_"+t)==="done";}).length;
+    var pct=tasks.length>0?done/tasks.length:0;
+    var ctx=cv.getContext("2d");
+    ctx.clearRect(0,0,36,36);
+    var cx=18,cy=18,r=14,lw=5;
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle="#1a3a28";ctx.lineWidth=lw;ctx.stroke();
+    if(pct>0){
+      ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*pct);
+      ctx.strokeStyle="#00ffa8";ctx.lineWidth=lw;ctx.stroke();
+    }
+    ctx.fillStyle="#00ffa8";ctx.font="bold 9px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(Math.round(pct*100)+"%",cx,cy);
+    cv.title=done+"/"+tasks.length+" tasks ("+Math.round(pct*100)+"%)";
+  }
+  drawDonut();
+  var _origUP433=typeof updateProgress==="function"?updateProgress:null;
+  if(_origUP433){
+    updateProgress=function(){_origUP433();setTimeout(drawDonut,100);};
+  }
+})();
+
+/* ── 434: phase completion chime (distinct tone) ────────────────────────── */
+(function(){
+  var _origFPC434=typeof firePhaseCelebration==="function"?firePhaseCelebration:null;
+  if(!_origFPC434)return;
+  firePhaseCelebration=function(name){
+    _origFPC434(name);
+    if(localStorage.getItem("ob_sound")==="0")return;
+    try{
+      var ac=new(window.AudioContext||window.webkitAudioContext)();
+      var freqs=[523,659,784];
+      freqs.forEach(function(freq,i){
+        var o=ac.createOscillator(),g=ac.createGain();
+        o.connect(g);g.connect(ac.destination);
+        o.frequency.value=freq;o.type="sine";
+        var t=ac.currentTime+i*0.18;
+        g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.12,t+0.05);
+        g.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+        o.start(t);o.stop(t+0.35);
+      });
+    }catch(err){}
+  };
+})();
+
+/* ── 435: Tab key navigates phase headers ───────────────────────────────── */
+(function(){
+  var phaseHeaders=Array.from(document.querySelectorAll(".phase-header,.phase-title"));
+  phaseHeaders.forEach(function(h){if(!h.tabIndex||h.tabIndex<0)h.tabIndex=0;});
+  document.addEventListener("keydown",function(e){
+    if(!e.shiftKey&&e.key==="Tab"){
+      var active=document.activeElement;
+      var idx=phaseHeaders.indexOf(active);
+      if(idx>=0){
+        e.preventDefault();
+        phaseHeaders[(idx+1)%phaseHeaders.length].focus();
+      }
+    }
+  });
+})();
+
+
 </script></body></html>
