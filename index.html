@@ -5279,4 +5279,188 @@ function _exportChat(){
 })();
 
 
+/* ── 266: Checklist: visual density: card vs list mode ──────── */
+(function(){
+  var _cardMode=localStorage.getItem('ob_card_mode')==='1';
+  var cardCSS='.task-item{border-radius:9px!important;margin-bottom:6px!important;padding:8px 10px!important;box-shadow:0 1px 4px rgba(0,0,0,.25)!important}';
+  var listCSS='';
+  var st=document.createElement('style');st.id='card-mode-style';
+  st.textContent=_cardMode?cardCSS:listCSS;
+  document.head.appendChild(st);
+  var sb=document.querySelector('.search-wrap');if(!sb)return;
+  var btn=document.createElement('button');btn.className='hide-done-btn';
+  btn.style.fontSize='.62rem';btn.title='Toggle card/list layout';
+  btn.textContent=_cardMode?'List view':'Card view';
+  btn.onclick=function(){
+    _cardMode=!_cardMode;
+    localStorage.setItem('ob_card_mode',_cardMode?'1':'0');
+    document.getElementById('card-mode-style').textContent=_cardMode?cardCSS:listCSS;
+    btn.textContent=_cardMode?'List view':'Card view';
+    _showToast(_cardMode?'Card view on':'List view on','',1600);
+  };
+  var row=sb.querySelector('div');if(row)row.appendChild(btn);
+})();
+
+/* ── 267: Detail: note history (last 3 saved versions) ──────── */
+(function(){
+  var _origSave267=_saveTaskNote;
+  _saveTaskNote=function(id,text){
+    _origSave267(id,text);
+    if(!text.trim())return;
+    var hist=JSON.parse(localStorage.getItem('ob_note_hist_'+id)||'[]');
+    hist.unshift({text:text,ts:Date.now()});
+    if(hist.length>3)hist=hist.slice(0,3);
+    localStorage.setItem('ob_note_hist_'+id,JSON.stringify(hist));
+  };
+  var _origShow267=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow267(taskId);
+    var hist=JSON.parse(localStorage.getItem('ob_note_hist_'+taskId)||'[]');
+    if(!hist.length)return;
+    var ta=document.getElementById('task-note-input');if(!ta)return;
+    var existing=document.getElementById('note-hist-btn');
+    if(!existing){
+      var btn=document.createElement('button');btn.id='note-hist-btn';
+      btn.style.cssText='font-size:.58rem;background:none;border:1px solid var(--border);color:var(--muted);padding:1px 6px;border-radius:5px;cursor:pointer;margin-left:4px';
+      btn.textContent='History';btn.title='View note history';
+      btn.onclick=function(){
+        var h=JSON.parse(localStorage.getItem('ob_note_hist_'+taskId)||'[]');
+        var msg=h.map(function(v,i){return '['+(i+1)+' - '+new Date(v.ts).toLocaleTimeString()+']\n'+v.text.slice(0,100);}).join('\n\n');
+        alert('Note history (last 3):\n\n'+msg);
+      };
+      var wc=document.getElementById('note-word-count');if(wc)wc.after(btn);
+    }
+  };
+})();
+
+/* ── 268: Checklist: "focus mode" hides sidebar ────────────────  */
+(function(){
+  var focused=false;
+  var st=document.createElement('style');st.id='focus-mode-style';document.head.appendChild(st);
+  var btn=document.createElement('button');
+  btn.id='focus-mode-btn';
+  btn.innerHTML='\u25CB Focus';btn.title='Focus mode: hide sidebar (F)';
+  btn.style.cssText='font-size:.62rem;background:none;border:1px solid var(--border);color:var(--muted);padding:2px 7px;border-radius:6px;cursor:pointer;margin:2px 4px';
+  btn.onclick=function(){
+    focused=!focused;
+    var sb=document.querySelector('.sidebar');
+    if(sb){sb.style.display=focused?'none':'';}
+    var main=document.querySelector('.main,.checklist-col,.main-content');
+    if(main){main.style.flex=focused?'1':'';}
+    btn.innerHTML=focused?'\u25CF Exit focus':'\u25CB Focus';
+    btn.style.color=focused?'var(--accent)':'var(--muted)';
+    _showToast(focused?'Focus mode on':'Focus mode off','',1500);
+  };
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(btn);
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='f'&&e.key!=='F')return;
+    if(['input','textarea','select'].includes(e.target.tagName.toLowerCase()))return;
+    btn.click();
+  });
+})();
+
+/* ── 269: App: detect and warn on localStorage near-full ─────── */
+(function(){
+  try{
+    var total=0;
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);total+=((k||'').length+(localStorage.getItem(k)||'').length)*2;
+    }
+    if(total>4*1024*1024){
+      setTimeout(function(){_showToast('Storage near capacity. Consider exporting notes.','warn',4000);},2000);
+    }
+  }catch(e){}
+})();
+
+/* ── 270: Detail: show/hide completed steps toggle ──────────── */
+(function(){
+  var _origShow270=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow270(taskId);
+    var stepsEl=document.getElementById('detail-steps');if(!stepsEl)return;
+    var d=TASK_DETAILS[taskId];if(!d||!d.steps.length)return;
+    var saved=JSON.parse(localStorage.getItem('ob_steps_'+taskId)||'[]');
+    if(!saved.length)return;
+    var existing=document.getElementById('steps-hide-done');
+    if(!existing){
+      var btn=document.createElement('button');btn.id='steps-hide-done';
+      btn.style.cssText='font-size:.6rem;background:none;border:1px solid var(--border);color:var(--muted);padding:1px 6px;border-radius:5px;cursor:pointer;margin-bottom:4px;display:block';
+      btn.textContent='Hide done steps';
+      var _hiding=false;
+      btn.onclick=function(){
+        _hiding=!_hiding;
+        stepsEl.querySelectorAll('.detail-step').forEach(function(step,i){
+          if(_hiding&&saved.indexOf(i)>=0)step.style.display='none';
+          else step.style.display='';
+        });
+        btn.textContent=_hiding?'Show all steps':'Hide done steps';
+      };
+      stepsEl.before(btn);
+    }
+  };
+})();
+
+/* ── 271: Phase: keyboard arrow nav between phases ──────────── */
+(function(){
+  var _heads=Array.from(document.querySelectorAll('.phase-head,.phase-header'));
+  _heads.forEach(function(hd,i){
+    hd.addEventListener('keydown',function(e){
+      if(e.key==='ArrowDown'){var n=_heads[i+1];if(n){e.preventDefault();n.focus();}}
+      if(e.key==='ArrowUp'){var p=_heads[i-1];if(p){e.preventDefault();p.focus();}}
+    });
+  });
+})();
+
+/* ── 272: Sidebar: show last sync / save time ───────────────── */
+(function(){
+  var el=document.createElement('div');el.id='last-save-lbl';
+  el.style.cssText='font-size:.55rem;color:rgba(255,255,255,.2);text-align:center;margin-top:2px';
+  var ft=document.querySelector('.sidebar-footer');if(ft)ft.appendChild(el);
+  function _updateSave(){
+    el.textContent='Auto-saved '+new Date().toLocaleTimeString();
+  }
+  var _origUP272=updateProgress;
+  updateProgress=function(){_origUP272();_updateSave();};
+  _updateSave();
+})();
+
+/* ── 273: Chat chips: additional context chips ───────────────── */
+(function(){
+  var chipsRow=document.querySelector('.chat-chips');if(!chipsRow)return;
+  var MORE=['My schedule','Equipment training','Who is my manager?','Key contacts','Parking info'];
+  MORE.forEach(function(q){
+    if(Array.from(chipsRow.querySelectorAll('button')).some(function(b){return b.textContent===q;}))return;
+    var chip=document.createElement('button');chip.textContent=q;
+    chip.style.cssText='font-size:.62rem;padding:2px 8px;border-radius:10px;border:1px solid rgba(0,255,168,.2);background:rgba(0,255,168,.06);color:var(--text);cursor:pointer;white-space:nowrap;transition:background .15s';
+    chip.onmouseenter=function(){chip.style.background='rgba(0,255,168,.15)';};
+    chip.onmouseleave=function(){chip.style.background='rgba(0,255,168,.06)';};
+    chip.onclick=function(){_chip(q);};
+    chipsRow.appendChild(chip);
+  });
+})();
+
+/* ── 274: Task items: completed items muted checkmark icon ───── */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='input[type=checkbox]:checked+.task-label{color:var(--muted)!important}'+
+    'input[type=checkbox]{accent-color:var(--accent)}'+
+    'input[type=checkbox]:checked{filter:hue-rotate(0deg) saturate(1.2)}';
+  document.head.appendChild(st);
+})();
+
+/* ── 275: Detail: back button shows previous task icon ───────── */
+(function(){
+  var _origShow275=showTaskDetail;
+  showTaskDetail=function(taskId){
+    _origShow275(taskId);
+    setTimeout(function(){
+      var backBtn=document.getElementById('detail-back-hist');if(!backBtn)return;
+      var d=TASK_DETAILS[taskId];
+      backBtn.innerHTML='\u2190 Back';
+      backBtn.style.display=backBtn.style.display;
+    },30);
+  };
+})();
+
+
 </script></body></html>
