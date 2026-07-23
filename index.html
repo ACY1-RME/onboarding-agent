@@ -9594,4 +9594,251 @@ function _exportChat(){
 })();
 
 
+/* ── 466: Ctrl+Z undoes last task completion ────────────────────────────── */
+(function(){
+  var lastUndoState=null;
+  var _origTDD466=typeof toggleDetailDone==="function"?toggleDetailDone:null;
+  if(_origTDD466){
+    toggleDetailDone=function(){
+      var id=typeof _curTask!=="undefined"?_curTask:null;
+      var wasDone=id?localStorage.getItem("ob_"+id)==="done":false;
+      _origTDD466();
+      if(id&&!wasDone&&localStorage.getItem("ob_"+id)==="done"){
+        lastUndoState={id:id,ts:localStorage.getItem("ob_done_ts_"+id)};
+      }
+    };
+  }
+  document.addEventListener("keydown",function(e){
+    if(e.key==="z"&&(e.ctrlKey||e.metaKey)&&!e.shiftKey){
+      if(!lastUndoState)return;
+      e.preventDefault();
+      var id=lastUndoState.id;
+      localStorage.removeItem("ob_"+id);
+      localStorage.removeItem("ob_done_ts_"+id);
+      lastUndoState=null;
+      if(typeof updateProgress==="function")updateProgress();
+      _showToast("\u21A9\uFE0F Undo: task marked incomplete","info",2000);
+    }
+  });
+})();
+
+/* ── 467: quick custom task via "+" on phase header ─────────────────────── */
+(function(){
+  document.querySelectorAll(".phase-section,[data-phase]").forEach(function(ph,i){
+    if(ph.querySelector(".addTaskBtn"))return;
+    var phHdr=ph.querySelector(".phase-header,.phase-title,h3,h4");
+    if(!phHdr)return;
+    var phid=ph.dataset.phase||ph.dataset.id||("ph"+i);
+    var lsKey="ob_ctasks_"+phid;
+    var btn=document.createElement("button");
+    btn.className="addTaskBtn";
+    btn.textContent="+";
+    btn.title="Add custom task to this phase";
+    btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:4px;padding:0 6px;font-size:13px;cursor:pointer;margin-left:6px;line-height:1.4;";
+    btn.onclick=function(e){
+      e.stopPropagation();
+      var title=prompt("Custom task title:");
+      if(!title||!title.trim())return;
+      var tasks=JSON.parse(localStorage.getItem(lsKey)||"[]");
+      var tid="ct_"+Date.now();
+      tasks.push({id:tid,title:title.trim()});
+      localStorage.setItem(lsKey,JSON.stringify(tasks));
+      renderCustomTasks(ph,phid);
+      _showToast("+ Task added to phase","info",1500);
+    };
+    phHdr.appendChild(btn);
+    function renderCustomTasks(phEl,pid){
+      var tasks=JSON.parse(localStorage.getItem("ob_ctasks_"+pid)||"[]");
+      phEl.querySelectorAll(".custom-task-row").forEach(function(r){r.remove();});
+      var list=phEl.querySelector(".phase-tasks,.phase-body,.task-list")||phEl;
+      tasks.forEach(function(t){
+        var row=document.createElement("div");
+        row.className="task-row custom-task-row";
+        row.dataset.id=t.id;
+        row.style.cssText="display:flex;align-items:center;gap:6px;padding:4px 8px;opacity:.8;font-size:12px;";
+        var done=localStorage.getItem("ob_"+t.id)==="done";
+        var chk=document.createElement("input");
+        chk.type="checkbox";chk.checked=done;
+        chk.onchange=function(){
+          localStorage.setItem("ob_"+t.id,chk.checked?"done":"");
+          row.style.opacity=chk.checked?".5":"1";
+        };
+        var lbl=document.createElement("span");
+        lbl.textContent=t.title;
+        lbl.style.cssText="flex:1;"+(done?"text-decoration:line-through;color:var(--muted);":"");
+        var del=document.createElement("button");
+        del.textContent="\u00D7";
+        del.style.cssText="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;";
+        del.onclick=function(){
+          var curr=JSON.parse(localStorage.getItem("ob_ctasks_"+pid)||"[]");
+          localStorage.setItem("ob_ctasks_"+pid,JSON.stringify(curr.filter(function(x){return x.id!==t.id;})));
+          row.remove();
+        };
+        row.appendChild(chk);row.appendChild(lbl);row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+    renderCustomTasks(ph,phid);
+  });
+})();
+
+/* ── 468: phase > task breadcrumb in detail header ──────────────────────── */
+(function(){
+  var _origSD468=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD468(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel||panel.querySelector("#detailBreadcrumb"))return;
+      var row=document.querySelector(".task-row[data-id='"+id+"'],.task-row[data-task-id='"+id+"']");
+      if(!row)return;
+      var phase=row.closest(".phase-section,[data-phase]");
+      var phName="";
+      if(phase){var phHdr=phase.querySelector(".phase-name,.phase-title,h3,h4");phName=phHdr?(phHdr.textContent||"").trim().slice(0,25):"";}
+      if(!phName)return;
+      var bc=document.createElement("div");
+      bc.id="detailBreadcrumb";
+      bc.style.cssText="font-size:10px;color:var(--muted);margin-bottom:4px;";
+      bc.textContent=phName+" \u203A "+(typeof TASK_DETAILS!=="undefined"&&TASK_DETAILS[id]?TASK_DETAILS[id].title||id:id).slice(0,40);
+      var dh=panel.querySelector(".detail-header,#detailHeader");
+      if(dh)dh.insertBefore(bc,dh.firstChild); else panel.insertBefore(bc,panel.firstChild);
+    },80);
+  };
+})();
+
+/* ── 469: clear chat history button ─────────────────────────────────────── */
+(function(){
+  if(document.getElementById("clearChatBtn"))return;
+  var chatHdr=document.querySelector(".chat-header,#chatHeader,.chat-title");
+  if(!chatHdr)return;
+  var btn=document.createElement("button");
+  btn.id="clearChatBtn";
+  btn.title="Clear chat history";
+  btn.textContent="\u{1F5D1}\uFE0F";
+  btn.style.cssText="background:transparent;border:none;font-size:13px;cursor:pointer;opacity:.5;";
+  btn.onclick=function(){
+    if(!confirm("Clear chat history?"))return;
+    localStorage.removeItem("ob_chat_hist");
+    localStorage.removeItem("ob_chat_hist_v2");
+    document.querySelectorAll(".chat-msg,.message,.msg-row").forEach(function(el){el.remove();});
+    _showToast("Chat cleared","info",1500);
+  };
+  chatHdr.appendChild(btn);
+})();
+
+/* ── 470: print current task detail ─────────────────────────────────────── */
+(function(){
+  var s=document.createElement("style");
+  s.id="printDetailStyle";
+  s.textContent="@media print{body>*{display:none!important}#taskDetailPanel,#detailPanel{display:block!important;position:static!important;width:100%!important;box-shadow:none!important;border:none!important}}";
+  document.head.appendChild(s);
+  var _origSD470=showTaskDetail;
+  showTaskDetail=function(id){
+    _origSD470(id);
+    setTimeout(function(){
+      var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+      if(!panel||panel.querySelector("#printDetailBtn"))return;
+      var btn=document.createElement("button");
+      btn.id="printDetailBtn";
+      btn.title="Print this task detail";
+      btn.textContent="\u{1F5A8}\uFE0F Print";
+      btn.style.cssText="background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;opacity:.7;";
+      btn.onclick=function(){window.print();};
+      var da=panel.querySelector(".detail-actions,#detailActions");
+      (da||panel.firstElementChild||panel).appendChild(btn);
+    },80);
+  };
+})();
+
+/* ── 471: horizontal phase timeline above checklist ─────────────────────── */
+(function(){
+  if(document.getElementById("phTimeline"))return;
+  var phases=Array.from(document.querySelectorAll(".phase-section,[data-phase]"));
+  if(!phases.length)return;
+  var container=document.querySelector(".checklist-panel,#checklistPanel,#checklist");
+  if(!container)return;
+  var tl=document.createElement("div");
+  tl.id="phTimeline";
+  tl.style.cssText="display:flex;align-items:center;padding:6px 4px;margin-bottom:8px;gap:0;overflow-x:auto;";
+  phases.forEach(function(ph,i){
+    if(i>0){var conn=document.createElement("div");conn.style.cssText="height:2px;flex:1;background:var(--border);min-width:8px;";tl.appendChild(conn);}
+    var rows=ph.querySelectorAll(".task-row,[data-task-id]");
+    var done=Array.from(rows).filter(function(r){var id=r.dataset.id||r.dataset.taskId;return id&&localStorage.getItem("ob_"+id)==="done";}).length;
+    var pct=rows.length>0?done/rows.length:0;
+    var dot=document.createElement("button");
+    dot.style.cssText="width:18px;height:18px;border-radius:50%;flex-shrink:0;cursor:pointer;border:2px solid "+(pct>=1?"var(--accent)":pct>0?"var(--accent2)":"var(--border)")+";background:"+(pct>=1?"var(--accent)":pct>0?"rgba(0,196,126,.3)":"transparent")+";";
+    dot.title="Phase "+(i+1)+": "+done+"/"+rows.length+" done";
+    dot.onclick=function(){ph.scrollIntoView({behavior:"smooth",block:"start"});};
+    tl.appendChild(dot);
+  });
+  container.prepend(tl);
+})();
+
+/* ── 472: search input autocomplete datalist ────────────────────────────── */
+(function(){
+  var inp=document.getElementById("taskSearch");
+  if(!inp||document.getElementById("taskSearchList"))return;
+  var dl=document.createElement("datalist");
+  dl.id="taskSearchList";
+  inp.setAttribute("list","taskSearchList");
+  if(typeof TASK_DETAILS!=="undefined"){
+    Object.keys(TASK_DETAILS).forEach(function(id){
+      var title=TASK_DETAILS[id].title||id;
+      var opt=document.createElement("option");
+      opt.value=title;
+      dl.appendChild(opt);
+    });
+  }
+  document.body.appendChild(dl);
+})();
+
+/* ── 473: F2 key starts editing task title in detail ────────────────────── */
+(function(){
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="F2")return;
+    var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+    if(!panel||panel.style.display==="none")return;
+    var titleEl=panel.querySelector(".detail-title,#detailTitle,.title-editable,h2,h3");
+    if(!titleEl)return;
+    titleEl.contentEditable="true";
+    titleEl.focus();
+    var range=document.createRange();range.selectNodeContents(titleEl);
+    var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+    _showToast("F2: editing title, Enter to save","info",2000);
+  });
+})();
+
+/* ── 474: Shift+D maximizes / restores detail panel ─────────────────────── */
+(function(){
+  var maxed=false;
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="D"||!e.shiftKey||e.ctrlKey||e.metaKey)return;
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.isContentEditable)return;
+    e.preventDefault();
+    var panel=document.getElementById("taskDetailPanel")||document.getElementById("detailPanel");
+    if(!panel)return;
+    maxed=!maxed;
+    if(maxed){
+      panel.dataset.oldStyle=panel.style.cssText;
+      panel.style.cssText=(panel.dataset.oldStyle||"")+"position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:9999!important;border-radius:0!important;overflow-y:auto!important;";
+    } else {
+      panel.style.cssText=panel.dataset.oldStyle||"";
+    }
+    _showToast(maxed?"Shift+D: Maximized detail":"Shift+D: Restored detail","info",1200);
+  });
+})();
+
+/* ── 475: heading toward 500 — show progress toward next milestone ───────── */
+(function(){
+  if(localStorage.getItem("ob_500_teaser"))return;
+  var totalImps=475;
+  var target=500;
+  var remaining=target-totalImps;
+  localStorage.setItem("ob_500_teaser","1");
+  setTimeout(function(){
+    _showToast("\u{1F6E0}\uFE0F "+totalImps+" improvements logged. "+remaining+" to go until 500!","info",5000);
+  },5000);
+})();
+
+
 </script></body></html>
