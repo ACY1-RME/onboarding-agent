@@ -21802,4 +21802,358 @@ addTool("? Shortcuts", "Keyboard shortcuts", function() {
 
 })();
 </script>
+<script>
+/* UI CLEANUP PASS 2 */
+(function(){
+
+var css = document.createElement("style");
+css.textContent = `
+
+/* ═══════════════════════════════════════
+   1. HIDE BOTTOM-AREA CLUTTER
+   All replaced by the unified status bar
+   ════════════════════════════════════════ */
+#ob773-donut,
+#ob806-map,
+#ob847-week,
+#ob895-chart,
+#ob938-session,
+#ob835-time,
+#ob952-total,
+#ob795-eta,
+#ob924-cal,
+#ob753-idle,
+#ob751-hint,
+#ob827-day
+{ display: none !important; }
+
+/* ═══════════════════════════════════════
+   2. HIDE PRE-500 FLOATING ELEMENTS
+   (replaced by top toolbars and FAB)
+   ════════════════════════════════════════ */
+#_fab,
+#_scrollTop,
+#_exportReport,
+#_exportNotesTxt,
+#_copyAllMD,
+#_bulkModeBtn,
+#_zoomReset,
+#_globalPct,
+#_lightMode,
+#_miniCal,
+#_countdownWidget,
+#_dailyGoalWidget,
+#_focusModeBtn,
+#_pomTrigger743,
+#_pdfExport,
+#_csvNotes,
+#_certBtn,
+#_scratchBtn,
+#ob756-bar
+{ display: none !important; }
+
+/* ═══════════════════════════════════════
+   3. TIGHTEN CLOCK  
+   ════════════════════════════════════════ */
+#ob821-clock {
+  top: 4px !important;
+  font-size: .65rem !important;
+  opacity: .3 !important;
+}
+
+/* ═══════════════════════════════════════
+   4. STREAK BADGE — smaller, lower profile
+   ════════════════════════════════════════ */
+#ob759-streak {
+  top: auto !important;
+  bottom: 4px !important;
+  right: 56px !important;
+  font-size: .65rem !important;
+  padding: 2px 8px !important;
+  opacity: .5 !important;
+}
+
+/* ═══════════════════════════════════════
+   5. UNIFIED BOTTOM STATUS BAR
+   ════════════════════════════════════════ */
+#ob-status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 22px;
+  background: rgba(6,12,8,.85);
+  border-top: 1px solid var(--border, #1e3828);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  font-size: .65rem;
+  color: var(--muted, #7a9f8a);
+  z-index: 750;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+#ob-status-bar span { opacity: .6; white-space: nowrap; }
+#ob-status-bar .hi { color: var(--accent, #00ffa8); opacity: .8; }
+#ob-status-bar .sep { opacity: .2; }
+
+/* ═══════════════════════════════════════
+   6. SIDE PANELS — hide by default,
+      show on hover only
+   ════════════════════════════════════════ */
+#ob781-recent,
+#ob771-panel {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity .2s !important;
+}
+#ob781-recent:hover,
+#ob771-panel:hover,
+#ob781-recent:focus-within,
+#ob771-panel:focus-within {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* ═══════════════════════════════════════
+   7. TASK MINI-MAP — hide, too noisy
+   ════════════════════════════════════════ */
+#ob962-map { display: none !important; }
+
+/* ═══════════════════════════════════════
+   8. CONTEXT MENU — keep but ensure clean
+   ════════════════════════════════════════ */
+#ob855-ctx { font-size: .8rem; }
+
+/* ═══════════════════════════════════════
+   9. NOTE AREA — compact the button rows
+   ════════════════════════════════════════ */
+
+/* Hide the redundant / duplicate note toolbars we're replacing */
+#ob874-tb,          /* B I # <> formatting bar (replaced below) */
+#ob885-wrap-btn,
+#ob793-tpls,        /* Template dropdown */
+#ob767-emojis,      /* Emoji row */
+#ob785-mic,         /* Voice dictate */
+#ob774-spell,       /* Spellcheck */
+#ob772-pin-btn,     /* Pin note */
+#ob844-find,
+#ob941-zoom,        /* A+ A- zoom */
+#ob975-wrap,        /* Wrap toggle */
+#ob825-statsBtn,    /* Stats */
+#ob819-diff,        /* Diff */
+#ob851-share,       /* Share note */
+#ob894-lock,        /* Lock */
+#ob883-ts,          /* Date stamp */
+#ob864-txt,         /* .txt export */
+#ob798-mdexp,       /* .md export */
+#ob958-paste,       /* Paste clipboard */
+#ob925-copy,        /* Copy note */
+#ob949-hist,        /* History */
+#ob839-dup,         /* Duplicate note */
+#ob915-tts,         /* Text to speech */
+#ob954-append       /* Append mode */
+{ display: none !important; }
+
+/* ═══════════════════════════════════════
+   10. NOTE COMPACT TOOLBAR — single row
+   ════════════════════════════════════════ */
+#ob-note-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 4px;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+#ob-note-bar button {
+  background: none;
+  border: 1px solid var(--border, #1e3828);
+  border-radius: 4px;
+  color: var(--muted, #7a9f8a);
+  cursor: pointer;
+  font-size: .72rem;
+  padding: 2px 6px;
+  line-height: 1.3;
+  white-space: nowrap;
+  transition: border-color .12s, color .12s;
+}
+#ob-note-bar button:hover {
+  border-color: var(--accent, #00ffa8);
+  color: var(--accent, #00ffa8);
+}
+#ob-note-bar .nb-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border, #1e3828);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+#ob-note-bar select {
+  background: var(--panel, #0e2016);
+  border: 1px solid var(--border, #1e3828);
+  border-radius: 4px;
+  color: var(--muted, #7a9f8a);
+  cursor: pointer;
+  font-size: .72rem;
+  padding: 2px 4px;
+}
+
+/* ═══════════════════════════════════════
+   11. POMODORO WIDGET — reduce footprint
+   ════════════════════════════════════════ */
+#_pomTimerWidget {
+  font-size: .75rem !important;
+  padding: 4px 8px !important;
+  opacity: .6 !important;
+}
+
+/* ═══════════════════════════════════════
+   12. KEEP FAB ABOVE STATUS BAR
+   ════════════════════════════════════════ */
+#ob-tools-fab { bottom: 28px !important; }
+#ob-tools-menu { bottom: 76px !important; }
+`;
+document.head.appendChild(css);
+
+
+/* ─── STATUS BAR ─── */
+var statusBar = document.createElement("div");
+statusBar.id = "ob-status-bar";
+document.body.appendChild(statusBar);
+
+function updateStatus() {
+  if (!window.TM) return;
+  var tasks = Object.values(window.TM);
+  var done = tasks.filter(function(t){ return localStorage.getItem("ob_done_"+t.id)==="1"; }).length;
+  var total = tasks.length;
+  var pct = total ? Math.round(done/total*100) : 0;
+  var day = Math.floor((Date.now()-new Date(localStorage.getItem("ob_start_date")||Date.now()).getTime())/86400000)+1;
+  var startTime = parseInt(sessionStorage.getItem("ob_session_start")||"0");
+  if (!startTime) { startTime = Date.now(); sessionStorage.setItem("ob_session_start", startTime); }
+  var secs = Math.round((Date.now()-startTime)/1000);
+  var sm = Math.floor(secs/60), ss = secs%60;
+  var xp = done*10 + tasks.filter(function(t){return (localStorage.getItem("ob_note_"+t.id)||"").length>50;}).length*5;
+
+  statusBar.innerHTML =
+    "<span>Day <b class='hi'>"+day+"</b></span><span class='sep'>|</span>" +
+    "<span><b class='hi'>"+done+"/"+total+"</b> done ("+pct+"%)</span><span class='sep'>|</span>" +
+    "<span>XP: <b class='hi'>"+xp+"</b></span><span class='sep'>|</span>" +
+    "<span>Session: "+sm+"m "+String(ss).padStart(2,"0")+"s</span>";
+}
+var _origUPstatus = window.updateProgress||function(){};
+window.updateProgress = function(){ _origUPstatus.apply(this,arguments); setTimeout(updateStatus,100); };
+setInterval(updateStatus, 10000);
+setTimeout(updateStatus, 1200);
+
+
+/* ─── NOTE TOOLBAR ─── */
+var TEMPLATES = [
+  {name:"+ Template", text:""},
+  {name:"Meeting",    text:"## Meeting\nDate: \nAttendees: \nPoints:\n- \nActions:\n- "},
+  {name:"Issue",      text:"## Issue\n\n## Steps\n1. \n\n## Resolution\n"},
+  {name:"Standup",    text:"Yesterday: \nToday: \nBlockers: "},
+  {name:"Reference",  text:"## Reference\nSource: \nDetails:\n- "}
+];
+
+function buildNoteBar(id) {
+  if (document.getElementById("ob-note-bar")) return;
+  var ta = document.getElementById("task-note");
+  if (!ta) return;
+
+  var bar = document.createElement("div");
+  bar.id = "ob-note-bar";
+
+  function wrapSel(open, close) {
+    var s = ta.selectionStart, e2 = ta.selectionEnd;
+    var sel = ta.value.substring(s,e2) || close.length ? "" : "text";
+    var rep = open + (ta.value.substring(s,e2)||"text") + close;
+    ta.value = ta.value.substring(0,s) + rep + ta.value.substring(e2);
+    ta.selectionStart = s + open.length;
+    ta.selectionEnd = s + open.length + (ta.value.substring(s,e2)||"text").length;
+    ta.focus(); ta.dispatchEvent(new Event("input"));
+  }
+
+  function makeBtn(label, title, fn) {
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = label; b.title = title;
+    b.addEventListener("click", fn);
+    return b;
+  }
+  function makeSep() {
+    var d = document.createElement("div"); d.className = "nb-sep"; return d;
+  }
+
+  // Format buttons
+  bar.appendChild(makeBtn("B","Bold (Ctrl+B)", function(){ wrapSel("**","**"); }));
+  bar.appendChild(makeBtn("I","Italic (Ctrl+I)", function(){ wrapSel("*","*"); }));
+  bar.appendChild(makeBtn("</>","Code", function(){ wrapSel("`","`"); }));
+  bar.appendChild(makeBtn("#","Heading", function(){ wrapSel("## ",""); }));
+  bar.appendChild(makeBtn("-","Bullet", function(){
+    var s=ta.selectionStart;
+    ta.value=ta.value.substring(0,s)+"- "+ta.value.substring(s);
+    ta.selectionStart=ta.selectionEnd=s+2; ta.focus(); ta.dispatchEvent(new Event("input"));
+  }));
+  bar.appendChild(makeSep());
+
+  // Template picker
+  var tpls = document.createElement("select"); tpls.title = "Insert template";
+  TEMPLATES.forEach(function(t,i){ var o=document.createElement("option");o.value=i;o.textContent=t.name;tpls.appendChild(o); });
+  tpls.addEventListener("change",function(){
+    var tmpl=TEMPLATES[parseInt(tpls.value)];if(!tmpl||!tmpl.text)return;
+    var s=ta.selectionStart;
+    ta.value=ta.value.substring(0,s)+(ta.value.length?"\n":"")+tmpl.text;
+    ta.focus();ta.dispatchEvent(new Event("input"));tpls.value="0";
+  });
+  bar.appendChild(tpls);
+  bar.appendChild(makeSep());
+
+  // Date stamp
+  bar.appendChild(makeBtn("\uD83D\uDCC5","Insert date",function(){
+    var s=ta.selectionStart;var stamp=new Date().toLocaleString()+": ";
+    ta.value=ta.value.substring(0,s)+stamp+ta.value.substring(s);
+    ta.selectionStart=ta.selectionEnd=s+stamp.length;ta.focus();ta.dispatchEvent(new Event("input"));
+  }));
+
+  // Copy note
+  bar.appendChild(makeBtn("\uD83D\uDCCB","Copy note",function(){
+    navigator.clipboard.writeText(ta.value).then(function(){
+      if(typeof window._showToast==="function")window._showToast("Note copied","info",1500);
+    }).catch(function(){});
+  }));
+
+  // Export .md
+  bar.appendChild(makeBtn("\u2B07 .md","Export as markdown",function(){
+    if(!ta.value.trim())return;
+    var blob=new Blob([ta.value],{type:"text/markdown"});
+    var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    var t2=window.TM&&window.TM[id]?window.TM[id].title:"task";
+    a.download=t2.replace(/[^a-z0-9]/gi,"_").substring(0,30)+"_note.md";
+    a.click();URL.revokeObjectURL(a.href);
+  }));
+
+  ta.parentNode.insertBefore(bar, ta);
+}
+
+var _origSD_nb = window.showTaskDetail||function(){};
+window.showTaskDetail = function(id) {
+  _origSD_nb.apply(this,arguments);
+  setTimeout(function(){ buildNoteBar(id); }, 300);
+};
+
+
+/* ─── SIDE PANELS: hover-reveal ─── */
+// The CSS handles opacity, but we also need hover on the tab element
+["ob781-recent","ob771-panel"].forEach(function(panelId){
+  setTimeout(function(){
+    var el = document.getElementById(panelId);
+    if (!el) return;
+    el.addEventListener("mouseenter", function(){ el.style.opacity="1"; el.style.pointerEvents="auto"; });
+    el.addEventListener("mouseleave", function(){ el.style.opacity="0"; el.style.pointerEvents="none"; });
+  }, 1500);
+});
+
+})();
+</script>
 </script></body></html>
