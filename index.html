@@ -22230,4 +22230,20 @@ window.showTaskDetail = function(id) {
 }
 </style>
 
+<style id="ob-cleanup4">
+/* === Cleanup Pass 4: remove redundant "Ask AI" button from detail panel ===
+   Context: imp598 made detail panel a side panel (max-width:600px), so the
+   AI chat is always visible to the left. The Ask AI button in the detail
+   panel is now a duplicate entry point — hide it.
+   Keep Share, Next, Print, Copy, etc. in detail-ask-row.
+*/
+button[onclick="askAboutTask()"] {
+  display: none !important;
+}
+/* Also tighten the detail-ask-row top margin since Ask AI was the biggest item */
+.detail-ask-row {
+  margin-top: 4px !important;
+}
+</style>
+
 </script></body></html>
