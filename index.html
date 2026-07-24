@@ -22156,4 +22156,78 @@ window.showTaskDetail = function(id) {
 
 })();
 </script>
+<style id="ob-cleanup3">
+/* === Cleanup Pass 3: floating conflicts + legacy imports + noisy note-detail items === */
+
+/* ob762-fab: note quick-edit FAB — conflicts with tools FAB; note-bar serves this role */
+#ob762-fab { display:none !important; }
+
+/* ob823-sw: stopwatch fixed overlay — overlaps tools FAB; relocate conceptually to detail */
+#ob823-sw { display:none !important; }
+
+/* Legacy import/export/paste/history controls superseded by tools FAB Export section */
+#_pasteTaskList,
+#_importState,
+#_exportState,
+#_noteHistBtn { display:none !important; }
+
+/* Compact stats overlay — redundant with status bar */
+#_compactStats617 { display:none !important; }
+
+/* Color/accent/font pickers — inline settings clutter; move to a future settings modal */
+#_colorMenu638,
+#_accentPicker,
+#_fontSizeWrap { display:none !important; }
+
+/* Bulk toolbar — redundant with ctrl-bar actions; hide until needed on selection */
+#_bulkToolbar { display:none !important; }
+
+/* Pomodoro timer widget — collapse to a single dot; expand on click via existing logic */
+#_pomTimerWidget {
+  position:fixed !important;
+  bottom:30px !important; left:10px !important;
+  width:8px !important; height:8px !important;
+  border-radius:50% !important;
+  background:var(--accent,#00ffa8) !important;
+  opacity:.25 !important;
+  overflow:hidden !important;
+  cursor:pointer !important;
+  transition:all .3s !important;
+  z-index:200 !important;
+}
+#_pomTimerWidget:hover {
+  width:160px !important; height:auto !important;
+  border-radius:8px !important;
+  opacity:1 !important;
+  overflow:visible !important;
+}
+
+/* Note-detail noise reduction:
+   ob805-heat: char-freq heatbar — too dense, hide
+   ob889-wg:   word-goal widget  — redundant with ob856-bar
+   ob841-warn: note warning      — keep but shrink
+   ob832-ind:  note indicator    — keep subtle
+   ob856-bar:  length progress   — keep (already compact)
+*/
+#ob805-heat { display:none !important; }
+#ob889-wg   { display:none !important; }
+
+#ob841-warn {
+  font-size:.6rem !important;
+  opacity:.5 !important;
+  padding:1px 4px !important;
+  margin:0 !important;
+}
+#ob832-ind {
+  font-size:.6rem !important;
+  opacity:.45 !important;
+}
+#ob856-bar {
+  height:2px !important;
+  border-radius:1px !important;
+  margin:2px 0 0 !important;
+  opacity:.6 !important;
+}
+</style>
+
 </script></body></html>
