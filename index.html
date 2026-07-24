@@ -21426,4 +21426,380 @@ function _exportChat(){
 
 })();
 </script>
+<script>
+/* UI CLEANUP — consolidate floating buttons into grouped toolbars */
+(function(){
+
+var css = document.createElement("style");
+css.textContent = `
+
+/* ── Hide all the individual floating buttons that we're replacing ── */
+#ob788-colexp,
+#ob814-flagfilter,
+#ob913-hide,
+#ob858-sort,
+#ob972-goal,
+#ob837-btn,
+#ob802-density,
+#ob801-theme,
+#ob866-sound,
+#ob902-fs,
+#ob886-allnotes,
+#ob904-wc,
+#ob927-chk,
+#ob914-print,
+#ob792-email,
+#ob974-btn,
+#ob984-sbtn,
+#ob994-json,
+#ob751-hint,
+#ob779-top,
+#ob867-first,
+#ob788-btn
+{ display: none !important; }
+
+/* ── TOP-LEFT: compact filter toolbar ── */
+#ob-ctrl-bar {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 850;
+  flex-wrap: wrap;
+  max-width: 200px;
+}
+#ob-ctrl-bar button {
+  background: var(--panel, #0e2016);
+  border: 1px solid var(--border, #1e3828);
+  border-radius: 5px;
+  color: var(--muted, #7a9f8a);
+  cursor: pointer;
+  font-size: .7rem;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+#ob-ctrl-bar button.active {
+  border-color: var(--accent, #00ffa8);
+  color: var(--accent, #00ffa8);
+}
+#ob-ctrl-bar button:hover { opacity: .8; }
+
+/* ── TOP-RIGHT: view settings bar ── */
+#ob-view-bar {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 850;
+}
+#ob-view-bar button {
+  background: var(--panel, #0e2016);
+  border: 1px solid var(--border, #1e3828);
+  border-radius: 5px;
+  color: var(--muted, #7a9f8a);
+  cursor: pointer;
+  font-size: .7rem;
+  padding: 3px 9px;
+}
+#ob-view-bar button.active {
+  border-color: var(--accent, #00ffa8);
+  color: var(--accent, #00ffa8);
+}
+#ob-view-bar button:hover { opacity: .8; }
+
+/* ── BOTTOM-RIGHT: tools FAB + menu ── */
+#ob-tools-fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--panel, #0e2016);
+  border: 1px solid var(--border, #1e3828);
+  color: var(--muted, #7a9f8a);
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 820;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.4);
+  transition: border-color .15s, color .15s;
+}
+#ob-tools-fab.open {
+  border-color: var(--accent, #00ffa8);
+  color: var(--accent, #00ffa8);
+}
+#ob-tools-menu {
+  position: fixed;
+  bottom: 70px;
+  right: 12px;
+  background: var(--panel, #0e2016);
+  border: 1px solid var(--border, #1e3828);
+  border-radius: 10px;
+  padding: 6px 0;
+  z-index: 819;
+  min-width: 170px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+  display: none;
+}
+#ob-tools-menu.open { display: block; }
+.ob-tool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: .8rem;
+  cursor: pointer;
+  color: var(--text, #e0efe0);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.ob-tool-item:hover { background: rgba(255,255,255,.05); }
+.ob-tool-sep {
+  height: 1px;
+  background: var(--border, #1e3828);
+  margin: 4px 0;
+}
+`;
+document.head.appendChild(css);
+
+/* ── Build TOP-LEFT control bar ── */
+var ctrlBar = document.createElement("div");
+ctrlBar.id = "ob-ctrl-bar";
+
+function makeCtrl(label, title, onClick, getActive) {
+  var btn = document.createElement("button");
+  btn.textContent = label;
+  btn.title = title;
+  btn.addEventListener("click", function() {
+    onClick(btn);
+    if (getActive) btn.classList.toggle("active", getActive());
+  });
+  if (getActive) btn.classList.toggle("active", getActive());
+  return btn;
+}
+
+// Collapse All
+var collapseAll = false;
+ctrlBar.appendChild(makeCtrl("Collapse", "Collapse/expand all phases", function(btn) {
+  collapseAll = !collapseAll;
+  btn.classList.toggle("active", collapseAll);
+  document.querySelectorAll(".phase-content,.phase-tasks").forEach(function(el) {
+    el.style.display = collapseAll ? "none" : "";
+  });
+}));
+
+// Flagged filter
+var flagActive = false;
+ctrlBar.appendChild(makeCtrl("Flagged", "Show only flagged tasks", function(btn) {
+  flagActive = !flagActive;
+  btn.classList.toggle("active", flagActive);
+  document.querySelectorAll(".task-card,.ob-task").forEach(function(card) {
+    var id = card.dataset.id || card.dataset.taskId; if (!id) return;
+    var f = localStorage.getItem("ob_flag_" + id) || "none";
+    card.style.display = flagActive ? (f !== "none" ? "" : "none") : "";
+  });
+}));
+
+// Hide done
+var hideDone = localStorage.getItem("ob_hide_done") === "1";
+var hideDoneBtn = makeCtrl(hideDone ? "Show Done" : "Hide Done", "Toggle completed tasks", function(btn) {
+  hideDone = !hideDone;
+  localStorage.setItem("ob_hide_done", hideDone ? "1" : "0");
+  btn.textContent = hideDone ? "Show Done" : "Hide Done";
+  btn.classList.toggle("active", hideDone);
+  document.querySelectorAll(".task-card,.ob-task").forEach(function(card) {
+    var id = card.dataset.id || card.dataset.taskId; if (!id) return;
+    var done = localStorage.getItem("ob_done_" + id) === "1";
+    if (hideDone && done) card.style.display = "none";
+    else if (!done) card.style.display = "";
+  });
+});
+hideDoneBtn.classList.toggle("active", hideDone);
+ctrlBar.appendChild(hideDoneBtn);
+
+document.body.appendChild(ctrlBar);
+
+/* ── Build TOP-RIGHT view bar ── */
+var viewBar = document.createElement("div");
+viewBar.id = "ob-view-bar";
+
+// Fullscreen
+viewBar.appendChild(makeCtrl("⛶", "Toggle fullscreen", function(btn) {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(function(){});
+    btn.classList.add("active");
+  } else {
+    document.exitFullscreen();
+    btn.classList.remove("active");
+  }
+}));
+document.addEventListener("fullscreenchange", function() {
+  var fsBtn = viewBar.querySelector("button:first-child");
+  if (fsBtn) fsBtn.classList.toggle("active", !!document.fullscreenElement);
+});
+
+// Sound toggle
+var soundOn = localStorage.getItem("ob_sound_on") !== "0";
+var soundBtn = makeCtrl(soundOn ? "🔊" : "🔇", "Toggle sounds", function(btn) {
+  soundOn = !soundOn;
+  localStorage.setItem("ob_sound_on", soundOn ? "1" : "0");
+  btn.textContent = soundOn ? "🔊" : "🔇";
+});
+viewBar.appendChild(soundBtn);
+
+// Focus mode
+var focusOn = false;
+viewBar.appendChild(makeCtrl("Focus", "Focus mode", function(btn) {
+  focusOn = !focusOn;
+  document.body.classList.toggle("ob837-focus", focusOn);
+  btn.classList.toggle("active", focusOn);
+}));
+
+// Compact density
+var compact = localStorage.getItem("ob_compact") === "1";
+var compactBtn = makeCtrl("Compact", "Toggle compact list", function(btn) {
+  compact = !compact;
+  localStorage.setItem("ob_compact", compact ? "1" : "0");
+  document.body.classList.toggle("ob802-compact", compact);
+  btn.classList.toggle("active", compact);
+});
+compactBtn.classList.toggle("active", compact);
+viewBar.appendChild(compactBtn);
+
+// Light mode
+var isLight = localStorage.getItem("ob_light_mode") === "1";
+var lightBtn = makeCtrl(isLight ? "🌙" : "☀", "Light/dark mode", function(btn) {
+  isLight = !isLight;
+  localStorage.setItem("ob_light_mode", isLight ? "1" : "0");
+  btn.textContent = isLight ? "🌙" : "☀";
+  if (isLight) {
+    document.documentElement.style.setProperty("--bg","#f4f6f0");
+    document.documentElement.style.setProperty("--panel","#ffffff");
+    document.documentElement.style.setProperty("--border","#ccd6cc");
+    document.documentElement.style.setProperty("--text","#1a2e1a");
+    document.documentElement.style.setProperty("--muted","#5a7a5a");
+  } else {
+    document.documentElement.style.setProperty("--bg","#06120c");
+    document.documentElement.style.setProperty("--panel","#0e2016");
+    document.documentElement.style.setProperty("--border","#1e3828");
+    document.documentElement.style.setProperty("--text","#e0efe0");
+    document.documentElement.style.setProperty("--muted","#7a9f8a");
+  }
+});
+viewBar.appendChild(lightBtn);
+
+document.body.appendChild(viewBar);
+
+/* ── Build TOOLS FAB + menu ── */
+var fab = document.createElement("button");
+fab.id = "ob-tools-fab";
+fab.title = "Tools menu";
+fab.textContent = "⚙";
+document.body.appendChild(fab);
+
+var menu = document.createElement("div");
+menu.id = "ob-tools-menu";
+document.body.appendChild(menu);
+
+fab.addEventListener("click", function(e) {
+  e.stopPropagation();
+  var open = menu.classList.toggle("open");
+  fab.classList.toggle("open", open);
+});
+document.addEventListener("click", function() {
+  menu.classList.remove("open");
+  fab.classList.remove("open");
+});
+menu.addEventListener("click", function(e) { e.stopPropagation(); });
+
+function addTool(icon, label, fn) {
+  var btn = document.createElement("button");
+  btn.className = "ob-tool-item";
+  btn.innerHTML = "<span>" + icon + "</span><span>" + label + "</span>";
+  btn.addEventListener("click", function() {
+    menu.classList.remove("open");
+    fab.classList.remove("open");
+    fn();
+  });
+  menu.appendChild(btn);
+}
+function addSep() {
+  var sep = document.createElement("div");
+  sep.className = "ob-tool-sep";
+  menu.appendChild(sep);
+}
+
+// Notes
+addTool("📝", "Search Notes", function() {
+  var m2 = document.getElementById("ob984-modal");
+  if (m2) { m2.style.display = "block"; setTimeout(function(){var i=document.getElementById("ob984-inp");if(i)i.focus();},50); }
+});
+addTool("📦", "Export All Notes", function() {
+  if (!window.TM) return;
+  var lines = [];
+  Object.values(window.TM).forEach(function(t) {
+    var note = localStorage.getItem("ob_note_" + t.id) || "";
+    if (!note.trim()) return;
+    lines.push("# " + t.title); lines.push(note); lines.push("");
+  });
+  if (!lines.length) { if (typeof window._showToast === "function") window._showToast("No notes to export","info",2000); return; }
+  var blob = new Blob([lines.join("\n")], {type:"text/plain"});
+  var a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "onboarding_notes_" + new Date().toISOString().substring(0,10) + ".txt";
+  a.click(); URL.revokeObjectURL(a.href);
+});
+addTool("💾", "Export JSON", function() {
+  var btn = document.getElementById("ob994-json");
+  if (btn) { btn.style.display = "inline-flex"; btn.click(); btn.style.display = "none"; }
+});
+
+addSep();
+
+// Task actions
+addTool("☁", "Word Cloud", function() {
+  var btn = document.getElementById("ob904-wc");
+  if (btn) { btn.style.display = "inline-flex"; btn.click(); btn.style.display = "none"; }
+});
+addTool("📊", "Phase Stats", function() {
+  var btn = document.getElementById("ob974-btn");
+  if (btn) { btn.style.display = "inline-flex"; btn.click(); btn.style.display = "none"; }
+});
+addTool("✉", "Draft Email", function() {
+  var btn = document.getElementById("ob792-email");
+  if (btn) { btn.style.display = "inline-flex"; btn.click(); btn.style.display = "none"; }
+});
+addTool("✅", "Copy Checklist", function() {
+  var btn = document.getElementById("ob927-chk");
+  if (btn) { btn.style.display = "inline-flex"; btn.click(); btn.style.display = "none"; }
+});
+addTool("🖨", "Print Summary", function() {
+  var btn = document.getElementById("ob914-print");
+  if (btn) { btn.style.display = "inline-flex"; btn.click(); btn.style.display = "none"; }
+});
+
+addSep();
+
+// Navigation
+addTool("▲ Top", "Scroll to top", function() { window.scrollTo({top:0,behavior:"smooth"}); });
+addTool("▶ Next Task", "Jump to first incomplete", function() {
+  if (!window.TM) return;
+  var first = Object.values(window.TM).find(function(t){return localStorage.getItem("ob_done_"+t.id)!=="1";});
+  if (!first) return;
+  var card = document.querySelector("[data-id='" + first.id + "'],[data-task-id='" + first.id + "']");
+  if (card) card.scrollIntoView({behavior:"smooth",block:"center"});
+});
+addTool("? Shortcuts", "Keyboard shortcuts", function() {
+  var ov = document.getElementById("ob751-overlay");
+  if (ov) ov.style.display = "block";
+});
+
+})();
+</script>
 </script></body></html>
